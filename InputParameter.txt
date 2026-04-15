@@ -1,0 +1,11 @@
+b = 0.000000000086        //Baryon chemical potential in MeV
+le = -0.00000000004           //Electron chemical potential in MeV
+lmu = -0.00000000004          //Muon chemical potential in MeV
+ltau = -0.00000000004        //Tau chemical potential in MeV
+dT = 0.1            //Temperature step in MeV
+Tmin = 50.0         //Initial temperature in MeV
+Tmax = 500.0        //Final temperature in MeV
+nf = 3             //"3" for three flavors QGP, "4" for four flavors QGP
+eos = 1             //"0" for free QGP, "1" for lattice QCD, "2" for Interpolated Table (EoS_Table.txt)
+guessMethod = 1     //"0" for simple (previous solution), "1" for linear extrapolation
+scanDirection = 0   //"0" for low to high T, "1" for high to low T
