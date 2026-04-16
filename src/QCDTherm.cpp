@@ -25,7 +25,11 @@ int getEoS() { return currentEoS; }
 void cleanup() {
   if (currentEoS == 1) {
     LatticeQCD::cleanup();
-  } else if (currentEoS == 2) {
+  }
+  
+  if (currentEoS != 2) {
+    // If we are running a simulation that does NOT use the Interpolated EoS,
+    // we should free its memory to release RAM.
     InterpolatedEoS::cleanup();
   }
 }

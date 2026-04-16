@@ -13,7 +13,7 @@ This application solves the evolution of chemical potentials ($\mu_B$, $\mu_Q$, 
 - **Physics Models (EoS)**:
   - Free Quark Gluon Plasma (QGP, 3-flavor or 4-flavor with Charm).
   - Lattice QCD-based EoS (3-flavor or 4-flavor with Charm).
-  - External Tabulated EoS (Import CSV/TXT tables).
+  - External Tabulated EoS (Import CSV/TXT tables). Featuring **Smart RAM Caching**: heavy tables are loaded into memory once and kept alive for subsequent and comparative runs to significantly boost performance. Memory is automatically freed when you switch away from the custom EoS.
 - **Visualization**:
   - High-quality, synchronized Log-Log charts.
   - Interactive legends with styled line indicators (dashed, dotted, solid).

@@ -21,6 +21,7 @@ static std::vector<double> data_nQ;
 static std::vector<double> data_s;
 
 static bool loaded = false;
+static std::string current_filename = "";
 
 // Helper to determine grid index. Returns index 'i' such that grid[i] <= val <
 // grid[i+1]. Uses std::lower_bound.
@@ -59,6 +60,11 @@ static int get_index(const std::vector<double> &grid, double val) {
 }
 
 void loadTable(const std::string &filename) {
+  if (loaded && current_filename == filename) {
+    std::cout << "InterpolatedEoS: Table '" << filename << "' is already loaded in memory. Skipping reload." << std::endl;
+    return;
+  }
+
   if (loaded)
     cleanup();
 
@@ -213,6 +219,7 @@ void loadTable(const std::string &filename) {
   }
 
   loaded = true;
+  current_filename = filename;
   std::cout << "InterpolatedEoS: Loaded table. Grid: T[" << NT << "] x muB["
             << NB << "] x muQ[" << NQ << "]";
   if (filled_count > 0) {
@@ -298,6 +305,10 @@ double getTmax() {
   return T_grid.back();
 }
 
+std::string getLoadedFilename() {
+  return current_filename;
+}
+
 void cleanup() {
   T_grid.clear();
   muB_grid.clear();
@@ -306,6 +317,7 @@ void cleanup() {
   data_nQ.clear();
   data_s.clear();
   loaded = false;
+  current_filename = "";
 }
 
 } // namespace InterpolatedEoS

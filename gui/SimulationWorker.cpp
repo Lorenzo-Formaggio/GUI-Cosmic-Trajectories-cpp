@@ -27,8 +27,12 @@ void SimulationWorker::run() {
     double effectiveTmin = Tmin;
     double effectiveTmax = Tmax;
     if (eos == 2) {
-      emit logMessage("Loading interpolated EoS table...");
-      InterpolatedEoS::loadTable(eosTablePath);
+      if (InterpolatedEoS::isLoaded() && InterpolatedEoS::getLoadedFilename() == eosTablePath) {
+        emit logMessage("Interpolated EoS table is already in memory. Skipping reload.");
+      } else {
+        emit logMessage("Loading interpolated EoS table... (This may take a moment)");
+        InterpolatedEoS::loadTable(eosTablePath);
+      }
       if (InterpolatedEoS::isLoaded()) {
         effectiveTmin = InterpolatedEoS::getTmin();
         effectiveTmax = InterpolatedEoS::getTmax();

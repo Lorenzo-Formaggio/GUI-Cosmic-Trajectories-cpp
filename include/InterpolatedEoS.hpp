@@ -53,6 +53,11 @@ double getTmax();
 bool isLoaded();
 
 /**
+ * @brief Get the path to the currently loaded EoS table.
+ */
+std::string getLoadedFilename();
+
+/**
  * @brief Free memory and reset the module.
  */
 void cleanup();
