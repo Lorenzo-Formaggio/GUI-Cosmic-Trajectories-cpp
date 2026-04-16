@@ -13,6 +13,7 @@
 #include <fstream>
 
 void SimulationWorker::run() {
+  m_stopRequested = false;
   try {
     // ── Initialization ────────────────────────────────────────────────────
     emit logMessage("Initializing JEL tables...");
@@ -100,6 +101,11 @@ void SimulationWorker::run() {
     for (double T = Tstart;
          (scanDirection == 0) ? (T <= Tend) : (T >= Tend);
          T += Tstep) {
+
+      if (m_stopRequested) {
+        emit logMessage("🛑 Simulation stopped by user.");
+        break;
+      }
 
       std::vector<Solver::SystemFunction> functions =
           GetEq::getEquations(T, le, lmu, ltau, b, nf);

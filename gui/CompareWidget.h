@@ -50,6 +50,7 @@ struct SlotConfig {
   QLabel      *labelEosPath   = nullptr;
 
   QPushButton *btnRun   = nullptr;
+  QPushButton *btnStop  = nullptr;
   QPushButton *btnClear = nullptr;
   QLabel      *statusLabel = nullptr;
 

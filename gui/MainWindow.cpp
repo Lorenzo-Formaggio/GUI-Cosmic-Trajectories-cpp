@@ -247,13 +247,25 @@ void MainWindow::createParameterPanel(QWidget *parent) {
 
   layout->addLayout(grid);
 
+  QHBoxLayout *runStopLayout = new QHBoxLayout();
   m_btnRun = new QPushButton("▶ Run Simulation");
   m_btnRun->setMinimumHeight(40);
   m_btnRun->setStyleSheet("QPushButton { background-color: #28a745; color: white; border-radius: 4px; font-weight: bold; } "
                           "QPushButton:hover { background-color: #218838; } "
                           "QPushButton:disabled { background-color: #5a6268; color: #c0c0c0; }");
   connect(m_btnRun, &QPushButton::clicked, this, &MainWindow::onRunClicked);
-  layout->addWidget(m_btnRun);
+  
+  m_btnStop = new QPushButton("⏹ Stop");
+  m_btnStop->setMinimumHeight(40);
+  m_btnStop->setEnabled(false);
+  m_btnStop->setStyleSheet("QPushButton { background-color: #dc3545; color: white; border-radius: 4px; font-weight: bold; } "
+                           "QPushButton:hover { background-color: #c82333; } "
+                           "QPushButton:disabled { background-color: #5a6268; color: #c0c0c0; }");
+  connect(m_btnStop, &QPushButton::clicked, this, &MainWindow::onStopClicked);
+
+  runStopLayout->addWidget(m_btnRun);
+  runStopLayout->addWidget(m_btnStop);
+  layout->addLayout(runStopLayout);
 
   m_btnExportFullData = new QPushButton("💾 Export Full Dataset");
   m_btnExportFullData->setMinimumHeight(30);
@@ -398,6 +410,7 @@ void MainWindow::clearCharts(bool keepData) {
 
 void MainWindow::onRunClicked() {
   m_btnRun->setEnabled(false);
+  m_btnStop->setEnabled(true);
   m_btnExportFullData->setEnabled(false);
   m_console->clear();
   m_progressBar->setValue(0);
@@ -447,6 +460,14 @@ void MainWindow::onRunClicked() {
   connect(m_worker, &SimulationWorker::simulationError, this, &MainWindow::onSimulationError);
 
   m_workerThread->start();
+}
+
+void MainWindow::onStopClicked() {
+  if (m_worker) {
+    m_worker->stop();
+    m_btnStop->setEnabled(false);
+    m_statusLabel->setText("Stopping...");
+  }
 }
 
 void MainWindow::onStepCompleted(TrajectoryPoint pt) {
@@ -582,6 +603,7 @@ void MainWindow::onProgressUpdated(int pct) {
 
 void MainWindow::onSimulationFinished() {
   m_btnRun->setEnabled(true);
+  m_btnStop->setEnabled(false);
   m_btnExportFullData->setEnabled(true);
   m_statusLabel->setText("Complete");
   m_statusLabel->setStyleSheet("color: #28a745; font-weight: bold;"); // Green
@@ -589,6 +611,7 @@ void MainWindow::onSimulationFinished() {
 
 void MainWindow::onSimulationError(const QString &msg) {
   m_btnRun->setEnabled(true);
+  m_btnStop->setEnabled(false);
   m_btnExportFullData->setEnabled(true);
   m_console->append("<font color='red'><b>Error:</b> " + msg + "</font>");
   m_statusLabel->setText("Failed");

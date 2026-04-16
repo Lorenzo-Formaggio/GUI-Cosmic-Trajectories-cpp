@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QString>
 #include <vector>
+#include <atomic>
 
 /**
  * @brief Holds per-step results emitted to the GUI.
@@ -58,6 +59,11 @@ public slots:
    */
   void run();
 
+  /**
+   * @brief Requests the simulation to stop. Thread-safe.
+   */
+  void stop() { m_stopRequested = true; }
+
 signals:
   /** Emitted once per temperature step with the computed values. */
   void stepCompleted(TrajectoryPoint point);
@@ -73,6 +79,9 @@ signals:
 
   /** Emitted on error. */
   void simulationError(const QString &errorMsg);
+
+private:
+  std::atomic<bool> m_stopRequested{false};
 };
 
 #endif // SIMULATIONWORKER_H

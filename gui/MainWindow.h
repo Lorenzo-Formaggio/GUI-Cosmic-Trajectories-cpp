@@ -40,6 +40,7 @@ public:
 
 private slots:
   void onRunClicked();
+  void onStopClicked();
   void onStepCompleted(TrajectoryPoint point);
   void onSimulationFinished();
   void onSimulationError(const QString &msg);
@@ -83,6 +84,7 @@ private:
 
   // ── Control widgets ─────────────────────────────────────────────────
   QPushButton  *m_btnRun;
+  QPushButton  *m_btnStop;
   QProgressBar *m_progressBar;
   QTextEdit    *m_console;
   QLabel       *m_statusLabel;

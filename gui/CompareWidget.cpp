@@ -276,6 +276,19 @@ void CompareWidget::createSlotPanel(QWidget *parent) {
     connect(s.btnRun, &QPushButton::clicked, [this, idx] { runSlot(idx); });
     btnLayout->addWidget(s.btnRun);
 
+    s.btnStop = new QPushButton("⏹ Stop");
+    s.btnStop->setEnabled(false);
+    s.btnStop->setStyleSheet(
+        "QPushButton { background-color: #dc3545; color: white; border-radius: 4px; font-weight: bold; padding: 6px; } "
+        "QPushButton:disabled { background-color: #aaa; }");
+    connect(s.btnStop, &QPushButton::clicked, [this, idx]() {
+        if (m_slots[idx].worker) {
+            m_slots[idx].worker->stop();
+            m_slots[idx].btnStop->setEnabled(false);
+        }
+    });
+    btnLayout->addWidget(s.btnStop);
+
     s.btnClear = new QPushButton("✕ Clear");
     connect(s.btnClear, &QPushButton::clicked, [this, idx] { clearSlot(idx); });
     btnLayout->addWidget(s.btnClear);
@@ -394,6 +407,7 @@ void CompareWidget::runSlot(int idx) {
   s.statusLabel->setStyleSheet(
       QString("color: %1; font-weight: bold;").arg(s.color.name()));
   s.btnRun->setEnabled(false);
+  s.btnStop->setEnabled(true);
 
   s.thread = new QThread();
   s.worker = new SimulationWorker();
@@ -451,12 +465,14 @@ void CompareWidget::runSlot(int idx) {
 
   connect(s.worker, &SimulationWorker::simulationFinished, [this, idx]() {
     m_slots[idx].btnRun->setEnabled(true);
+    m_slots[idx].btnStop->setEnabled(false);
     m_slots[idx].statusLabel->setText("✓ Done");
   });
 
   connect(s.worker, &SimulationWorker::simulationError,
           [this, idx](const QString &msg) {
     m_slots[idx].btnRun->setEnabled(true);
+    m_slots[idx].btnStop->setEnabled(false);
     m_slots[idx].statusLabel->setText("✗ Error");
     m_slots[idx].statusLabel->setStyleSheet("color: red; font-weight: bold;");
     m_slots[idx].statusLabel->setToolTip(msg);
