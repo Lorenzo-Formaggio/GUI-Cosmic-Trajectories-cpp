@@ -29,6 +29,7 @@
 #include <QtCharts/QChart>
 #include <QtCharts/QChartView>
 #include <QtCharts/QLineSeries>
+#include <QtCharts/QScatterSeries>
 #include <QtCharts/QLogValueAxis>
 #include <QtCharts/QValueAxis>
 #include "TooltipChartView.h"
@@ -247,6 +248,12 @@ void MainWindow::createParameterPanel(QWidget *parent) {
 
   layout->addLayout(grid);
 
+  m_btnCriticalPoint = new QPushButton("📍 Configure Critical Point...");
+  m_btnCriticalPoint->setStyleSheet("QPushButton { background-color: #6f42c1; color: white; border-radius: 4px; font-weight: bold; padding: 5px; } "
+                                     "QPushButton:hover { background-color: #5a32a3; }");
+  connect(m_btnCriticalPoint, &QPushButton::clicked, this, &MainWindow::onCriticalPointButtonClicked);
+  layout->addWidget(m_btnCriticalPoint);
+
   QHBoxLayout *runStopLayout = new QHBoxLayout();
   m_btnRun = new QPushButton("▶ Run Simulation");
   m_btnRun->setMinimumHeight(40);
@@ -344,6 +351,11 @@ void MainWindow::createChartPanel(QWidget *parent) {
   m_seriesMuQ = new QLineSeries(); m_seriesMuQ->setName("|μQ|"); m_seriesMuQ->setColor(QColor(128, 0, 128));
   c2->addSeries(m_seriesMuB); m_seriesMuB->attachAxis(m_muAxisX); m_seriesMuB->attachAxis(m_muAxisY);
   c2->addSeries(m_seriesMuQ); m_seriesMuQ->attachAxis(m_muAxisX); m_seriesMuQ->attachAxis(m_muAxisY);
+
+  m_seriesCpB = new QScatterSeries(); m_seriesCpB->setName("CP |μB|"); m_seriesCpB->setMarkerShape(QScatterSeries::MarkerShapeStar); m_seriesCpB->setMarkerSize(12.0); m_seriesCpB->setColor(Qt::red); m_seriesCpB->setBorderColor(Qt::black);
+  m_seriesCpQ = new QScatterSeries(); m_seriesCpQ->setName("CP |μQ|"); m_seriesCpQ->setMarkerShape(QScatterSeries::MarkerShapeStar); m_seriesCpQ->setMarkerSize(12.0); m_seriesCpQ->setColor(QColor(128, 0, 128)); m_seriesCpQ->setBorderColor(Qt::black);
+  c2->addSeries(m_seriesCpB); m_seriesCpB->attachAxis(m_muAxisX); m_seriesCpB->attachAxis(m_muAxisY); m_seriesCpB->setVisible(false);
+  c2->addSeries(m_seriesCpQ); m_seriesCpQ->attachAxis(m_muAxisX); m_seriesCpQ->attachAxis(m_muAxisY); m_seriesCpQ->setVisible(false);
 
   // Lepton chem pots tab
   setupChart(m_leptonChartView, c3, m_lepAxisX, m_lepAxisY, "Lepton Chemical Potentials", "Chem Pot [MeV] (abs)");
@@ -649,6 +661,7 @@ void MainWindow::onThemeToggleClicked() {
 void MainWindow::onAxisToggleClicked() {
   m_tempIsVertical = !m_tempIsVertical;
   replotData();
+  updateCriticalPoint();
 }
 
 void MainWindow::replotData() {
@@ -769,6 +782,8 @@ void MainWindow::onScaleToggleClicked() {
 
     m_seriesMuB->attachAxis(m_muAxisX);  m_seriesMuB->attachAxis(m_muAxisY);
     m_seriesMuQ->attachAxis(m_muAxisX);  m_seriesMuQ->attachAxis(m_muAxisY);
+    m_seriesCpB->attachAxis(m_muAxisX);  m_seriesCpB->attachAxis(m_muAxisY);
+    m_seriesCpQ->attachAxis(m_muAxisX);  m_seriesCpQ->attachAxis(m_muAxisY);
 
     m_seriesMunue->attachAxis(m_lepAxisX);  m_seriesMunue->attachAxis(m_lepAxisY);
     m_seriesMunumu->attachAxis(m_lepAxisX); m_seriesMunumu->attachAxis(m_lepAxisY);
@@ -786,6 +801,7 @@ void MainWindow::onScaleToggleClicked() {
     if (!m_trajectoryData.isEmpty()) {
         replotData();
     }
+    updateCriticalPoint();
 }
 
 void MainWindow::updateAxesTypes() {
@@ -909,6 +925,74 @@ void MainWindow::onExportFullDataClicked() {
   }
   file.close();
   QMessageBox::information(this, "Success", "Full dataset exported successfully.");
+}
+
+void MainWindow::onCriticalPointButtonClicked() {
+  if (!m_cpDialog) {
+    m_cpDialog = new QDialog(this);
+    m_cpDialog->setWindowTitle("Configure Critical Point");
+    m_cpDialog->setMinimumWidth(300);
+
+    QVBoxLayout *vbox = new QVBoxLayout(m_cpDialog);
+    QGridLayout *grid = new QGridLayout();
+
+    m_spinCpT = new QDoubleSpinBox(m_cpDialog); m_spinCpT->setRange(0, 10000); m_spinCpT->setValue(120); m_spinCpT->setDecimals(1);
+    m_spinCpMuB = new QDoubleSpinBox(m_cpDialog); m_spinCpMuB->setRange(0, 10000); m_spinCpMuB->setValue(600); m_spinCpMuB->setDecimals(1);
+    m_spinCpMuQ = new QDoubleSpinBox(m_cpDialog); m_spinCpMuQ->setRange(-10000, 10000); m_spinCpMuQ->setValue(0); m_spinCpMuQ->setDecimals(1);
+    
+    grid->addWidget(new QLabel("Temperature T [MeV]:"), 0, 0); grid->addWidget(m_spinCpT, 0, 1);
+    grid->addWidget(new QLabel("Baryon Pot. |μB| [MeV]:"), 1, 0); grid->addWidget(m_spinCpMuB, 1, 1);
+    grid->addWidget(new QLabel("Charge Pot. |μQ| [MeV]:"), 2, 0); grid->addWidget(m_spinCpMuQ, 2, 1);
+
+    m_chkShowCp = new QCheckBox("Show on Plot", m_cpDialog);
+    m_chkShowCp->setChecked(false);
+    
+    vbox->addLayout(grid);
+    vbox->addWidget(m_chkShowCp);
+
+    QPushButton *btnClose = new QPushButton("Close", m_cpDialog);
+    connect(btnClose, &QPushButton::clicked, m_cpDialog, &QDialog::accept);
+    vbox->addWidget(btnClose);
+
+    auto cpUpdate = [this](double) { updateCriticalPoint(); };
+    connect(m_spinCpT, &QDoubleSpinBox::valueChanged, this, cpUpdate);
+    connect(m_spinCpMuB, &QDoubleSpinBox::valueChanged, this, cpUpdate);
+    connect(m_spinCpMuQ, &QDoubleSpinBox::valueChanged, this, cpUpdate);
+    connect(m_chkShowCp, &QCheckBox::toggled, this, &MainWindow::updateCriticalPoint);
+  }
+  m_cpDialog->show();
+  m_cpDialog->raise();
+  m_cpDialog->activateWindow();
+}
+
+void MainWindow::updateCriticalPoint() {
+  m_seriesCpB->clear();
+  m_seriesCpQ->clear();
+  
+  if (m_chkShowCp->isChecked()) {
+    double t = m_spinCpT->value();
+    double mub = std::abs(m_spinCpMuB->value());
+    double muq = std::abs(m_spinCpMuQ->value());
+
+    auto val = [this](double v) {
+      if (m_isLogScale) return std::max(std::abs(v), 1e-15);
+      return v;
+    };
+
+    if (m_tempIsVertical) {
+      m_seriesCpB->append(val(mub), t);
+      m_seriesCpQ->append(val(muq), t);
+    } else {
+      m_seriesCpB->append(t, val(mub));
+      m_seriesCpQ->append(t, val(muq));
+    }
+    
+    m_seriesCpB->setVisible(true);
+    m_seriesCpQ->setVisible(true);
+  } else {
+    m_seriesCpB->setVisible(false);
+    m_seriesCpQ->setVisible(false);
+  }
 }
 
 

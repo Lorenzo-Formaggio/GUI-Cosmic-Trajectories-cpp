@@ -23,6 +23,7 @@ class QLineEdit;
 #include <QtCharts/QLogValueAxis>
 #include <QtCharts/QValueAxis>
 #include <QtCharts/QAbstractAxis>
+#include <QtCharts/QScatterSeries>
 #include "TooltipChartView.h"
 
 /**
@@ -52,6 +53,8 @@ private slots:
   void onScaleToggleClicked();
   void onExportClicked();
   void onExportFullDataClicked();
+  void onCriticalPointButtonClicked();
+  void updateCriticalPoint();
 
 private:
   void setupUi();
@@ -82,9 +85,17 @@ private:
   QPushButton    *m_btnBrowseEos;
   QLabel         *m_labelEosPath;
 
+  // ── Critical point widgets ──────────────────────────────────────────
+  QDoubleSpinBox *m_spinCpT;
+  QDoubleSpinBox *m_spinCpMuB;
+  QDoubleSpinBox *m_spinCpMuQ;
+  QCheckBox      *m_chkShowCp;
+
   // ── Control widgets ─────────────────────────────────────────────────
-  QPushButton  *m_btnRun;
-  QPushButton  *m_btnStop;
+  QPushButton    *m_btnRun;
+  QPushButton    *m_btnStop;
+  QPushButton    *m_btnCriticalPoint;
+  QDialog        *m_cpDialog = nullptr;
   QProgressBar *m_progressBar;
   QTextEdit    *m_console;
   QLabel       *m_statusLabel;
@@ -117,6 +128,8 @@ private:
   TooltipChartView *m_muChartView;
   QLineSeries *m_seriesMuB;
   QLineSeries *m_seriesMuQ;
+  QScatterSeries *m_seriesCpB;
+  QScatterSeries *m_seriesCpQ;
 
   // Tab 3: Lepton μ
   TooltipChartView *m_leptonChartView;

@@ -23,6 +23,7 @@ class QLineEdit;
 #include <QtCharts/QLogValueAxis>
 #include <QtCharts/QValueAxis>
 #include <QtCharts/QAbstractAxis>
+#include <QtCharts/QScatterSeries>
 #include "TooltipChartView.h"
 
 static constexpr int NUM_SLOTS = 5;
@@ -97,6 +98,8 @@ private:
   void onAxisToggleClicked();
   void onScaleToggleClicked();
   void onExportClicked();
+  void onCriticalPointButtonClicked();
+  void updateCriticalPoint();
 
   QString m_workingDir;
   SlotConfig m_slots[NUM_SLOTS];
@@ -104,6 +107,8 @@ private:
   QPushButton  *m_btnThemeToggle = nullptr;
   QPushButton  *m_btnAxisToggle  = nullptr;
   QPushButton  *m_btnScaleToggle = nullptr;
+  QPushButton  *m_btnCriticalPoint = nullptr;
+  QDialog      *m_cpDialog       = nullptr;
 
   QCheckBox *m_chknB      = nullptr;
   QCheckBox *m_chkS       = nullptr;
@@ -113,6 +118,15 @@ private:
   QCheckBox *m_chkMunue   = nullptr;
   QCheckBox *m_chkMunumu  = nullptr;
   QCheckBox *m_chkMnutau  = nullptr;
+
+  // Critical point widgets
+  QDoubleSpinBox *m_spinCpT   = nullptr;
+  QDoubleSpinBox *m_spinCpMuB = nullptr;
+  QDoubleSpinBox *m_spinCpMuQ = nullptr;
+  QCheckBox      *m_chkShowCp = nullptr;
+
+  QScatterSeries *m_seriesCpB = nullptr;
+  QScatterSeries *m_seriesCpQ = nullptr;
 
   bool m_tempIsVertical = true;
   bool m_isLogScale     = true;
