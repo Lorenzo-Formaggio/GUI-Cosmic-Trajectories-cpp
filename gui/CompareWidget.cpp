@@ -883,10 +883,12 @@ void CompareWidget::onCriticalPointButtonClicked() {
 }
 
 void CompareWidget::updateCriticalPoint() {
+  if (!m_seriesCpB || !m_seriesCpQ) return;
+  
   m_seriesCpB->clear();
   m_seriesCpQ->clear();
   
-  if (m_chkShowCp->isChecked()) {
+  if (m_chkShowCp && m_chkShowCp->isChecked()) {
     double t = m_spinCpT->value();
     double mub = std::abs(m_spinCpMuB->value());
     double muq = std::abs(m_spinCpMuQ->value());

@@ -86,10 +86,10 @@ private:
   QLabel         *m_labelEosPath;
 
   // ── Critical point widgets ──────────────────────────────────────────
-  QDoubleSpinBox *m_spinCpT;
-  QDoubleSpinBox *m_spinCpMuB;
-  QDoubleSpinBox *m_spinCpMuQ;
-  QCheckBox      *m_chkShowCp;
+  QDoubleSpinBox *m_spinCpT   = nullptr;
+  QDoubleSpinBox *m_spinCpMuB = nullptr;
+  QDoubleSpinBox *m_spinCpMuQ = nullptr;
+  QCheckBox      *m_chkShowCp = nullptr;
 
   // ── Control widgets ─────────────────────────────────────────────────
   QPushButton    *m_btnRun;
@@ -128,8 +128,8 @@ private:
   TooltipChartView *m_muChartView;
   QLineSeries *m_seriesMuB;
   QLineSeries *m_seriesMuQ;
-  QScatterSeries *m_seriesCpB;
-  QScatterSeries *m_seriesCpQ;
+  QScatterSeries *m_seriesCpB = nullptr;
+  QScatterSeries *m_seriesCpQ = nullptr;
 
   // Tab 3: Lepton μ
   TooltipChartView *m_leptonChartView;
