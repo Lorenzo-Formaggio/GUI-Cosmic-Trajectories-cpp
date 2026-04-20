@@ -299,6 +299,7 @@ void MainWindow::createConsolePanel(QWidget *parent) {
   m_console = new QTextEdit();
   m_console->setReadOnly(true);
   m_console->setFontFamily("Courier");
+  m_console->setStyleSheet("background-color: #1e1e1e; color: #ffffff; border: 1px solid #333;");
   layout->addWidget(m_console);
 }
 
@@ -625,7 +626,7 @@ void MainWindow::onSimulationError(const QString &msg) {
   m_btnRun->setEnabled(true);
   m_btnStop->setEnabled(false);
   m_btnExportFullData->setEnabled(true);
-  m_console->append("<font color='red'><b>Error:</b> " + msg + "</font>");
+  m_console->append("<font color='#ff4b4b'><b>Error:</b> " + msg + "</font>");
   m_statusLabel->setText("Failed");
   m_statusLabel->setStyleSheet("color: #dc3545; font-weight: bold;"); // Red
 }

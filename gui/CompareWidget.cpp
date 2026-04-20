@@ -417,8 +417,7 @@ void CompareWidget::runSlot(int idx) {
   s.data.clear();
 
   s.statusLabel->setText("Running…");
-  s.statusLabel->setStyleSheet(
-      QString("color: %1; font-weight: bold;").arg(s.color.name()));
+  s.statusLabel->setStyleSheet("color: #17a2b8; font-weight: bold;");
   s.btnRun->setEnabled(false);
   s.btnStop->setEnabled(true);
 
