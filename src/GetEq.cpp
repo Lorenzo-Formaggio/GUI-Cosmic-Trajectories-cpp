@@ -70,11 +70,11 @@ ErrorValues getErrors(const std::vector<double> &solution, double T, double le,
   double s_tot = TotalS(muB, muQ, munue, munumu, mnutau, T, nf);
 
   ErrorValues err;
-  err.err_b = (b - (QCD::BarDens(muB, muQ, T, nf) / s_tot)) / b;
+  err.err_b = (b == 0.0) ? (b - (QCD::BarDens(muB, muQ, T, nf) / s_tot)) : (b - (QCD::BarDens(muB, muQ, T, nf) / s_tot)) / b;
   err.err_charge = TotalQ(muB, muQ, munue, munumu, mnutau, T, nf);
-  err.err_le = (le - (lepton::ne(muQ, munue, T) / s_tot)) / le;
-  err.err_lmu = (lmu - (lepton::nmu(muQ, munumu, T) / s_tot)) / lmu;
-  err.err_ltau = (ltau - (lepton::ntau(muQ, mnutau, T) / s_tot)) / ltau;
+  err.err_le = (le == 0.0) ? (le - (lepton::ne(muQ, munue, T) / s_tot)) : (le - (lepton::ne(muQ, munue, T) / s_tot)) / le;
+  err.err_lmu = (lmu == 0.0) ? (lmu - (lepton::nmu(muQ, munumu, T) / s_tot)) : (lmu - (lepton::nmu(muQ, munumu, T) / s_tot)) / lmu;
+  err.err_ltau = (ltau == 0.0) ? (ltau - (lepton::ntau(muQ, mnutau, T) / s_tot)) : (ltau - (lepton::ntau(muQ, mnutau, T) / s_tot)) / ltau;
 
   return err;
 }

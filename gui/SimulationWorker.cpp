@@ -101,6 +101,11 @@ void SimulationWorker::run() {
       errfile << "T[MeV] err_b err_charge err_le err_lmu err_ltau" << std::endl;
     }
 
+    if (b == 0.0 || le == 0.0 || lmu == 0.0 || ltau == 0.0) {
+      emit logMessage("<font color='#ffc107'><b>Warning:</b> One or more target asymmetries are 0.</font>");
+      emit logMessage("<font color='#ffc107'>Absolute error is used instead of relative error for those variables to avoid division by zero.</font>");
+    }
+
     // ── Main simulation loop ──────────────────────────────────────────────
     for (double T = Tstart;
          (scanDirection == 0) ? (T <= Tend) : (T >= Tend);
