@@ -46,8 +46,10 @@ double BarDens(double muB, double muQ, double T, int nf) {
   // Free QGP
   double result = 1.0 / 3.0 *
                   (jelf::nNet(muB / 3 + 2 * muQ / 3, T, mu, gq) +
-                   jelf::nNet(muB / 3 - muQ / 3, T, md, gq) +
-                   jelf::nNet(muB / 3 - muQ / 3, T, ms, gq));
+                   jelf::nNet(muB / 3 - muQ / 3, T, md, gq));
+  if (nf >= 3) {
+    result += 1.0 / 3.0 * jelf::nNet(muB / 3 - muQ / 3, T, ms, gq);
+  }
   if (nf == 4) {
     result += 1.0 / 3.0 * jelf::nNet(muB / 3 + 2 * muQ / 3, T, mc, gq);
   }
@@ -64,8 +66,10 @@ double QCDcharge(double muB, double muQ, double T, int nf) {
 
   // Free QGP
   double result = 2.0 / 3.0 * jelf::nNet(muB / 3 + 2 * muQ / 3, T, mu, gq) -
-                  1.0 / 3.0 * jelf::nNet(muB / 3 - muQ / 3, T, md, gq) -
-                  1.0 / 3.0 * jelf::nNet(muB / 3 - muQ / 3, T, ms, gq);
+                  1.0 / 3.0 * jelf::nNet(muB / 3 - muQ / 3, T, md, gq);
+  if (nf >= 3) {
+    result -= 1.0 / 3.0 * jelf::nNet(muB / 3 - muQ / 3, T, ms, gq);
+  }
   if (nf == 4) {
     result += 2.0 / 3.0 * jelf::nNet(muB / 3 + 2 * muQ / 3, T, mc, gq);
   }
@@ -83,8 +87,10 @@ double sQCD(double muB, double muQ, double T, int nf) {
   // Free QGP
   double result = jelf::sTot(muB / 3 + 2 * muQ / 3, T, mu, gq) +
                   jelf::sTot(muB / 3 - muQ / 3, T, md, gq) +
-                  jelf::sTot(muB / 3 - muQ / 3, T, ms, gq) +
                   jelb::sb0(0, T, 0, ggluon);
+  if (nf >= 3) {
+    result += jelf::sTot(muB / 3 - muQ / 3, T, ms, gq);
+  }
   if (nf == 4) {
     result += jelf::sTot(muB / 3 + 2 * muQ / 3, T, mc, gq);
   }

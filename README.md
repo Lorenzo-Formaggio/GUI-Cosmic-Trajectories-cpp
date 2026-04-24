@@ -11,7 +11,7 @@ This application solves the evolution of chemical potentials ($\mu_B$, $\mu_Q$, 
   - **Single Run**: Detailed control over a single trajectory simulation.
   - **Compare Runs**: Run and overlay up to 5 independent trajectories simultaneously with distinct color-coding.
 - **Physics Models (EoS)**:
-  - Free Quark Gluon Plasma (QGP, 3-flavor or 4-flavor with Charm).
+  - Free Quark Gluon Plasma (QGP, 2-flavor, 3-flavor, or 4-flavor with Charm).
   - Lattice QCD-based EoS (3-flavor or 4-flavor with Charm).
   - External Tabulated EoS (Import CSV/TXT tables). Featuring **Smart RAM Caching**: heavy tables are loaded into memory once and kept alive for subsequent and comparative runs to significantly boost performance. Memory is automatically freed when you switch away from the custom EoS.
 - **Visualization**:

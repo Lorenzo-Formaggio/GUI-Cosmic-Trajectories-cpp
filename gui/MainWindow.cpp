@@ -203,7 +203,8 @@ void MainWindow::createParameterPanel(QWidget *parent) {
   m_spinTmax = addSpin("Tmax (MeV)", 2000.0, 0.1, 10000.0, 1);
 
   m_comboNf = new QComboBox();
-  m_comboNf->addItems({"3", "4"});
+  m_comboNf->addItems({"2", "3", "4"});
+  m_comboNf->setCurrentIndex(1); // Default to 3
   grid->addWidget(new QLabel("Flavors (nf)"), row, 0);
   grid->addWidget(m_comboNf, row++, 1);
 
@@ -450,7 +451,7 @@ void MainWindow::onRunClicked() {
   m_worker->dT = m_spinDT->value();
   m_worker->Tmin = m_spinTmin->value();
   m_worker->Tmax = m_spinTmax->value();
-  m_worker->nf = m_comboNf->currentIndex() == 0 ? 3 : 4;
+  m_worker->nf = m_comboNf->currentText().toInt();
   m_worker->eos = m_comboEos->currentIndex();
   m_worker->guessMethod = m_comboGuess->currentIndex();
   m_worker->scanDirection = m_comboScan->currentIndex();

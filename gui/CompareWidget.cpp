@@ -221,7 +221,8 @@ void CompareWidget::createSlotPanel(QWidget *parent) {
 
     grid->addWidget(new QLabel("Flavors (nf)"), row, 0);
     s.comboNf = new QComboBox();
-    s.comboNf->addItems({"3", "4"});
+    s.comboNf->addItems({"2", "3", "4"});
+    s.comboNf->setCurrentIndex(1); // Default to 3
     grid->addWidget(s.comboNf, row++, 1);
 
     grid->addWidget(new QLabel("EoS"), row, 0);
@@ -431,7 +432,7 @@ void CompareWidget::runSlot(int idx) {
   s.worker->dT            = s.spinDT->value();
   s.worker->Tmin          = s.spinTmin->value();
   s.worker->Tmax          = s.spinTmax->value();
-  s.worker->nf            = (s.comboNf->currentIndex() == 0) ? 3 : 4;
+  s.worker->nf            = s.comboNf->currentText().toInt();
   s.worker->eos           = s.comboEos->currentIndex();
   s.worker->guessMethod   = s.comboGuess->currentIndex();
   s.worker->scanDirection = s.comboScan->currentIndex();
