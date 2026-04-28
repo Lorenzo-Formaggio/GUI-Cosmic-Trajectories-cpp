@@ -249,11 +249,19 @@ void MainWindow::createParameterPanel(QWidget *parent) {
 
   layout->addLayout(grid);
 
+  QHBoxLayout *toolsLayout = new QHBoxLayout();
   m_btnCriticalPoint = new QPushButton("📍 Configure Critical Point...");
   m_btnCriticalPoint->setStyleSheet("QPushButton { background-color: #6f42c1; color: white; border-radius: 4px; font-weight: bold; padding: 5px; } "
                                      "QPushButton:hover { background-color: #5a32a3; }");
   connect(m_btnCriticalPoint, &QPushButton::clicked, this, &MainWindow::onCriticalPointButtonClicked);
-  layout->addWidget(m_btnCriticalPoint);
+  toolsLayout->addWidget(m_btnCriticalPoint);
+
+  m_btnInitialGuess = new QPushButton("⚙ Configure Initial Guess...");
+  m_btnInitialGuess->setStyleSheet("QPushButton { background-color: #e83e8c; color: white; border-radius: 4px; font-weight: bold; padding: 5px; } "
+                                    "QPushButton:hover { background-color: #d63384; }");
+  connect(m_btnInitialGuess, &QPushButton::clicked, this, &MainWindow::onInitialGuessButtonClicked);
+  toolsLayout->addWidget(m_btnInitialGuess);
+  layout->addLayout(toolsLayout);
 
   QHBoxLayout *runStopLayout = new QHBoxLayout();
   m_btnRun = new QPushButton("▶ Run Simulation");
@@ -456,6 +464,10 @@ void MainWindow::onRunClicked() {
   m_worker->guessMethod = m_comboGuess->currentIndex();
   m_worker->scanDirection = m_comboScan->currentIndex();
   m_worker->eosTableFilePath = m_lineEditEosPath->text();
+  
+  m_worker->initialGuessType = m_initialGuessType;
+  m_worker->customGuessLowHigh = m_customGuessLowHigh;
+  m_worker->customGuessHighLow = m_customGuessHighLow;
   
   // Set working directory to project root (parent of build directory typically)
   // The user launches from gui/build/, so up two levels to get to project root
@@ -999,4 +1011,69 @@ void MainWindow::updateCriticalPoint() {
   }
 }
 
+void MainWindow::onInitialGuessButtonClicked() {
+  if (!m_guessDialog) {
+    m_guessDialog = new QDialog(this);
+    m_guessDialog->setWindowTitle("Configure Initial Guess");
+    m_guessDialog->setMinimumWidth(400);
 
+    QVBoxLayout *vbox = new QVBoxLayout(m_guessDialog);
+    
+    QComboBox *comboType = new QComboBox(m_guessDialog);
+    comboType->addItems({"Standard Guess", "Custom Guess"});
+    comboType->setCurrentIndex(m_initialGuessType);
+    
+    vbox->addWidget(new QLabel("Initial Guess Strategy:"));
+    vbox->addWidget(comboType);
+
+    QGroupBox *groupLH = new QGroupBox("Low -> High Scan", m_guessDialog);
+    QGridLayout *gridLH = new QGridLayout(groupLH);
+    
+    auto addSpin = [&](QGridLayout* grid, int row, const QString& label, double val) -> QDoubleSpinBox* {
+      grid->addWidget(new QLabel(label), row, 0);
+      QDoubleSpinBox *spin = new QDoubleSpinBox(m_guessDialog);
+      spin->setRange(-10000, 10000);
+      spin->setDecimals(5);
+      spin->setValue(val);
+      grid->addWidget(spin, row, 1);
+      return spin;
+    };
+
+    QDoubleSpinBox *lh_muB = addSpin(gridLH, 0, "muB:", m_customGuessLowHigh[0]);
+    QDoubleSpinBox *lh_muQ = addSpin(gridLH, 1, "muQ:", m_customGuessLowHigh[1]);
+    QDoubleSpinBox *lh_munue = addSpin(gridLH, 2, "munue:", m_customGuessLowHigh[2]);
+    QDoubleSpinBox *lh_munumu = addSpin(gridLH, 3, "munumu:", m_customGuessLowHigh[3]);
+    QDoubleSpinBox *lh_mnutau = addSpin(gridLH, 4, "mnutau:", m_customGuessLowHigh[4]);
+    vbox->addWidget(groupLH);
+
+    QGroupBox *groupHL = new QGroupBox("High -> Low Scan", m_guessDialog);
+    QGridLayout *gridHL = new QGridLayout(groupHL);
+    
+    QDoubleSpinBox *hl_muB = addSpin(gridHL, 0, "muB:", m_customGuessHighLow[0]);
+    QDoubleSpinBox *hl_muQ = addSpin(gridHL, 1, "muQ:", m_customGuessHighLow[1]);
+    QDoubleSpinBox *hl_munue = addSpin(gridHL, 2, "munue:", m_customGuessHighLow[2]);
+    QDoubleSpinBox *hl_munumu = addSpin(gridHL, 3, "munumu:", m_customGuessHighLow[3]);
+    QDoubleSpinBox *hl_mnutau = addSpin(gridHL, 4, "mnutau:", m_customGuessHighLow[4]);
+    vbox->addWidget(groupHL);
+
+    auto updateFields = [=](int idx) {
+      bool isCustom = (idx == 1);
+      groupLH->setEnabled(isCustom);
+      groupHL->setEnabled(isCustom);
+    };
+    connect(comboType, &QComboBox::currentIndexChanged, updateFields);
+    updateFields(m_initialGuessType);
+
+    QPushButton *btnSave = new QPushButton("Save and Close", m_guessDialog);
+    connect(btnSave, &QPushButton::clicked, [=]() {
+      m_initialGuessType = comboType->currentIndex();
+      m_customGuessLowHigh = {lh_muB->value(), lh_muQ->value(), lh_munue->value(), lh_munumu->value(), lh_mnutau->value()};
+      m_customGuessHighLow = {hl_muB->value(), hl_muQ->value(), hl_munue->value(), hl_munumu->value(), hl_mnutau->value()};
+      m_guessDialog->accept();
+    });
+    vbox->addWidget(btnSave);
+  }
+  m_guessDialog->show();
+  m_guessDialog->raise();
+  m_guessDialog->activateWindow();
+}

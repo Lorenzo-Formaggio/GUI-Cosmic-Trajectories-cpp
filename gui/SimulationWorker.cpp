@@ -72,10 +72,18 @@ void SimulationWorker::run() {
 
     // ── Initial guess ─────────────────────────────────────────────────────
     std::vector<double> guess;
-    if (scanDirection == 0) {
-      guess = {0.01, -0.001, -1e-05, -1e-05, -1e-05};
-    } else {
-      guess = {1.0, -0.1, -0.1, -0.1, -0.1};
+    if (initialGuessType == 1) { // Custom Guess
+      if (scanDirection == 0) {
+        guess = customGuessLowHigh;
+      } else {
+        guess = customGuessHighLow;
+      }
+    } else { // Standard Guess
+      if (scanDirection == 0) {
+        guess = {0.01, -0.001, -1e-05, -1e-05, -1e-05};
+      } else {
+        guess = {1.0, -0.1, -0.1, -0.1, -0.1};
+      }
     }
     std::vector<double> targets = {0.0, 0.0, 0.0, 0.0, 0.0};
 

@@ -50,6 +50,11 @@ public:
   int scanDirection = 0;
   QString eosTableFilePath;
 
+  // Custom initial guesses
+  int initialGuessType = 0; // 0 = Standard, 1 = Custom
+  std::vector<double> customGuessLowHigh = {0.01, -0.001, -1e-05, -1e-05, -1e-05};
+  std::vector<double> customGuessHighLow = {1.0, -0.1, -0.1, -0.1, -0.1};
+
   // Working directory (for finding LatticeEoS/, EoS_Table.txt)
   QString workingDir;
 

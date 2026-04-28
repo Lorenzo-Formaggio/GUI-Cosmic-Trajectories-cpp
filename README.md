@@ -7,14 +7,18 @@ This application solves the evolution of chemical potentials ($\mu_B$, $\mu_Q$, 
 ## Features
 
 - **Interactive GUI**: Real-time plotting and parameter control built with Qt6.
+- **Simulation Control**:
+  - **Stop Button**: Interrupt long-running simulations safely at any time.
+  - **Custom Solver Initialization**: Manually configure initial guesses for the chemical potential solver ($\mu_B, \mu_Q, \mu_\nu$) to improve convergence in challenging parameter spaces.
 - **Dual Simulation Modes**:
   - **Single Run**: Detailed control over a single trajectory simulation.
   - **Compare Runs**: Run and overlay up to 5 independent trajectories simultaneously with distinct color-coding.
 - **Physics Models (EoS)**:
   - Free Quark Gluon Plasma (QGP, 2-flavor, 3-flavor, or 4-flavor with Charm).
   - Lattice QCD-based EoS (3-flavor or 4-flavor with Charm).
-  - External Tabulated EoS (Import CSV/TXT tables). Featuring **Smart RAM Caching**: heavy tables are loaded into memory once and kept alive for subsequent and comparative runs to significantly boost performance. Memory is automatically freed when you switch away from the custom EoS.
+  - External Tabulated EoS (Import CSV/TXT tables). Featuring **Smart RAM Caching**: heavy tables are loaded into memory once and kept alive for subsequent and comparative runs to significantly boost performance.
 - **Visualization**:
+  - **Critical Point Markers**: Specify and visualize the QCD Critical Point on all chemical potential plots with stable star markers.
   - High-quality, synchronized Log-Log charts.
   - Interactive legends with styled line indicators (dashed, dotted, solid).
   - Dark/Light mode theme support.
@@ -105,14 +109,18 @@ Then run the generated executable (e.g., `./CosmicTrajectoryGUI` on Mac/Linux or
 
 ### Single Run Tab
 - Configure physics parameters (Baryon asymmetry $b$, Lepton asymmetries $l_e$, $l_\mu$, $l_\tau$).
+- **Advanced Configuration**:
+  - **📍 Configure Critical Point**: Set $(T, \mu_B, \mu_Q)$ coordinates for the QCD Critical Point to mark it on your plots.
+  - **⚙ Configure Initial Guess**: Toggle between Standard and Custom solver initialization to handle difficult convergence regions.
 - Select the **Equation of State (EoS)** and **Guess Method**.
-- Click **"▶ Run Simulation"** to see the trajectory traced in real-time.
+- Click **"▶ Run Simulation"** to start, or **"⏹ Stop"** to abort a running process.
 - Use the checkboxes below the charts to toggle specific variables (e.g., $|n_Q|$, $\mu_B$).
 
 ### Compare Runs Tab
 - Features 5 **Collapsible Slots**.
 - Each slot can be configured independently (e.g., testing different $dT$ or $b$ parameters).
-- Click **"▶ Run Slot"** to add a trajectory to the comparison chart.
+- **Global Tools**: Use the buttons at the top of the left panel to configure the **Critical Point** or **Initial Guess** globally for all comparison slots.
+- Click **"▶ Run Slot"** to add a trajectory to the comparison chart, or the **"Stop"** button in the slot to abort it.
 - Traces are color-coded to their respective slot borders.
 
 ### Exporting Results

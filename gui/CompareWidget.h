@@ -100,15 +100,19 @@ private:
   void onExportClicked();
   void onCriticalPointButtonClicked();
   void updateCriticalPoint();
+  void onInitialGuessButtonClicked();
 
   QString m_workingDir;
   SlotConfig m_slots[NUM_SLOTS];
 
   QPushButton  *m_btnThemeToggle = nullptr;
   QPushButton  *m_btnAxisToggle  = nullptr;
-  QPushButton  *m_btnScaleToggle = nullptr;
-  QPushButton  *m_btnCriticalPoint = nullptr;
+  QPushButton *m_btnScaleToggle = nullptr;
+  QPushButton *m_btnCriticalPoint = nullptr;
+  QPushButton *m_btnInitialGuess = nullptr;
+
   QDialog      *m_cpDialog       = nullptr;
+  QDialog      *m_guessDialog    = nullptr;
 
   QCheckBox *m_chknB      = nullptr;
   QCheckBox *m_chkS       = nullptr;
@@ -127,6 +131,11 @@ private:
 
   QScatterSeries *m_seriesCpB = nullptr;
   QScatterSeries *m_seriesCpQ = nullptr;
+
+  // Global custom guess settings
+  int m_initialGuessType = 0; // 0 = Standard, 1 = Custom
+  std::vector<double> m_customGuessLowHigh = {0.01, -0.001, -1e-05, -1e-05, -1e-05};
+  std::vector<double> m_customGuessHighLow = {1.0, -0.1, -0.1, -0.1, -0.1};
 
   bool m_tempIsVertical = true;
   bool m_isLogScale     = true;

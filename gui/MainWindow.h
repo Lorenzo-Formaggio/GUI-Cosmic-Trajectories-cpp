@@ -55,6 +55,7 @@ private slots:
   void onExportFullDataClicked();
   void onCriticalPointButtonClicked();
   void updateCriticalPoint();
+  void onInitialGuessButtonClicked();
 
 private:
   void setupUi();
@@ -95,7 +96,9 @@ private:
   QPushButton    *m_btnRun;
   QPushButton    *m_btnStop;
   QPushButton    *m_btnCriticalPoint;
+  QPushButton    *m_btnInitialGuess;
   QDialog        *m_cpDialog = nullptr;
+  QDialog        *m_guessDialog = nullptr;
   QProgressBar *m_progressBar;
   QTextEdit    *m_console;
   QLabel       *m_statusLabel;
@@ -157,6 +160,11 @@ private:
   // Data storage for axis range computation
   QVector<TrajectoryPoint> m_trajectoryData;
   bool m_tempIsVertical = true;
+
+  // Global custom guess settings
+  int m_initialGuessType = 0; // 0 = Standard, 1 = Custom
+  std::vector<double> m_customGuessLowHigh = {0.01, -0.001, -1e-05, -1e-05, -1e-05};
+  std::vector<double> m_customGuessHighLow = {1.0, -0.1, -0.1, -0.1, -0.1};
 };
 
 #endif // MAINWINDOW_H
