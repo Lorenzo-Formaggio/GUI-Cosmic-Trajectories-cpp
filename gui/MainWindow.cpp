@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 #include "CompareWidget.h"
+#include "EosExplorerWidget.h"
 
 #include <QApplication>
 #include <QDoubleSpinBox>
@@ -25,6 +26,7 @@
 #include <QPainter>
 #include <QTextStream>
 #include <QColor>
+#include <QScrollArea>
 
 #include <QtCharts/QChart>
 #include <QtCharts/QChartView>
@@ -69,7 +71,12 @@ void MainWindow::setupUi() {
   leftLayout->setContentsMargins(0, 0, 0, 0);
 
   createParameterPanel(leftPanel);
-  leftLayout->addWidget(leftPanel->findChild<QGroupBox*>("GroupParams"));
+  QGroupBox *groupParams = leftPanel->findChild<QGroupBox*>("GroupParams");
+  QScrollArea *scrollArea = new QScrollArea(leftPanel);
+  scrollArea->setWidget(groupParams);
+  scrollArea->setWidgetResizable(true);
+  scrollArea->setFrameShape(QFrame::NoFrame);
+  leftLayout->addWidget(scrollArea);
 
   createConsolePanel(leftPanel);
   leftLayout->addWidget(leftPanel->findChild<QGroupBox*>("GroupConsole"));
@@ -165,6 +172,9 @@ void MainWindow::setupUi() {
   wdir.cdUp(); // gui/
   wdir.cdUp(); // project root
   topTabs->addTab(new CompareWidget(wdir.absolutePath()), "Compare Runs");
+
+  // ─── Tab 3: EoS Explorer ──────────────────────────────────────────
+  topTabs->addTab(new EosExplorerWidget(wdir.absolutePath()), "EoS Explorer");
 }
 
 void MainWindow::setupStyle() {
@@ -249,45 +259,44 @@ void MainWindow::createParameterPanel(QWidget *parent) {
 
   layout->addLayout(grid);
 
-  QHBoxLayout *toolsLayout = new QHBoxLayout();
   m_btnCriticalPoint = new QPushButton("📍 Configure Critical Point...");
-  m_btnCriticalPoint->setStyleSheet("QPushButton { background-color: #6f42c1; color: white; border-radius: 4px; font-weight: bold; padding: 5px; } "
+  m_btnCriticalPoint->setStyleSheet("QPushButton { background-color: #6f42c1; color: white; border-radius: 4px; font-weight: bold; padding: 4px; margin: 2px 4px 2px 4px; } "
                                      "QPushButton:hover { background-color: #5a32a3; }");
   connect(m_btnCriticalPoint, &QPushButton::clicked, this, &MainWindow::onCriticalPointButtonClicked);
-  toolsLayout->addWidget(m_btnCriticalPoint);
+  layout->addWidget(m_btnCriticalPoint);
 
   m_btnInitialGuess = new QPushButton("⚙ Configure Initial Guess...");
-  m_btnInitialGuess->setStyleSheet("QPushButton { background-color: #e83e8c; color: white; border-radius: 4px; font-weight: bold; padding: 5px; } "
+  m_btnInitialGuess->setStyleSheet("QPushButton { background-color: #e83e8c; color: white; border-radius: 4px; font-weight: bold; padding: 4px; margin: 2px 4px 2px 4px; } "
                                     "QPushButton:hover { background-color: #d63384; }");
   connect(m_btnInitialGuess, &QPushButton::clicked, this, &MainWindow::onInitialGuessButtonClicked);
-  toolsLayout->addWidget(m_btnInitialGuess);
-  layout->addLayout(toolsLayout);
+  layout->addWidget(m_btnInitialGuess);
 
-  QHBoxLayout *runStopLayout = new QHBoxLayout();
+  QHBoxLayout *actionLayout = new QHBoxLayout();
   m_btnRun = new QPushButton("▶ Run Simulation");
-  m_btnRun->setMinimumHeight(40);
-  m_btnRun->setStyleSheet("QPushButton { background-color: #28a745; color: white; border-radius: 4px; font-weight: bold; } "
-                          "QPushButton:hover { background-color: #218838; } "
-                          "QPushButton:disabled { background-color: #5a6268; color: #c0c0c0; }");
+  m_btnRun->setMinimumHeight(32);
+  m_btnRun->setStyleSheet("QPushButton { background-color: #007bff; color: white; border-radius: 4px; font-weight: bold; } "
+                          "QPushButton:hover { background-color: #0056b3; } "
+                          "QPushButton:disabled { background-color: #aaa; }");
   connect(m_btnRun, &QPushButton::clicked, this, &MainWindow::onRunClicked);
-  
+
   m_btnStop = new QPushButton("⏹ Stop");
-  m_btnStop->setMinimumHeight(40);
+  m_btnStop->setMinimumHeight(32);
   m_btnStop->setEnabled(false);
   m_btnStop->setStyleSheet("QPushButton { background-color: #dc3545; color: white; border-radius: 4px; font-weight: bold; } "
                            "QPushButton:hover { background-color: #c82333; } "
-                           "QPushButton:disabled { background-color: #5a6268; color: #c0c0c0; }");
+                           "QPushButton:disabled { background-color: #aaa; }");
   connect(m_btnStop, &QPushButton::clicked, this, &MainWindow::onStopClicked);
 
-  runStopLayout->addWidget(m_btnRun);
-  runStopLayout->addWidget(m_btnStop);
-  layout->addLayout(runStopLayout);
+  actionLayout->addWidget(m_btnRun);
+  actionLayout->addWidget(m_btnStop);
+  layout->addLayout(actionLayout);
 
-  m_btnExportFullData = new QPushButton("💾 Export Full Dataset");
-  m_btnExportFullData->setMinimumHeight(30);
-  m_btnExportFullData->setStyleSheet("QPushButton { background-color: #17a2b8; color: white; border-radius: 4px; font-weight: bold; } "
+  m_btnExportFullData = new QPushButton("💾 Export Full Trajectory (TXT)");
+  m_btnExportFullData->setMinimumHeight(24);
+  m_btnExportFullData->setStyleSheet("QPushButton { background-color: #17a2b8; color: white; border-radius: 4px; font-weight: bold; margin-top: 5px; } "
                                      "QPushButton:hover { background-color: #138496; } "
-                                     "QPushButton:disabled { background-color: #5a6268; color: #c0c0c0; }");
+                                     "QPushButton:disabled { background-color: #aaa; }");
+  m_btnExportFullData->setEnabled(false);
   connect(m_btnExportFullData, &QPushButton::clicked, this, &MainWindow::onExportFullDataClicked);
   layout->addWidget(m_btnExportFullData);
 }
@@ -400,7 +409,7 @@ void MainWindow::createChartPanel(QWidget *parent) {
 
 void MainWindow::onEosChanged(int index) {
   if (index == 2) {
-    onLogMessage("Note: For Interpolated Table (EoS=2), Tmin and Tmax will be read from the table bounds.");
+    onLogMessage("Note: For Interpolated Table (EoS=2), user Tmin/Tmax are used if inside the table range; otherwise they are clamped to the table bounds.");
   }
   bool showEosPath = (index == 2);
   m_labelEosPath->setVisible(showEosPath);
@@ -459,8 +468,15 @@ void MainWindow::onRunClicked() {
   m_worker->dT = m_spinDT->value();
   m_worker->Tmin = m_spinTmin->value();
   m_worker->Tmax = m_spinTmax->value();
-  m_worker->nf = m_comboNf->currentText().toInt();
-  m_worker->eos = m_comboEos->currentIndex();
+  
+  int nf = m_comboNf->currentText().toInt();
+  int eos = m_comboEos->currentIndex();
+  if (eos == 1 && nf == 2) {
+      onLogMessage("<span style=\"color:#ffc107;\"><b>Warning:</b> System does not have a 2 flavor Lattice QCD EoS. Defaulting to 3 flavors.</span>");
+      nf = 3;
+  }
+  m_worker->nf = nf;
+  m_worker->eos = eos;
   m_worker->guessMethod = m_comboGuess->currentIndex();
   m_worker->scanDirection = m_comboScan->currentIndex();
   m_worker->eosTableFilePath = m_lineEditEosPath->text();
@@ -620,7 +636,12 @@ void MainWindow::updateChartAxes() {
 }
 
 void MainWindow::onLogMessage(const QString &msg) {
-  m_console->append(msg);
+  if (msg.contains("<font ") || msg.contains("<span ")) {
+    m_console->append(msg);
+  } else {
+    // Explicitly wrap in white to prevent color bleeding from previous tags
+    m_console->append("<span style=\"color:#ffffff;\">" + msg + "</span>");
+  }
 }
 
 void MainWindow::onProgressUpdated(int pct) {

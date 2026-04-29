@@ -93,6 +93,7 @@ private:
   void replotData();
   void updateChartAxes();
   void updateSlotSeriesVisibility(int idx);
+  void onLogMessage(const QString &msg, int slotIdx);
   
   void onThemeToggleClicked();
   void onAxisToggleClicked();
@@ -110,6 +111,7 @@ private:
   QPushButton *m_btnScaleToggle = nullptr;
   QPushButton *m_btnCriticalPoint = nullptr;
   QPushButton *m_btnInitialGuess = nullptr;
+  QTextEdit    *m_console         = nullptr;
 
   QDialog      *m_cpDialog       = nullptr;
   QDialog      *m_guessDialog    = nullptr;

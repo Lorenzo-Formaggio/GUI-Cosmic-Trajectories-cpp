@@ -16,7 +16,9 @@ This application solves the evolution of chemical potentials ($\mu_B$, $\mu_Q$, 
 - **Physics Models (EoS)**:
   - Free Quark Gluon Plasma (QGP, 2-flavor, 3-flavor, or 4-flavor with Charm).
   - Lattice QCD-based EoS (3-flavor or 4-flavor with Charm).
-  - External Tabulated EoS (Import CSV/TXT tables). Featuring **Smart RAM Caching**: heavy tables are loaded into memory once and kept alive for subsequent and comparative runs to significantly boost performance.
+  - External Tabulated EoS (Import CSV/TXT tables). Features:
+    - **Smart RAM Caching**: Heavy tables are loaded once and kept in memory for performance.
+    - **Intelligent Temperature Clamping**: User-defined temperature ranges are respected if they fall within the table's bounds. If the user input exceeds the table range, the simulation automatically clamps to the available extremes and provides a clear warning in the console.
 - **Visualization**:
   - **Critical Point Markers**: Specify and visualize the QCD Critical Point on all chemical potential plots with stable star markers.
   - High-quality, synchronized Log-Log charts.
@@ -119,9 +121,15 @@ Then run the generated executable (e.g., `./CosmicTrajectoryGUI` on Mac/Linux or
 ### Compare Runs Tab
 - Features 5 **Collapsible Slots**.
 - Each slot can be configured independently (e.g., testing different $dT$ or $b$ parameters).
+- **Slot Identification**: Traces are color-coded to their respective slot borders.
+- **Comparison Console**: A real-time console below the slots tracks logs and warnings for all active simulations, with each entry prefixed by its slot number and color.
 - **Global Tools**: Use the buttons at the top of the left panel to configure the **Critical Point** or **Initial Guess** globally for all comparison slots.
 - Click **"▶ Run Slot"** to add a trajectory to the comparison chart, or the **"Stop"** button in the slot to abort it.
-- Traces are color-coded to their respective slot borders.
+  
+### EoS Explorer Tab
+- Scan and visualize thermodynamic quantities ($n_B$, $n_Q$, $s$) for a given EoS across a temperature range.
+- Supports **Normalization by $T^3$** to visualize scaled densities.
+- Features the same **Intelligent Temperature Clamping** as the trajectory simulation when using external tables.
 
 ### Exporting Results
 Click the **"📤 Export Active Plot"** button in the bottom-right corner:

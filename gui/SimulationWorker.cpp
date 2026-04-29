@@ -23,7 +23,7 @@ void SimulationWorker::run() {
     std::string latticeDir = workingDir.toStdString() + "/LatticeEoS/threeflavors/";
     std::string eosTablePath = eosTableFilePath.isEmpty() ? (workingDir.toStdString() + "/EoS_Table.txt") : eosTableFilePath.toStdString();
 
-    // If using interpolated EoS, load the table
+    // If using interpolated EoS, load the table and validate user T range
     double effectiveTmin = Tmin;
     double effectiveTmax = Tmax;
     if (eos == 2) {
@@ -34,11 +34,33 @@ void SimulationWorker::run() {
         InterpolatedEoS::loadTable(eosTablePath);
       }
       if (InterpolatedEoS::isLoaded()) {
-        effectiveTmin = InterpolatedEoS::getTmin();
-        effectiveTmax = InterpolatedEoS::getTmax();
+        double tableTmin = InterpolatedEoS::getTmin();
+        double tableTmax = InterpolatedEoS::getTmax();
         emit logMessage(QString("  Table loaded. T range: %1 – %2 MeV")
-                            .arg(effectiveTmin, 0, 'f', 1)
-                            .arg(effectiveTmax, 0, 'f', 1));
+                            .arg(tableTmin, 0, 'f', 1)
+                            .arg(tableTmax, 0, 'f', 1));
+
+        // Clamp user Tmin only if it falls outside the table range
+        if (effectiveTmin < tableTmin) {
+          emit logMessage(QString("<font color='#ffc107'><b>Warning:</b> Requested Tmin (%1 MeV) is below table minimum (%2 MeV). Clamping to table minimum.</font>")
+                              .arg(effectiveTmin, 0, 'f', 1).arg(tableTmin, 0, 'f', 1));
+          effectiveTmin = tableTmin;
+        } else if (effectiveTmin > tableTmax) {
+          emit logMessage(QString("<font color='#ffc107'><b>Warning:</b> Requested Tmin (%1 MeV) exceeds table maximum (%2 MeV). Clamping to table maximum.</font>")
+                              .arg(effectiveTmin, 0, 'f', 1).arg(tableTmax, 0, 'f', 1));
+          effectiveTmin = tableTmax;
+        }
+
+        // Clamp user Tmax only if it falls outside the table range
+        if (effectiveTmax > tableTmax) {
+          emit logMessage(QString("<font color='#ffc107'><b>Warning:</b> Requested Tmax (%1 MeV) exceeds table maximum (%2 MeV). Clamping to table maximum.</font>")
+                              .arg(effectiveTmax, 0, 'f', 1).arg(tableTmax, 0, 'f', 1));
+          effectiveTmax = tableTmax;
+        } else if (effectiveTmax < tableTmin) {
+          emit logMessage(QString("<font color='#ffc107'><b>Warning:</b> Requested Tmax (%1 MeV) is below table minimum (%2 MeV). Clamping to table minimum.</font>")
+                              .arg(effectiveTmax, 0, 'f', 1).arg(tableTmin, 0, 'f', 1));
+          effectiveTmax = tableTmin;
+        }
       }
     }
 

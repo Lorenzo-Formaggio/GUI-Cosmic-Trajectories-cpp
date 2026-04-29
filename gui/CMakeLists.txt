@@ -30,6 +30,7 @@ set(GUI_SOURCES
     MainWindow.cpp
     SimulationWorker.cpp
     CompareWidget.cpp
+    EosExplorerWidget.cpp
 )
 
 set(GUI_HEADERS
@@ -37,6 +38,7 @@ set(GUI_HEADERS
     SimulationWorker.h
     CompareWidget.h
     TooltipChartView.h
+    EosExplorerWidget.h
 )
 
 # ── Executable ───────────────────────────────────────────────────────────────

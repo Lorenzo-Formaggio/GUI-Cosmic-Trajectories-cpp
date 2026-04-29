@@ -89,12 +89,12 @@ void CompareWidget::setupUi() {
   leftPanelLayout->setContentsMargins(0, 0, 0, 0);
   
   m_btnCriticalPoint = new QPushButton("📍 Configure Critical Point...");
-  m_btnCriticalPoint->setStyleSheet("QPushButton { background-color: #6f42c1; color: white; border-radius: 4px; font-weight: bold; padding: 8px; margin: 2px 4px 2px 4px; } "
+  m_btnCriticalPoint->setStyleSheet("QPushButton { background-color: #6f42c1; color: white; border-radius: 4px; font-weight: bold; padding: 4px; margin: 2px 4px 2px 4px; } "
                                      "QPushButton:hover { background-color: #5a32a3; }");
   connect(m_btnCriticalPoint, &QPushButton::clicked, this, &CompareWidget::onCriticalPointButtonClicked);
   
   m_btnInitialGuess = new QPushButton("⚙ Configure Initial Guess...");
-  m_btnInitialGuess->setStyleSheet("QPushButton { background-color: #e83e8c; color: white; border-radius: 4px; font-weight: bold; padding: 8px; margin: 2px 4px 2px 4px; } "
+  m_btnInitialGuess->setStyleSheet("QPushButton { background-color: #e83e8c; color: white; border-radius: 4px; font-weight: bold; padding: 4px; margin: 2px 4px 2px 4px; } "
                                     "QPushButton:hover { background-color: #d63384; }");
   connect(m_btnInitialGuess, &QPushButton::clicked, this, &CompareWidget::onInitialGuessButtonClicked);
   
@@ -107,6 +107,17 @@ void CompareWidget::setupUi() {
   createSlotPanel(scrollContent);
   scroll->setWidget(scrollContent);
   leftPanelLayout->addWidget(scroll);
+
+  // Console below slots
+  QGroupBox *groupConsole = new QGroupBox("Console", leftPanel);
+  QVBoxLayout *consoleLayout = new QVBoxLayout(groupConsole);
+  m_console = new QTextEdit();
+  m_console->setReadOnly(true);
+  m_console->setFontFamily("Courier");
+  m_console->setStyleSheet("background-color: #1e1e1e; color: #ffffff; border: 1px solid #333;");
+  m_console->setMinimumHeight(150);
+  consoleLayout->addWidget(m_console);
+  leftPanelLayout->addWidget(groupConsole);
 
   // Right half: comparison charts
   QWidget *chartsWidget = new QWidget(splitter);
@@ -284,7 +295,7 @@ void CompareWidget::createSlotPanel(QWidget *parent) {
     
     s.btnRun = new QPushButton("▶ Run Slot");
     s.btnRun->setStyleSheet(
-        QString("QPushButton { background-color: %1; color: white; border-radius: 4px; font-weight: bold; padding: 6px; }"
+        QString("QPushButton { background-color: %1; color: white; border-radius: 4px; font-weight: bold; padding: 4px; }"
                 "QPushButton:disabled { background-color: #aaa; }")
             .arg(s.color.name()));
     int idx = i;
@@ -294,7 +305,7 @@ void CompareWidget::createSlotPanel(QWidget *parent) {
     s.btnStop = new QPushButton("⏹ Stop");
     s.btnStop->setEnabled(false);
     s.btnStop->setStyleSheet(
-        "QPushButton { background-color: #dc3545; color: white; border-radius: 4px; font-weight: bold; padding: 6px; } "
+        "QPushButton { background-color: #dc3545; color: white; border-radius: 4px; font-weight: bold; padding: 4px; } "
         "QPushButton:disabled { background-color: #aaa; }");
     connect(s.btnStop, &QPushButton::clicked, [this, idx]() {
         if (m_slots[idx].worker) {
@@ -453,6 +464,11 @@ void CompareWidget::runSlot(int idx) {
   s.worker->moveToThread(s.thread);
   connect(s.thread, &QThread::started, s.worker, &SimulationWorker::run);
 
+  // Connect log messages
+  connect(s.worker, &SimulationWorker::logMessage, this, [this, idx](const QString &msg) {
+      onLogMessage(msg, idx);
+  });
+
   // Step completed: append point to series and update axes
   connect(s.worker, &SimulationWorker::stepCompleted,
           [this, idx](TrajectoryPoint pt) {
@@ -598,6 +614,19 @@ void CompareWidget::updateChartAxes() {
     setRange(m_muAxisY,   minMu,   maxMu,   true);
     setRange(m_lepAxisY,  minLep,  maxLep,  true);
   }
+}
+
+void CompareWidget::onLogMessage(const QString &msg, int slotIdx) {
+    QString colorName = m_slots[slotIdx].color.name();
+    // Use bold for the prefix and close the tag
+    QString prefix = QString("<b style=\"color:%1;\">[Slot %2] </b>").arg(colorName).arg(slotIdx + 1);
+    
+    if (msg.contains("<font ") || msg.contains("<span ")) {
+        m_console->append(prefix + msg);
+    } else {
+        // Wrap the message in white to prevent it from inheriting the prefix color if tags bleed
+        m_console->append(prefix + "<span style=\"color:#ffffff;\">" + msg + "</span>");
+    }
 }
 
 void CompareWidget::onThemeToggleClicked() {
