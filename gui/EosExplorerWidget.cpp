@@ -575,11 +575,9 @@ void EosExplorerWidget::onExportClicked() {
     QTextStream out(&file);
     
     // Header
-    out << "Temperature[MeV]";
+    out << "T[MeV]";
     for (const auto &series : m_allSeries) {
-      QString safeLabel = series.label;
-      safeLabel.replace(' ', '_');
-      out << "\t" << safeLabel << "_nB\t" << safeLabel << "_nQ\t" << safeLabel << "_s";
+      out << "\tnB[MeV^3]\tnQ[MeV^3]\ts[MeV^3]";
     }
     out << "\n";
 
