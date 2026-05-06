@@ -1,5 +1,7 @@
 #include "EntrCont.hpp"
 
+#include "HRG.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -14,16 +16,16 @@ using Vec = std::vector<double>;
 static const double NaN = std::numeric_limits<double>::quiet_NaN();
 
 // ============================================================================
-// Configuration (matches main.cpp constants).
+// Configuration -- identical to EntrCont.
 // ============================================================================
 static constexpr int N_T0 = 1000;
 static constexpr double T0_HEADROOM = 30.0;
 static constexpr double SIGMA = 2.0;
-static constexpr double T_HRG_MATCH = 80.0;     // MeV; HRG anchor temperature
-static constexpr double HBARC_GEVFM = 0.1973269; // hbar*c in GeV*fm
+static constexpr double T_HRG_MATCH = 80.0;
+static constexpr double HBARC_GEVFM = 0.1973269;
 
 // ============================================================================
-// Cubic spline (natural boundary conditions). Lifted from main.cpp.
+// Cubic spline (same implementation as EntrCont.cpp).
 // ============================================================================
 class CubicSpline {
   Vec x_, a_, b_, c_, d_;
@@ -31,7 +33,6 @@ class CubicSpline {
 
 public:
   CubicSpline() = default;
-
   void build(const Vec &x, const Vec &y) {
     n_ = (int)x.size();
     x_ = x;
@@ -43,7 +44,6 @@ public:
     for (int i = 1; i < nm1; i++)
       alpha[i] =
           3.0 * ((y[i + 1] - y[i]) / h[i] - (y[i] - y[i - 1]) / h[i - 1]);
-
     c_.assign(n_, 0.0);
     Vec l(n_, 1.0), mu(n_, 0.0), z(n_, 0.0);
     for (int i = 1; i < nm1; i++) {
@@ -53,7 +53,6 @@ public:
     }
     for (int j = nm1 - 1; j >= 1; j--)
       c_[j] = z[j] - mu[j] * c_[j + 1];
-
     b_.resize(nm1);
     d_.resize(nm1);
     for (int i = 0; i < nm1; i++) {
@@ -62,7 +61,6 @@ public:
       d_[i] = (c_[i + 1] - c_[i]) / (3.0 * h[i]);
     }
   }
-
   double eval(double xv, int deriv = 0) const {
     if (n_ < 2)
       return 0.0;
@@ -85,7 +83,6 @@ public:
       return a_[lo] + b_[lo] * dx + c_[lo] * dx * dx + d_[lo] * dx * dx * dx;
     return b_[lo] + 2.0 * c_[lo] * dx + 3.0 * d_[lo] * dx * dx;
   }
-
   Vec eval_vec(const Vec &xs, int deriv = 0) const {
     Vec out(xs.size());
     for (size_t i = 0; i < xs.size(); i++)
@@ -95,7 +92,7 @@ public:
 };
 
 // ============================================================================
-// Numerical helpers (linspace / gradient / cumulative trapezoid / gaussian).
+// Numerical helpers (same as EntrCont).
 // ============================================================================
 static Vec linspace(double lo, double hi, int n) {
   Vec v(n);
@@ -104,7 +101,6 @@ static Vec linspace(double lo, double hi, int n) {
     v[i] = lo + d * i;
   return v;
 }
-
 static Vec np_gradient(const Vec &y, const Vec &x) {
   int n = (int)y.size();
   Vec g(n);
@@ -116,7 +112,6 @@ static Vec np_gradient(const Vec &y, const Vec &x) {
   g[n - 1] = (y[n - 1] - y[n - 2]) / (x[n - 1] - x[n - 2]);
   return g;
 }
-
 static Vec cumtrapz(const Vec &y, const Vec &x) {
   int n = (int)y.size();
   Vec r(n, 0.0);
@@ -124,7 +119,6 @@ static Vec cumtrapz(const Vec &y, const Vec &x) {
     r[i] = r[i - 1] + 0.5 * (y[i] + y[i - 1]) * (x[i] - x[i - 1]);
   return r;
 }
-
 static Vec gaussian_filter1d(const Vec &data, double sigma) {
   int radius = (int)std::ceil(4.0 * sigma);
   int n = (int)data.size();
@@ -154,12 +148,11 @@ static Vec gaussian_filter1d(const Vec &data, double sigma) {
 }
 
 // ============================================================================
-// File loading.
+// File loading (same as EntrCont).
 // ============================================================================
 struct Data3 {
   Vec T, val, err;
 };
-
 static Data3 load3(const std::string &dir, const std::string &name) {
   std::string path = dir + "/" + name + "_30-2000.dT1";
   std::ifstream f(path);
@@ -180,11 +173,9 @@ static Data3 load3(const std::string &dir, const std::string &name) {
   }
   return d;
 }
-
 struct Data2 {
   Vec col0, col1;
 };
-
 static Data2 load2(const std::string &path) {
   std::ifstream f(path);
   if (!f.is_open())
@@ -205,204 +196,10 @@ static Data2 load2(const std::string &path) {
 }
 
 // ============================================================================
-// HRG anchor slice (T = T_HRG_MATCH, muS = 0).
-//
-// File layout (as written by the QvdW-HRG generator and the NaN-fill tool in
-// mimic/fill_hrg.py): two concatenated scans over (muB, muQ),
-//   scan 1: muB in [0, 0.9], muQ in [-0.5, 0]   (with the muQ=0 row stored as 4.3715e-16)
-//   scan 2: muB in [0, 0.9], muQ in [0,  0.5]
-// We round (muB, muQ) to integer MeV and place each row at its grid cell of
-// a uniform 901 muB x 1001 muQ grid (1 MeV spacing). Cells with NaN in any
-// FAIL field stay NaN; the lookup returns false in that case so the caller
-// can decide what to do (the contour anchor falls back to "no anchor" -> NaN).
-//
-// Lookup uses SIGNED muQ (the file covers both signs), and applies C-symmetry
-// only in muB (the file is positive-muB only): for muB<0 we look up at
-// (|muB|, -muQ) and flip the signs of n_B, n_Q, n_S.
-// ============================================================================
-struct HRGSlice {
-  int nB = 0, nQ = 0;
-  double dB_MeV = 1.0, dQ_MeV = 1.0;
-  double muB_min_MeV = 0.0, muQ_min_MeV = 0.0;
-  Vec P_T4, nB_T3, nQ_T3, nS_T3, s_T3;
-  bool ok = false;
-
-  static double parseToken(const std::string &tok) {
-    // Manual NaN/Inf parsing — istream's >> for double fails on "nan" in
-    // libstdc++, which would silently drop rows and corrupt the grid.
-    if (tok.empty())
-      return std::numeric_limits<double>::quiet_NaN();
-    std::string lo;
-    lo.reserve(tok.size());
-    for (char c : tok)
-      lo.push_back((char)std::tolower((unsigned char)c));
-    if (lo == "nan" || lo == "+nan" || lo == "-nan")
-      return std::numeric_limits<double>::quiet_NaN();
-    if (lo == "inf" || lo == "+inf" || lo == "infinity")
-      return std::numeric_limits<double>::infinity();
-    if (lo == "-inf" || lo == "-infinity")
-      return -std::numeric_limits<double>::infinity();
-    try {
-      return std::stod(tok);
-    } catch (...) {
-      return std::numeric_limits<double>::quiet_NaN();
-    }
-  }
-
-  void load(const std::string &path) {
-    std::ifstream f(path);
-    if (!f.is_open())
-      throw std::runtime_error("EntropyContours: cannot open HRG " + path);
-    std::string line;
-    std::getline(f, line); // header
-
-    // Pass 1: parse all rows, collect coordinates and observable values.
-    struct Row {
-      int iB_MeV, iQ_MeV;
-      double T_GeV;
-      double P_T4, rhoB, rhoQ, rhoS, sT3;
-    };
-    std::vector<Row> rows;
-    rows.reserve(1 << 20);
-    while (std::getline(f, line)) {
-      if (line.empty())
-        continue;
-      std::istringstream iss(line);
-      std::vector<std::string> toks;
-      std::string t;
-      while (iss >> t)
-        toks.push_back(t);
-      if (toks.size() < 15)
-        continue;
-      Row r;
-      r.T_GeV = parseToken(toks[0]);
-      double muB_GeV = parseToken(toks[1]);
-      double muQ_GeV = parseToken(toks[2]);
-      r.iB_MeV = (int)std::lround(muB_GeV * 1000.0);
-      r.iQ_MeV = (int)std::lround(muQ_GeV * 1000.0);
-      r.rhoB = parseToken(toks[8]);
-      r.rhoQ = parseToken(toks[9]);
-      r.rhoS = parseToken(toks[10]);
-      r.P_T4 = parseToken(toks[11]);
-      r.sT3 = parseToken(toks[13]);
-      rows.push_back(r);
-    }
-    if (rows.empty())
-      throw std::runtime_error("EntropyContours: empty HRG file " + path);
-
-    // Determine grid extent in MeV.
-    int muB_min = rows[0].iB_MeV, muB_max = rows[0].iB_MeV;
-    int muQ_min = rows[0].iQ_MeV, muQ_max = rows[0].iQ_MeV;
-    for (const auto &r : rows) {
-      muB_min = std::min(muB_min, r.iB_MeV);
-      muB_max = std::max(muB_max, r.iB_MeV);
-      muQ_min = std::min(muQ_min, r.iQ_MeV);
-      muQ_max = std::max(muQ_max, r.iQ_MeV);
-    }
-    nB = muB_max - muB_min + 1;
-    nQ = muQ_max - muQ_min + 1;
-    muB_min_MeV = (double)muB_min;
-    muQ_min_MeV = (double)muQ_min;
-    dB_MeV = 1.0;
-    dQ_MeV = 1.0;
-
-    const double NaN = std::numeric_limits<double>::quiet_NaN();
-    P_T4.assign((size_t)nB * nQ, NaN);
-    nB_T3.assign((size_t)nB * nQ, NaN);
-    nQ_T3.assign((size_t)nB * nQ, NaN);
-    nS_T3.assign((size_t)nB * nQ, NaN);
-    s_T3.assign((size_t)nB * nQ, NaN);
-
-    // Place rows on the grid. If a cell is hit twice (the muQ=0 duplicate
-    // from scan 1's 4.3715e-16 vs scan 2's literal 0), prefer the finite
-    // source: we overwrite NaN with finite, never the other way round.
-    auto consider = [](double v_old, double v_new) {
-      if (std::isfinite(v_new) && !std::isfinite(v_old))
-        return v_new;
-      return v_old;
-    };
-    for (const auto &r : rows) {
-      int iB = r.iB_MeV - muB_min;
-      int iQ = r.iQ_MeV - muQ_min;
-      if (iB < 0 || iB >= nB || iQ < 0 || iQ >= nQ)
-        continue;
-      // (hbar c / T)^3 in fm^3 to convert rho [fm^-3] -> dimensionless n/T^3.
-      double conv = (std::isfinite(r.T_GeV) && r.T_GeV > 0)
-                        ? std::pow(HBARC_GEVFM / r.T_GeV, 3.0)
-                        : NaN;
-      size_t k = (size_t)iB * nQ + iQ;
-      P_T4[k] = consider(P_T4[k], r.P_T4);
-      nB_T3[k] = consider(nB_T3[k], r.rhoB * conv);
-      nQ_T3[k] = consider(nQ_T3[k], r.rhoQ * conv);
-      nS_T3[k] = consider(nS_T3[k], r.rhoS * conv);
-      s_T3[k] = consider(s_T3[k], r.sT3);
-    }
-    ok = true;
-  }
-
-  bool lookup(double muB_MeV, double muQ_MeV, double &P, double &nBo,
-              double &nQo, double &nSo, double &so) const {
-    if (!ok)
-      return false;
-
-    // C-symmetry: file covers muB >= 0 only. For muB < 0 evaluate at
-    // (|muB|, -muQ) and flip the sign of all three densities. P, s are even.
-    double qB = muB_MeV;
-    double qQ = muQ_MeV;
-    bool flipDens = (qB < 0.0);
-    if (flipDens) {
-      qB = -qB;
-      qQ = -qQ;
-    }
-
-    // Clamp into grid range.
-    double mB_max = muB_min_MeV + (nB - 1) * dB_MeV;
-    double mQ_max = muQ_min_MeV + (nQ - 1) * dQ_MeV;
-    qB = std::max(muB_min_MeV, std::min(qB, mB_max));
-    qQ = std::max(muQ_min_MeV, std::min(qQ, mQ_max));
-
-    double xB = (qB - muB_min_MeV) / dB_MeV;
-    double xQ = (qQ - muQ_min_MeV) / dQ_MeV;
-    int iB = (int)std::floor(xB);
-    int iQ = (int)std::floor(xQ);
-    iB = std::max(0, std::min(nB - 2, iB));
-    iQ = std::max(0, std::min(nQ - 2, iQ));
-    double fB = xB - iB, fQ = xQ - iQ;
-
-    auto bilin = [&](const Vec &v) -> double {
-      size_t i00 = (size_t)iB * nQ + iQ;
-      size_t i10 = (size_t)(iB + 1) * nQ + iQ;
-      size_t i01 = (size_t)iB * nQ + (iQ + 1);
-      size_t i11 = (size_t)(iB + 1) * nQ + (iQ + 1);
-      double v00 = v[i00], v10 = v[i10], v01 = v[i01], v11 = v[i11];
-      if (!std::isfinite(v00) || !std::isfinite(v10) || !std::isfinite(v01) ||
-          !std::isfinite(v11))
-        return std::numeric_limits<double>::quiet_NaN();
-      return (1 - fB) * (1 - fQ) * v00 + fB * (1 - fQ) * v10 +
-             (1 - fB) * fQ * v01 + fB * fQ * v11;
-    };
-    P = bilin(P_T4);
-    nBo = bilin(nB_T3);
-    nQo = bilin(nQ_T3);
-    nSo = bilin(nS_T3);
-    so = bilin(s_T3);
-    if (!std::isfinite(P) || !std::isfinite(nBo) || !std::isfinite(nQo) ||
-        !std::isfinite(nSo) || !std::isfinite(so))
-      return false; // anchor not available at this (muB, muQ)
-    if (flipDens) {
-      nBo = -nBo;
-      nQo = -nQo;
-      nSo = -nSo;
-    }
-    return true;
-  }
-};
-
-// ============================================================================
-// Module-level state (set by initialize()).
+// Module state. No HRGSlice -- the seam anchor comes from HRG::eval (EV-HRG).
 // ============================================================================
 static bool g_initialized = false;
-
+static bool g_useHRG = true;
 static Vec g_T0g;
 static Vec g_sp_vec, g_s0_vec;
 static Vec g_c2B, g_c2S, g_c2Q, g_c11BS, g_c11BQ, g_c11SQ;
@@ -410,17 +207,15 @@ static Vec g_c2Bp, g_c2Sp, g_c2Qp, g_c11BSp, g_c11BQp, g_c11SQp;
 static double g_T0_MIN = 0.0, g_T0_MAX = 0.0;
 static double g_ent_T_min = 0.0, g_ent_T_max = 0.0;
 static CubicSpline g_s0_spl;
-static HRGSlice g_hrg;
 
 // ============================================================================
 // Initialization.
 // ============================================================================
-void initialize(const std::string &chisDir, const std::string &hrgPath,
-                bool useHRG) {
+void initialize(const std::string &chisDir, const std::string &pdgListPath,
+                double b_meson_fm3, double b_baryon_fm3, bool useHRG) {
   if (g_initialized)
     return;
 
-  // Load susceptibilities (T, mean, err) per file.
   Data3 chi2B = load3(chisDir, "Chi2B");
   Data3 chi2S = load3(chisDir, "Chi2S");
   Data3 chi2Q = load3(chisDir, "Chi2Q");
@@ -432,7 +227,6 @@ void initialize(const std::string &chisDir, const std::string &hrgPath,
   g_T0_MIN = T_lat.front();
   g_T0_MAX = T_lat.back() + T0_HEADROOM;
 
-  // Build smoothed cubic splines (Gaussian filter with sigma = SIGMA).
   auto make_spline = [&](const Vec &T, const Vec &y) {
     Vec ys = gaussian_filter1d(y, SIGMA);
     CubicSpline spl;
@@ -446,13 +240,11 @@ void initialize(const std::string &chisDir, const std::string &hrgPath,
   CubicSpline C11BQ = make_spline(T_lat, chi11BQ.val);
   CubicSpline C11SQ = make_spline(T_lat, chi11SQ.val);
 
-  // Entropy spline s/T^3(T).
   Data2 d_ent = load2(chisDir + "/entro_2013_hrg+extrap.spln");
   g_s0_spl.build(d_ent.col0, d_ent.col1);
   g_ent_T_min = d_ent.col0.front();
   g_ent_T_max = d_ent.col0.back();
 
-  // T0 grid + per-T0 splined values & derivatives.
   g_T0g = linspace(g_T0_MIN, g_T0_MAX, N_T0);
   g_sp_vec.resize(N_T0);
   g_s0_vec.resize(N_T0);
@@ -463,7 +255,6 @@ void initialize(const std::string &chisDir, const std::string &hrgPath,
     g_s0_vec[i] = soT3;
     g_sp_vec[i] = 3.0 * tc * tc * soT3 + tc * tc * tc * dsoT3;
   }
-
   g_c2B = C2B.eval_vec(g_T0g, 0);
   g_c2Bp = C2B.eval_vec(g_T0g, 1);
   g_c2S = C2S.eval_vec(g_T0g, 0);
@@ -477,8 +268,12 @@ void initialize(const std::string &chisDir, const std::string &hrgPath,
   g_c11SQ = C11SQ.eval_vec(g_T0g, 0);
   g_c11SQp = C11SQ.eval_vec(g_T0g, 1);
 
-  if (useHRG)
-    g_hrg.load(hrgPath);
+  g_useHRG = useHRG;
+  if (g_useHRG) {
+    if (!HRG::isInitialized())
+      HRG::initialize(pdgListPath);
+    HRG::setExcludedVolumes(b_meson_fm3, b_baryon_fm3);
+  }
 
   g_initialized = true;
 }
@@ -501,15 +296,15 @@ void cleanup() {
   g_c11BSp.clear();
   g_c11BQp.clear();
   g_c11SQp.clear();
-  g_hrg = HRGSlice();
   g_s0_spl = CubicSpline();
+  // HRG state is shared (EntrCont may also use it); we don't clean it.
   g_initialized = false;
 }
 
 bool isInitialized() { return g_initialized; }
 
 // ============================================================================
-// Contour evaluation for a fixed (muB, muQ) point (muS = 0).
+// Contour evaluation. Same math as EntrCont; only the seam anchor differs.
 // ============================================================================
 ContourValues evalContour(double muB, double muQ) {
   if (!g_initialized)
@@ -526,16 +321,13 @@ ContourValues evalContour(double muB, double muQ) {
   c.s_T3.assign(N_T0, 0.0);
   c.P_T4.assign(N_T0, 0.0);
 
-  // Direction in (muB, muS, muQ) with muS = 0.
   double mu_tot = std::sqrt(muB * muB + muQ * muQ);
   bool zero_mu = (mu_tot < 1e-10);
   double nBh = zero_mu ? 0.0 : (muB / mu_tot);
   double nSh = 0.0;
   double nQh = zero_mu ? 0.0 : (muQ / mu_tot);
-  double mu = mu_tot; // non-negative; signs carried by nBh, nQh
+  double mu = mu_tot;
 
-  // Per-T0 directional combinations: c2e and its T-derivative; the directional
-  // first-derivative arrays c2X_d (= partial direction-projected chi).
   Vec a2(N_T0), c2e(N_T0), c2B_d(N_T0), c2S_d(N_T0), c2Q_d(N_T0),
       c2B_dp(N_T0);
   for (int i = 0; i < N_T0; i++) {
@@ -549,14 +341,10 @@ ContourValues evalContour(double muB, double muQ) {
     double f2 = 2.0 * T0 * e + T0 * T0 * ep;
     a2[i] = -f2 / g_sp_vec[i];
     c2e[i] = e;
-    c2B_d[i] =
-        nBh * g_c2B[i] + nSh * g_c11BS[i] + nQh * g_c11BQ[i];
-    c2S_d[i] =
-        nBh * g_c11BS[i] + nSh * g_c2S[i] + nQh * g_c11SQ[i];
-    c2Q_d[i] =
-        nBh * g_c11BQ[i] + nSh * g_c11SQ[i] + nQh * g_c2Q[i];
-    c2B_dp[i] =
-        nBh * g_c2Bp[i] + nSh * g_c11BSp[i] + nQh * g_c11BQp[i];
+    c2B_d[i] = nBh * g_c2B[i] + nSh * g_c11BS[i] + nQh * g_c11BQ[i];
+    c2S_d[i] = nBh * g_c11BS[i] + nSh * g_c2S[i] + nQh * g_c11SQ[i];
+    c2Q_d[i] = nBh * g_c11BQ[i] + nSh * g_c11SQ[i] + nQh * g_c2Q[i];
+    c2B_dp[i] = nBh * g_c2Bp[i] + nSh * g_c11BSp[i] + nQh * g_c11BQp[i];
   }
 
   double mu2 = mu * mu;
@@ -567,8 +355,6 @@ ContourValues evalContour(double muB, double muQ) {
   for (int i = 0; i < N_T0; i++)
     c.dTdT0[i] = 1.0 + a2p[i] * mu2 * 0.5;
 
-  // Mu=0 special case: no contour shift, return splined lattice s/T^3 and zero
-  // densities (modulo the optional HRG anchor below).
   if (zero_mu) {
     for (int i = 0; i < N_T0; i++) {
       double Tp = std::max(c.T_phys[i], 1.0);
@@ -592,8 +378,6 @@ ContourValues evalContour(double muB, double muQ) {
       c.s_T3[i] = g_s0_vec[i] * rat3 + c2e[i] * mu_hat[i] * mu_hat[i];
     }
 
-    // Pressure: P_dim = cumtrapz(T0^3 * s/T^3 * dT/dT0 dT0) + Tp^4/2 * c2e *
-    // mu_hat^2. Stored as P/T^4 once HRG anchor is applied below.
     Vec dPdT0(N_T0), P_p(N_T0);
     for (int i = 0; i < N_T0; i++) {
       double T0 = g_T0g[i];
@@ -606,11 +390,11 @@ ContourValues evalContour(double muB, double muQ) {
       P_p[i] = P_base[i] + Tp4 * 0.5 * c2e[i] * mu_hat[i] * mu_hat[i];
     }
 
-    // HRG anchor: shift dimensional P, n_X, s by their seam offset at
-    // T_phys = T_HRG_MATCH so that P/T^4, n_X/T^3, s/T^3 match the QvdW-HRG
-    // values at (muB, muQ, muS=0).
+    // HRG seam anchor: replace the file-based HRGSlice lookup of EntrCont
+    // with HRG::eval at T = T_HRG_MATCH (computed on the fly via EV-HRG).
+    // Same shift formula afterwards.
     bool anchored = false;
-    if (g_hrg.ok) {
+    if (g_useHRG) {
       int k_anc = -1;
       double f_anc = 0.0;
       for (int k = 0; k < N_T0 - 1; k++) {
@@ -636,17 +420,21 @@ ContourValues evalContour(double muB, double muQ) {
 
         double muB_anc = mu * nBh; // = muB
         double muQ_anc = mu * nQh; // = muQ
-        double P_HRG, nB_HRG, nQ_HRG, nS_HRG, s_HRG;
-        if (g_hrg.lookup(muB_anc, muQ_anc, P_HRG, nB_HRG, nQ_HRG, nS_HRG,
-                         s_HRG)) {
+        // *** Substitution vs EntrCont: HRG::eval (EV-HRG) on the fly,
+        // *** instead of HRGSlice::lookup file interpolation.
+        // *** muS = 0 for the cosmic-trajectory case.
+        HRG::Result hrg = HRG::eval(T_HRG_MATCH, muB_anc, muQ_anc, 0.0);
+
+        if (std::isfinite(hrg.P_T4) && std::isfinite(hrg.nB_T3) &&
+            std::isfinite(hrg.nQ_T3) && std::isfinite(hrg.nS_T3) &&
+            std::isfinite(hrg.s_T3)) {
           const double T_a = T_HRG_MATCH;
-          const double T_a3 = T_a * T_a * T_a;
-          const double T_a4 = T_a3 * T_a;
-          double dP_dim = P_HRG * T_a4 - P_lat_a;
-          double dnB = nB_HRG - nB_lat_a;
-          double dnQ = nQ_HRG - nQ_lat_a;
-          double dnS = nS_HRG - nS_lat_a;
-          double ds = s_HRG - s_lat_a;
+          const double T_a4 = T_a * T_a * T_a * T_a;
+          double dP_dim = hrg.P_T4 * T_a4 - P_lat_a;
+          double dnB = hrg.nB_T3 - nB_lat_a;
+          double dnQ = hrg.nQ_T3 - nQ_lat_a;
+          double dnS = hrg.nS_T3 - nS_lat_a;
+          double ds = hrg.s_T3 - s_lat_a;
           for (int i = 0; i < N_T0; i++) {
             double Tp = c.T_phys[i];
             if (Tp < 1.0) {
@@ -664,7 +452,6 @@ ContourValues evalContour(double muB, double muQ) {
         }
       }
       if (!anchored) {
-        // Contour never crossed the seam: no anchor available.
         for (int i = 0; i < N_T0; i++) {
           P_p[i] = c.nB_T3[i] = c.nQ_T3[i] = c.nS_T3[i] = c.s_T3[i] = NaN;
         }
@@ -683,9 +470,7 @@ ContourValues evalContour(double muB, double muQ) {
 }
 
 // ============================================================================
-// T_phys -> T0 inversion at fixed T target. Returns interpolated /T^3 (or /T^4
-// for pressure) values at T_target along the contour. Maxwell construction:
-// among bracketing branches, pick stable (dT/dT0 > 0) with highest P/T^4.
+// T_phys -> T0 inversion (same as EntrCont).
 // ============================================================================
 namespace {
 struct InvBranch {
@@ -735,16 +520,11 @@ static bool invertAtT(const ContourValues &c, double T_target,
   return true;
 }
 
-// ============================================================================
-// Public density / entropy functions (precomputed contour).
-// ============================================================================
 static bool reachableT(double T) {
-  // Below the HRG seam: undefined (matches main.cpp's CT-mode behavior).
-  return !(g_hrg.ok && T < T_HRG_MATCH);
+  return !(g_useHRG && T < T_HRG_MATCH);
 }
 
-double sQCD(double /*muB*/, double /*muQ*/, double T,
-            const ContourValues &c) {
+double sQCD(double, double, double T, const ContourValues &c) {
   if (!g_initialized)
     throw std::runtime_error("EntropyContours not initialized");
   if (!reachableT(T))
@@ -754,12 +534,9 @@ double sQCD(double /*muB*/, double /*muQ*/, double T,
     return NaN;
   if (!std::isfinite(b.s))
     return NaN;
-  double T3 = T * T * T;
-  return b.s * T3;
+  return b.s * T * T * T;
 }
-
-double BarDens(double /*muB*/, double /*muQ*/, double T,
-               const ContourValues &c) {
+double BarDens(double, double, double T, const ContourValues &c) {
   if (!g_initialized)
     throw std::runtime_error("EntropyContours not initialized");
   if (!reachableT(T))
@@ -769,12 +546,9 @@ double BarDens(double /*muB*/, double /*muQ*/, double T,
     return NaN;
   if (!std::isfinite(b.nB))
     return NaN;
-  double T3 = T * T * T;
-  return b.nB * T3;
+  return b.nB * T * T * T;
 }
-
-double QCDcharge(double /*muB*/, double /*muQ*/, double T,
-                 const ContourValues &c) {
+double QCDcharge(double, double, double T, const ContourValues &c) {
   if (!g_initialized)
     throw std::runtime_error("EntropyContours not initialized");
   if (!reachableT(T))
@@ -784,12 +558,9 @@ double QCDcharge(double /*muB*/, double /*muQ*/, double T,
     return NaN;
   if (!std::isfinite(b.nQ))
     return NaN;
-  double T3 = T * T * T;
-  return b.nQ * T3;
+  return b.nQ * T * T * T;
 }
-
-double StrDens(double /*muB*/, double /*muQ*/, double T,
-               const ContourValues &c) {
+double StrDens(double, double, double T, const ContourValues &c) {
   if (!g_initialized)
     throw std::runtime_error("EntropyContours not initialized");
   if (!reachableT(T))
@@ -799,28 +570,21 @@ double StrDens(double /*muB*/, double /*muQ*/, double T,
     return NaN;
   if (!std::isfinite(b.nS))
     return NaN;
-  double T3 = T * T * T;
-  return b.nS * T3;
+  return b.nS * T * T * T;
 }
 
-// ============================================================================
-// Convenience overloads: build a temporary contour each call.
-// ============================================================================
 double sQCD(double muB, double muQ, double T) {
   ContourValues c = evalContour(muB, muQ);
   return sQCD(muB, muQ, T, c);
 }
-
 double BarDens(double muB, double muQ, double T) {
   ContourValues c = evalContour(muB, muQ);
   return BarDens(muB, muQ, T, c);
 }
-
 double QCDcharge(double muB, double muQ, double T) {
   ContourValues c = evalContour(muB, muQ);
   return QCDcharge(muB, muQ, T, c);
 }
-
 double StrDens(double muB, double muQ, double T) {
   ContourValues c = evalContour(muB, muQ);
   return StrDens(muB, muQ, T, c);

@@ -18,7 +18,7 @@ void setEoS(int eos, const std::string &dataPath, int nf) {
       InterpolatedEoS::loadTable(dataPath + "/EoS_Table.txt");
     }
   } else if (eos == 3) {
-    EntropyContours::initialize(dataPath + "/EntroContourEoS/chis", dataPath + "/EntroContourEoS/HRG/muB-muQ-plane_QvdW_interacting_pions.dat", true);
+    EntropyContours::initialize(dataPath + "/EntroContourEoS/chis", dataPath + "/EntroContourEoS/HRG/list-PDG2020.dat", 1.0, 3.42, true);
   }
 }
 
