@@ -483,6 +483,11 @@ void MainWindow::onRunClicked() {
   m_worker->initialGuessType = m_initialGuessType;
   m_worker->customGuessLowHigh = m_customGuessLowHigh;
   m_worker->customGuessHighLow = m_customGuessHighLow;
+
+  m_worker->metropolisMode      = m_metropolisMode;
+  m_worker->metropolisSteps     = m_metropolisSteps;
+  m_worker->metropolisStepSigma = m_metropolisStepSigma;
+  m_worker->metropolisT         = m_metropolisT;
   
   // Set working directory to project root (parent of build directory typically)
   // The user launches from gui/build/, so up two levels to get to project root
@@ -1113,6 +1118,48 @@ void MainWindow::onSolverSettingsButtonClicked() {
 
     vbox->addWidget(groupGuess);
 
+    // ── Metropolis Pre-Optimizer ──────────────────────────────────────
+    QGroupBox *groupMetro = new QGroupBox("Metropolis Pre-Optimizer", m_solverSettingsDialog);
+    QGridLayout *gridMetro = new QGridLayout(groupMetro);
+
+    QComboBox *comboMetroMode = new QComboBox(m_solverSettingsDialog);
+    comboMetroMode->addItems({"Off", "First step only (on failure)", "Always retry on failure"});
+    comboMetroMode->setCurrentIndex(m_metropolisMode);
+    gridMetro->addWidget(new QLabel("Mode:"), 0, 0);
+    gridMetro->addWidget(comboMetroMode, 0, 1);
+
+    QSpinBox *spinMetroSteps = new QSpinBox(m_solverSettingsDialog);
+    spinMetroSteps->setRange(10, 50000);
+    spinMetroSteps->setValue(m_metropolisSteps);
+    gridMetro->addWidget(new QLabel("Steps:"), 1, 0);
+    gridMetro->addWidget(spinMetroSteps, 1, 1);
+
+    QDoubleSpinBox *spinMetroSigma = new QDoubleSpinBox(m_solverSettingsDialog);
+    spinMetroSigma->setDecimals(4);
+    spinMetroSigma->setRange(1e-4, 1000.0);
+    spinMetroSigma->setValue(m_metropolisStepSigma);
+    gridMetro->addWidget(new QLabel("Step σ (MeV):"), 2, 0);
+    gridMetro->addWidget(spinMetroSigma, 2, 1);
+
+    QDoubleSpinBox *spinMetroT = new QDoubleSpinBox(m_solverSettingsDialog);
+    spinMetroT->setDecimals(6);
+    spinMetroT->setRange(1e-8, 1e6);
+    spinMetroT->setValue(m_metropolisT);
+    gridMetro->addWidget(new QLabel("Temperature T_m:"), 3, 0);
+    gridMetro->addWidget(spinMetroT, 3, 1);
+
+    // Grey out controls when mode is Off
+    auto updateMetroEnabled = [=](int idx) {
+      bool on = (idx != 0);
+      spinMetroSteps->setEnabled(on);
+      spinMetroSigma->setEnabled(on);
+      spinMetroT->setEnabled(on);
+    };
+    connect(comboMetroMode, &QComboBox::currentIndexChanged, updateMetroEnabled);
+    updateMetroEnabled(m_metropolisMode);
+
+    vbox->addWidget(groupMetro);
+
     // ── Save button ───────────────────────────────────────────────────
     QPushButton *btnSave = new QPushButton("Save and Close", m_solverSettingsDialog);
     btnSave->setStyleSheet("QPushButton { background-color: #007bff; color: white; border-radius: 4px; font-weight: bold; padding: 6px; } "
@@ -1124,6 +1171,10 @@ void MainWindow::onSolverSettingsButtonClicked() {
       m_initialGuessType = comboType->currentIndex();
       m_customGuessLowHigh = {lh_muB->value(), lh_muQ->value(), lh_munue->value(), lh_munumu->value(), lh_mnutau->value()};
       m_customGuessHighLow = {hl_muB->value(), hl_muQ->value(), hl_munue->value(), hl_munumu->value(), hl_mnutau->value()};
+      m_metropolisMode      = comboMetroMode->currentIndex();
+      m_metropolisSteps     = spinMetroSteps->value();
+      m_metropolisStepSigma = spinMetroSigma->value();
+      m_metropolisT         = spinMetroT->value();
       m_solverSettingsDialog->accept();
     });
     vbox->addWidget(btnSave);

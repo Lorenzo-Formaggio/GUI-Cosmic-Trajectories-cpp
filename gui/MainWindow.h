@@ -172,6 +172,12 @@ private:
   double m_tolerance = 1e-6;
   int m_maxIter = 100;
   int m_guessMethod = 0; // 0 = Simple, 1 = Linear Extrap
+
+  // Metropolis optimizer state (0=off, 1=first step only, 2=always retry)
+  int    m_metropolisMode      = 0;
+  int    m_metropolisSteps     = 500;
+  double m_metropolisStepSigma = 1.0;
+  double m_metropolisT         = 0.01;
 };
 
 #endif // MAINWINDOW_H

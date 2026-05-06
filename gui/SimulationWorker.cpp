@@ -5,6 +5,8 @@
 #include "include/InterpolatedEoS.hpp"
 #include "include/QCDTherm.hpp"
 #include "include/Solver.hpp"
+#include "include/Metropolis.hpp"
+#include "include/TRangeManager.hpp"
 #include "include/leptonTherm.hpp"
 
 #include <QDir>
@@ -23,46 +25,12 @@ void SimulationWorker::run() {
     std::string baseDir = workingDir.toStdString();
     std::string eosTablePath = eosTableFilePath.isEmpty() ? (baseDir + "/EoS_Table.txt") : eosTableFilePath.toStdString();
 
-    // If using interpolated EoS, load the table and validate user T range
-    double effectiveTmin = Tmin;
-    double effectiveTmax = Tmax;
-    if (eos == 2) {
-      if (InterpolatedEoS::isLoaded() && InterpolatedEoS::getLoadedFilename() == eosTablePath) {
-        emit logMessage("Interpolated EoS table is already in memory. Skipping reload.");
-      } else {
-        emit logMessage("Loading interpolated EoS table... (This may take a moment)");
-        InterpolatedEoS::loadTable(eosTablePath);
-      }
-      if (InterpolatedEoS::isLoaded()) {
-        double tableTmin = InterpolatedEoS::getTmin();
-        double tableTmax = InterpolatedEoS::getTmax();
-        emit logMessage(QString("  Table loaded. T range: %1 – %2 MeV")
-                            .arg(tableTmin, 0, 'f', 1)
-                            .arg(tableTmax, 0, 'f', 1));
-
-        // Clamp user Tmin only if it falls outside the table range
-        if (effectiveTmin < tableTmin) {
-          emit logMessage(QString("<font color='#ffc107'><b>Warning:</b> Requested Tmin (%1 MeV) is below table minimum (%2 MeV). Clamping to table minimum.</font>")
-                              .arg(effectiveTmin, 0, 'f', 1).arg(tableTmin, 0, 'f', 1));
-          effectiveTmin = tableTmin;
-        } else if (effectiveTmin > tableTmax) {
-          emit logMessage(QString("<font color='#ffc107'><b>Warning:</b> Requested Tmin (%1 MeV) exceeds table maximum (%2 MeV). Clamping to table maximum.</font>")
-                              .arg(effectiveTmin, 0, 'f', 1).arg(tableTmax, 0, 'f', 1));
-          effectiveTmin = tableTmax;
-        }
-
-        // Clamp user Tmax only if it falls outside the table range
-        if (effectiveTmax > tableTmax) {
-          emit logMessage(QString("<font color='#ffc107'><b>Warning:</b> Requested Tmax (%1 MeV) exceeds table maximum (%2 MeV). Clamping to table maximum.</font>")
-                              .arg(effectiveTmax, 0, 'f', 1).arg(tableTmax, 0, 'f', 1));
-          effectiveTmax = tableTmax;
-        } else if (effectiveTmax < tableTmin) {
-          emit logMessage(QString("<font color='#ffc107'><b>Warning:</b> Requested Tmax (%1 MeV) is below table minimum (%2 MeV). Clamping to table minimum.</font>")
-                              .arg(effectiveTmax, 0, 'f', 1).arg(tableTmin, 0, 'f', 1));
-          effectiveTmax = tableTmin;
-        }
-      }
-    }
+    // Validate and clamp temperature range based on EoS
+    auto range = TRange::validateAndClamp(eos, eosTablePath, Tmin, Tmax, [this](const std::string& msg) {
+        emit logMessage(QString::fromStdString(msg));
+    });
+    double effectiveTmin = range.Tmin;
+    double effectiveTmax = range.Tmax;
 
     // Set the EoS
     std::string eosName;
@@ -138,6 +106,7 @@ void SimulationWorker::run() {
     }
 
     // ── Main simulation loop ──────────────────────────────────────────────
+    bool firstStep = true;
     for (double T = Tstart;
          (scanDirection == 0) ? (T <= Tend) : (T >= Tend);
          T += Tstep) {
@@ -150,8 +119,62 @@ void SimulationWorker::run() {
       std::vector<Solver::SystemFunction> functions =
           GetEq::getEquations(T, le, lmu, ltau, b, nf);
 
-      std::vector<double> solution =
-          Solver::solveSystem(functions, targets, guess, tolerance, maxIter);
+      // ── Attempt solve, with optional Metropolis retry ─────────────────
+      std::vector<double> solution;
+      bool solved = false;
+
+      auto tryMetropolis = [&](const QString &reason) {
+        emit logMessage(QString("<font color='#ffc107'><b>Solver failed at T=%1 MeV</b> (%2). "
+                                "Running Metropolis optimizer (%3 steps, σ=%4, T_m=%5)...</font>")
+                            .arg(T, 0, 'f', 1).arg(reason)
+                            .arg(metropolisSteps)
+                            .arg(metropolisStepSigma, 0, 'g', 3)
+                            .arg(metropolisT, 0, 'g', 3));
+
+        std::vector<double> bestGuess = Metropolis::optimize(
+            functions, targets, guess,
+            metropolisSteps, metropolisStepSigma, metropolisT,
+            tolerance, maxIter);
+
+        double bestCost = Metropolis::computeCost(functions, targets, bestGuess, tolerance, maxIter);
+
+        emit logMessage(QString("  → Metropolis best cost: <b>%1</b>. Retrying solver...")
+                            .arg(bestCost, 0, 'e', 3));
+        try {
+          solution = Solver::solveSystem(functions, targets, bestGuess, tolerance, maxIter);
+          guess = bestGuess; // keep as new starting guess for next step
+          solved = true;
+          emit logMessage(QString("<font color='#28a745'>  ✓ Solver converged after Metropolis at T=%1 MeV.</font>").arg(T, 0, 'f', 1));
+        } catch (const std::exception &e2) {
+          emit logMessage(QString("<font color='#dc3545'>  ✗ Solver still failed after Metropolis at T=%1 MeV: %2. Skipping step.</font>")
+                              .arg(T, 0, 'f', 1).arg(e2.what()));
+        }
+      };
+
+      try {
+        solution = Solver::solveSystem(functions, targets, guess, tolerance, maxIter);
+        solved = true;
+      } catch (const std::exception &e) {
+        // Decide whether to run Metropolis based on the mode
+        bool runMetro = false;
+        if (metropolisMode == 1 && firstStep) runMetro = true;
+        else if (metropolisMode == 2)          runMetro = true;
+
+        if (runMetro) {
+          tryMetropolis(QString::fromStdString(e.what()));
+        } else {
+          emit logMessage(QString("<font color='#dc3545'><b>Solver failed at T=%1 MeV:</b> %2. Skipping step.</font>")
+                              .arg(T, 0, 'f', 1).arg(e.what()));
+        }
+      }
+
+      firstStep = false;
+
+      if (!solved) {
+        currentStep++;
+        emit progressUpdated(std::min(static_cast<int>(100.0 * currentStep / totalSteps), 100));
+        continue;
+      }
 
       double muB_sol    = solution[0];
       double muQ_sol    = solution[1];

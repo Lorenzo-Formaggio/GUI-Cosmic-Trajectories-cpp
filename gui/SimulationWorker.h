@@ -59,6 +59,13 @@ public:
   double tolerance = 1e-6;
   int maxIter = 100;
 
+  // Metropolis optimizer settings
+  // 0 = off, 1 = first step only (on failure), 2 = retry on every failure
+  int    metropolisMode      = 0;
+  int    metropolisSteps     = 500;
+  double metropolisStepSigma = 1.0;
+  double metropolisT         = 0.01;
+
   // Working directory (for finding LatticeEoS/, EoS_Table.txt)
   QString workingDir;
 

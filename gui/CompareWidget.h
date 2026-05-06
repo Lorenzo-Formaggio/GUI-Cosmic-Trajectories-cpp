@@ -121,6 +121,12 @@ private:
   int    m_maxIter     = 100;
   int    m_guessMethod = 0;
 
+  // Metropolis optimizer state (shared)
+  int    m_metropolisMode      = 0;
+  int    m_metropolisSteps     = 500;
+  double m_metropolisStepSigma = 1.0;
+  double m_metropolisT         = 0.01;
+
   QCheckBox *m_chknB      = nullptr;
   QCheckBox *m_chkS       = nullptr;
   QCheckBox *m_chknQ      = nullptr;
