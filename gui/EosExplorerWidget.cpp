@@ -56,7 +56,7 @@ void EosExplorerWidget::setupUi() {
 
   // EoS Selection
   m_comboEos = new QComboBox();
-  m_comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)"});
+  m_comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)"});
   connect(m_comboEos, &QComboBox::currentIndexChanged, this, &EosExplorerWidget::onEosChanged);
   grid->addWidget(new QLabel("Equation of State:"), row, 0);
   grid->addWidget(m_comboEos, row++, 1);
@@ -338,6 +338,7 @@ void EosExplorerWidget::onComputeClicked() {
     if (eos == 0) eosName = "Free QGP";
     else if (eos == 1) eosName = "Lattice QCD";
     else if (eos == 2) eosName = "Interpolated Table";
+    else if (eos == 3) eosName = "Entropy Contour";
     
     // If using interpolated EoS, load the table and log its range
     if (eos == 2) {
@@ -358,8 +359,8 @@ void EosExplorerWidget::onComputeClicked() {
     logMessage(QString("Setting EoS: %1").arg(eosName));
 
     // Use the logic already in QCDTherm.cpp for setting up the EoS
-    std::string latticeDir = m_workingDir.toStdString() + "/LatticeEoS/threeflavors/";
-    QCD::setEoS(eos, latticeDir, nf);
+    std::string baseDir = m_workingDir.toStdString();
+    QCD::setEoS(eos, baseDir, nf);
 
     double muB = m_spinMuB->value();
     double muQ = m_spinMuQ->value();

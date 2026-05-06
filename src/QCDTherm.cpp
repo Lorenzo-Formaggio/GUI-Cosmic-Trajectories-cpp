@@ -1,22 +1,24 @@
 #include "../include/QCDTherm.hpp"
 #include "../include/InterpolatedEoS.hpp"
 #include "../include/LatticeQCD.hpp"
-
+#include "../include/EntrCont.hpp"
 namespace QCD {
 
-// Current EoS selection (0 = free QGP, 1 = lattice QCD, 2 = Interpolated Table)
+// Current EoS selection (0 = free QGP, 1 = lattice QCD, 2 = Interpolated Table, 3 = Entropy Contour)
 static int currentEoS = 0;
 
 void setEoS(int eos, const std::string &dataPath, int nf) {
   currentEoS = eos;
   if (eos == 1) {
     bool includeCharm = (nf == 4);
-    LatticeQCD::initialize(dataPath, includeCharm);
+    LatticeQCD::initialize(dataPath + "/LatticeEoS/threeflavors/", includeCharm);
   } else if (eos == 2) {
     // For Interpolated EoS, load the standard table file
     if (!InterpolatedEoS::isLoaded()) {
-      InterpolatedEoS::loadTable("EoS_Table.txt");
+      InterpolatedEoS::loadTable(dataPath + "/EoS_Table.txt");
     }
+  } else if (eos == 3) {
+    EntropyContours::initialize(dataPath + "/EntroContourEoS/chis", dataPath + "/EntroContourEoS/HRG/muB-muQ-plane_QvdW_interacting_pions.dat", true);
   }
 }
 
@@ -25,6 +27,9 @@ int getEoS() { return currentEoS; }
 void cleanup() {
   if (currentEoS == 1) {
     LatticeQCD::cleanup();
+  }
+  if (currentEoS == 3) {
+    EntropyContours::cleanup();
   }
   
   if (currentEoS != 2) {
@@ -41,6 +46,8 @@ double BarDens(double muB, double muQ, double T, int nf) {
   } else if (currentEoS == 2) {
     auto val = InterpolatedEoS::evaluate(T, muB, muQ);
     return val.nB;
+  } else if (currentEoS == 3) {
+    return EntropyContours::BarDens(muB, muQ, T);
   }
 
   // Free QGP
@@ -62,6 +69,8 @@ double QCDcharge(double muB, double muQ, double T, int nf) {
   } else if (currentEoS == 2) {
     auto val = InterpolatedEoS::evaluate(T, muB, muQ);
     return val.nQ;
+  } else if (currentEoS == 3) {
+    return EntropyContours::QCDcharge(muB, muQ, T);
   }
 
   // Free QGP
@@ -82,6 +91,8 @@ double sQCD(double muB, double muQ, double T, int nf) {
   } else if (currentEoS == 2) {
     auto val = InterpolatedEoS::evaluate(T, muB, muQ);
     return val.s;
+  } else if (currentEoS == 3) {
+    return EntropyContours::sQCD(muB, muQ, T);
   }
 
   // Free QGP

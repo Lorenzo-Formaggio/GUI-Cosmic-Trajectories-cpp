@@ -4,6 +4,7 @@
 
 #include <QApplication>
 #include <QDoubleSpinBox>
+#include <QSpinBox>
 #include <QComboBox>
 #include <QPushButton>
 #include <QProgressBar>
@@ -157,6 +158,12 @@ void MainWindow::setupUi() {
   connect(m_btnScaleToggle, &QPushButton::clicked, this, &MainWindow::onScaleToggleClicked);
   bottomRightLayout->addWidget(m_btnScaleToggle);
   
+  m_btnCriticalPoint = new QPushButton("📍 Configure Critical Point...", rightPanel);
+  m_btnCriticalPoint->setStyleSheet("QPushButton { background-color: #6f42c1; color: white; border-radius: 4px; font-weight: bold; padding: 4px; margin: 2px 4px 2px 4px; } "
+                                     "QPushButton:hover { background-color: #5a32a3; }");
+  connect(m_btnCriticalPoint, &QPushButton::clicked, this, &MainWindow::onCriticalPointButtonClicked);
+  bottomRightLayout->addWidget(m_btnCriticalPoint);
+  
   rightLayout->addLayout(bottomRightLayout);
 
   splitter->addWidget(leftPanel);
@@ -187,6 +194,12 @@ void MainWindow::createParameterPanel(QWidget *parent) {
   QGroupBox *group = new QGroupBox("Parameters", parent);
   group->setObjectName("GroupParams");
   QVBoxLayout *layout = new QVBoxLayout(group);
+
+  m_btnSolverSettings = new QPushButton("⚙ Solver Settings...");
+  m_btnSolverSettings->setStyleSheet("QPushButton { background-color: #e83e8c; color: white; border-radius: 4px; font-weight: bold; padding: 4px; margin: 2px 4px 2px 4px; } "
+                                    "QPushButton:hover { background-color: #d63384; }");
+  connect(m_btnSolverSettings, &QPushButton::clicked, this, &MainWindow::onSolverSettingsButtonClicked);
+  layout->addWidget(m_btnSolverSettings);
 
   QGridLayout *grid = new QGridLayout();
 
@@ -219,7 +232,7 @@ void MainWindow::createParameterPanel(QWidget *parent) {
   grid->addWidget(m_comboNf, row++, 1);
 
   m_comboEos = new QComboBox();
-  m_comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)"});
+  m_comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)"});
   connect(m_comboEos, &QComboBox::currentIndexChanged, this, &MainWindow::onEosChanged);
   grid->addWidget(new QLabel("EoS"), row, 0);
   grid->addWidget(m_comboEos, row++, 1);
@@ -247,29 +260,12 @@ void MainWindow::createParameterPanel(QWidget *parent) {
       }
   });
 
-  m_comboGuess = new QComboBox();
-  m_comboGuess->addItems({"Simple (0)", "Linear Extrap (1)"});
-  grid->addWidget(new QLabel("Guess Method"), row, 0);
-  grid->addWidget(m_comboGuess, row++, 1);
-
   m_comboScan = new QComboBox();
   m_comboScan->addItems({"Low -> High (0)", "High -> Low (1)"});
   grid->addWidget(new QLabel("Scan Direction"), row, 0);
   grid->addWidget(m_comboScan, row++, 1);
 
   layout->addLayout(grid);
-
-  m_btnCriticalPoint = new QPushButton("📍 Configure Critical Point...");
-  m_btnCriticalPoint->setStyleSheet("QPushButton { background-color: #6f42c1; color: white; border-radius: 4px; font-weight: bold; padding: 4px; margin: 2px 4px 2px 4px; } "
-                                     "QPushButton:hover { background-color: #5a32a3; }");
-  connect(m_btnCriticalPoint, &QPushButton::clicked, this, &MainWindow::onCriticalPointButtonClicked);
-  layout->addWidget(m_btnCriticalPoint);
-
-  m_btnInitialGuess = new QPushButton("⚙ Configure Initial Guess...");
-  m_btnInitialGuess->setStyleSheet("QPushButton { background-color: #e83e8c; color: white; border-radius: 4px; font-weight: bold; padding: 4px; margin: 2px 4px 2px 4px; } "
-                                    "QPushButton:hover { background-color: #d63384; }");
-  connect(m_btnInitialGuess, &QPushButton::clicked, this, &MainWindow::onInitialGuessButtonClicked);
-  layout->addWidget(m_btnInitialGuess);
 
   QHBoxLayout *actionLayout = new QHBoxLayout();
   m_btnRun = new QPushButton("▶ Run Simulation");
@@ -469,6 +465,9 @@ void MainWindow::onRunClicked() {
   m_worker->Tmin = m_spinTmin->value();
   m_worker->Tmax = m_spinTmax->value();
   
+  m_worker->tolerance = m_tolerance;
+  m_worker->maxIter = m_maxIter;
+  
   int nf = m_comboNf->currentText().toInt();
   int eos = m_comboEos->currentIndex();
   if (eos == 1 && nf == 2) {
@@ -477,7 +476,7 @@ void MainWindow::onRunClicked() {
   }
   m_worker->nf = nf;
   m_worker->eos = eos;
-  m_worker->guessMethod = m_comboGuess->currentIndex();
+  m_worker->guessMethod = m_guessMethod;
   m_worker->scanDirection = m_comboScan->currentIndex();
   m_worker->eosTableFilePath = m_lineEditEosPath->text();
   
@@ -1032,27 +1031,53 @@ void MainWindow::updateCriticalPoint() {
   }
 }
 
-void MainWindow::onInitialGuessButtonClicked() {
-  if (!m_guessDialog) {
-    m_guessDialog = new QDialog(this);
-    m_guessDialog->setWindowTitle("Configure Initial Guess");
-    m_guessDialog->setMinimumWidth(400);
+void MainWindow::onSolverSettingsButtonClicked() {
+  if (!m_solverSettingsDialog) {
+    m_solverSettingsDialog = new QDialog(this);
+    m_solverSettingsDialog->setWindowTitle("Solver Settings");
+    m_solverSettingsDialog->setMinimumWidth(420);
 
-    QVBoxLayout *vbox = new QVBoxLayout(m_guessDialog);
-    
-    QComboBox *comboType = new QComboBox(m_guessDialog);
+    QVBoxLayout *vbox = new QVBoxLayout(m_solverSettingsDialog);
+
+    // ── Convergence settings ──────────────────────────────────────────
+    QGroupBox *groupConv = new QGroupBox("Convergence", m_solverSettingsDialog);
+    QGridLayout *gridConv = new QGridLayout(groupConv);
+
+    gridConv->addWidget(new QLabel("Absolute Tolerance:"), 0, 0);
+    QDoubleSpinBox *spinTol = new QDoubleSpinBox(m_solverSettingsDialog);
+    spinTol->setDecimals(12);
+    spinTol->setRange(1e-12, 1.0);
+    spinTol->setValue(m_tolerance);
+    spinTol->setSingleStep(1e-6);
+    gridConv->addWidget(spinTol, 0, 1);
+
+    gridConv->addWidget(new QLabel("Max Iterations:"), 1, 0);
+    QSpinBox *spinMaxIter = new QSpinBox(m_solverSettingsDialog);
+    spinMaxIter->setRange(10, 10000);
+    spinMaxIter->setValue(m_maxIter);
+    gridConv->addWidget(spinMaxIter, 1, 1);
+
+    vbox->addWidget(groupConv);
+
+    // ── Guess method ─────────────────────────────────────────────────
+    QGroupBox *groupGuess = new QGroupBox("Initial Guess Strategy", m_solverSettingsDialog);
+    QVBoxLayout *vboxGuess = new QVBoxLayout(groupGuess);
+
+    QComboBox *comboMethod = new QComboBox(m_solverSettingsDialog);
+    comboMethod->addItems({"Simple (0)", "Linear Extrap (1)"});
+    comboMethod->setCurrentIndex(m_guessMethod);
+    vboxGuess->addWidget(new QLabel("Guess Propagation Method:"));
+    vboxGuess->addWidget(comboMethod);
+
+    QComboBox *comboType = new QComboBox(m_solverSettingsDialog);
     comboType->addItems({"Standard Guess", "Custom Guess"});
     comboType->setCurrentIndex(m_initialGuessType);
-    
-    vbox->addWidget(new QLabel("Initial Guess Strategy:"));
-    vbox->addWidget(comboType);
+    vboxGuess->addWidget(new QLabel("Initial Guess Values:"));
+    vboxGuess->addWidget(comboType);
 
-    QGroupBox *groupLH = new QGroupBox("Low -> High Scan", m_guessDialog);
-    QGridLayout *gridLH = new QGridLayout(groupLH);
-    
     auto addSpin = [&](QGridLayout* grid, int row, const QString& label, double val) -> QDoubleSpinBox* {
       grid->addWidget(new QLabel(label), row, 0);
-      QDoubleSpinBox *spin = new QDoubleSpinBox(m_guessDialog);
+      QDoubleSpinBox *spin = new QDoubleSpinBox(m_solverSettingsDialog);
       spin->setRange(-10000, 10000);
       spin->setDecimals(5);
       spin->setValue(val);
@@ -1060,22 +1085,23 @@ void MainWindow::onInitialGuessButtonClicked() {
       return spin;
     };
 
-    QDoubleSpinBox *lh_muB = addSpin(gridLH, 0, "muB:", m_customGuessLowHigh[0]);
-    QDoubleSpinBox *lh_muQ = addSpin(gridLH, 1, "muQ:", m_customGuessLowHigh[1]);
-    QDoubleSpinBox *lh_munue = addSpin(gridLH, 2, "munue:", m_customGuessLowHigh[2]);
+    QGroupBox *groupLH = new QGroupBox("Low → High Scan", m_solverSettingsDialog);
+    QGridLayout *gridLH = new QGridLayout(groupLH);
+    QDoubleSpinBox *lh_muB    = addSpin(gridLH, 0, "muB:",    m_customGuessLowHigh[0]);
+    QDoubleSpinBox *lh_muQ    = addSpin(gridLH, 1, "muQ:",    m_customGuessLowHigh[1]);
+    QDoubleSpinBox *lh_munue  = addSpin(gridLH, 2, "munue:",  m_customGuessLowHigh[2]);
     QDoubleSpinBox *lh_munumu = addSpin(gridLH, 3, "munumu:", m_customGuessLowHigh[3]);
     QDoubleSpinBox *lh_mnutau = addSpin(gridLH, 4, "mnutau:", m_customGuessLowHigh[4]);
-    vbox->addWidget(groupLH);
+    vboxGuess->addWidget(groupLH);
 
-    QGroupBox *groupHL = new QGroupBox("High -> Low Scan", m_guessDialog);
+    QGroupBox *groupHL = new QGroupBox("High → Low Scan", m_solverSettingsDialog);
     QGridLayout *gridHL = new QGridLayout(groupHL);
-    
-    QDoubleSpinBox *hl_muB = addSpin(gridHL, 0, "muB:", m_customGuessHighLow[0]);
-    QDoubleSpinBox *hl_muQ = addSpin(gridHL, 1, "muQ:", m_customGuessHighLow[1]);
-    QDoubleSpinBox *hl_munue = addSpin(gridHL, 2, "munue:", m_customGuessHighLow[2]);
+    QDoubleSpinBox *hl_muB    = addSpin(gridHL, 0, "muB:",    m_customGuessHighLow[0]);
+    QDoubleSpinBox *hl_muQ    = addSpin(gridHL, 1, "muQ:",    m_customGuessHighLow[1]);
+    QDoubleSpinBox *hl_munue  = addSpin(gridHL, 2, "munue:",  m_customGuessHighLow[2]);
     QDoubleSpinBox *hl_munumu = addSpin(gridHL, 3, "munumu:", m_customGuessHighLow[3]);
     QDoubleSpinBox *hl_mnutau = addSpin(gridHL, 4, "mnutau:", m_customGuessHighLow[4]);
-    vbox->addWidget(groupHL);
+    vboxGuess->addWidget(groupHL);
 
     auto updateFields = [=](int idx) {
       bool isCustom = (idx == 1);
@@ -1085,16 +1111,25 @@ void MainWindow::onInitialGuessButtonClicked() {
     connect(comboType, &QComboBox::currentIndexChanged, updateFields);
     updateFields(m_initialGuessType);
 
-    QPushButton *btnSave = new QPushButton("Save and Close", m_guessDialog);
+    vbox->addWidget(groupGuess);
+
+    // ── Save button ───────────────────────────────────────────────────
+    QPushButton *btnSave = new QPushButton("Save and Close", m_solverSettingsDialog);
+    btnSave->setStyleSheet("QPushButton { background-color: #007bff; color: white; border-radius: 4px; font-weight: bold; padding: 6px; } "
+                           "QPushButton:hover { background-color: #0056b3; }");
     connect(btnSave, &QPushButton::clicked, [=]() {
+      m_tolerance       = spinTol->value();
+      m_maxIter         = spinMaxIter->value();
+      m_guessMethod     = comboMethod->currentIndex();
       m_initialGuessType = comboType->currentIndex();
       m_customGuessLowHigh = {lh_muB->value(), lh_muQ->value(), lh_munue->value(), lh_munumu->value(), lh_mnutau->value()};
       m_customGuessHighLow = {hl_muB->value(), hl_muQ->value(), hl_munue->value(), hl_munumu->value(), hl_mnutau->value()};
-      m_guessDialog->accept();
+      m_solverSettingsDialog->accept();
     });
     vbox->addWidget(btnSave);
   }
-  m_guessDialog->show();
-  m_guessDialog->raise();
-  m_guessDialog->activateWindow();
+  // Re-sync spinboxes to current state each time dialog is opened
+  m_solverSettingsDialog->show();
+  m_solverSettingsDialog->raise();
+  m_solverSettingsDialog->activateWindow();
 }

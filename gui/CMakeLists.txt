@@ -22,6 +22,7 @@ set(PHYSICS_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/QCDTherm.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/Solver.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/leptonTherm.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/EntrCont.cpp
 )
 
 # GUI sources

@@ -18,10 +18,10 @@ constexpr double ggluon = 16.0;
 
 /**
  * @brief Set the equation of state type.
- * @param eos 0 = free QGP, 1 = lattice QCD
- * @param dataPath Path to lattice data (only used if eos=1)
+ * @param eos 0 = free QGP, 1 = lattice QCD, 2 = Interpolated Table, 3 = Entropy Contour
+ * @param dataPath Base path (typically the working directory) for EoS data files
  */
-void setEoS(int eos, const std::string &dataPath = "LatticeEoS/threeflavors/",
+void setEoS(int eos, const std::string &dataPath = "",
             int nf = 3);
 
 /**

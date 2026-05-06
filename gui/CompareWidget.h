@@ -101,7 +101,7 @@ private:
   void onExportClicked();
   void onCriticalPointButtonClicked();
   void updateCriticalPoint();
-  void onInitialGuessButtonClicked();
+  void onSolverSettingsButtonClicked();
 
   QString m_workingDir;
   SlotConfig m_slots[NUM_SLOTS];
@@ -110,11 +110,16 @@ private:
   QPushButton  *m_btnAxisToggle  = nullptr;
   QPushButton *m_btnScaleToggle = nullptr;
   QPushButton *m_btnCriticalPoint = nullptr;
-  QPushButton *m_btnInitialGuess = nullptr;
-  QTextEdit    *m_console         = nullptr;
+  QPushButton *m_btnSolverSettings = nullptr;
+  QTextEdit    *m_console           = nullptr;
 
-  QDialog      *m_cpDialog       = nullptr;
-  QDialog      *m_guessDialog    = nullptr;
+  QDialog      *m_cpDialog              = nullptr;
+  QDialog      *m_solverSettingsDialog  = nullptr;
+
+  // Solver settings state (shared across all slots)
+  double m_tolerance   = 1e-6;
+  int    m_maxIter     = 100;
+  int    m_guessMethod = 0;
 
   QCheckBox *m_chknB      = nullptr;
   QCheckBox *m_chkS       = nullptr;

@@ -88,19 +88,12 @@ void CompareWidget::setupUi() {
   QVBoxLayout *leftPanelLayout = new QVBoxLayout(leftPanel);
   leftPanelLayout->setContentsMargins(0, 0, 0, 0);
   
-  m_btnCriticalPoint = new QPushButton("📍 Configure Critical Point...");
-  m_btnCriticalPoint->setStyleSheet("QPushButton { background-color: #6f42c1; color: white; border-radius: 4px; font-weight: bold; padding: 4px; margin: 2px 4px 2px 4px; } "
-                                     "QPushButton:hover { background-color: #5a32a3; }");
-  connect(m_btnCriticalPoint, &QPushButton::clicked, this, &CompareWidget::onCriticalPointButtonClicked);
+  m_btnSolverSettings = new QPushButton("⚙ Solver Settings...");
+  m_btnSolverSettings->setStyleSheet("QPushButton { background-color: #e83e8c; color: white; border-radius: 4px; font-weight: bold; padding: 4px; margin: 2px 4px 2px 4px; } "
+                                      "QPushButton:hover { background-color: #d63384; }");
+  connect(m_btnSolverSettings, &QPushButton::clicked, this, &CompareWidget::onSolverSettingsButtonClicked);
+  leftPanelLayout->addWidget(m_btnSolverSettings);
   
-  m_btnInitialGuess = new QPushButton("⚙ Configure Initial Guess...");
-  m_btnInitialGuess->setStyleSheet("QPushButton { background-color: #e83e8c; color: white; border-radius: 4px; font-weight: bold; padding: 4px; margin: 2px 4px 2px 4px; } "
-                                    "QPushButton:hover { background-color: #d63384; }");
-  connect(m_btnInitialGuess, &QPushButton::clicked, this, &CompareWidget::onInitialGuessButtonClicked);
-  
-  leftPanelLayout->addWidget(m_btnCriticalPoint);
-  leftPanelLayout->addWidget(m_btnInitialGuess);
-
   QScrollArea *scroll = new QScrollArea(leftPanel);
   scroll->setWidgetResizable(true);
   QWidget *scrollContent = new QWidget(scroll);
@@ -125,6 +118,33 @@ void CompareWidget::setupUi() {
   chartsLayout->setContentsMargins(0, 0, 0, 0);
   createChartPanel(chartsWidget);
   chartsLayout->addWidget(m_chartTabs);
+  
+  QHBoxLayout *bottomRightLayout = new QHBoxLayout();
+  bottomRightLayout->addStretch();
+
+  QPushButton *btnExport = new QPushButton("📤 Export Active Plot", chartsWidget);
+  connect(btnExport, &QPushButton::clicked, this, &CompareWidget::onExportClicked);
+  bottomRightLayout->addWidget(btnExport);
+
+  m_btnAxisToggle = new QPushButton("Toggle Axes", chartsWidget);
+  connect(m_btnAxisToggle, &QPushButton::clicked, this, [this]{ onAxisToggleClicked(); });
+  bottomRightLayout->addWidget(m_btnAxisToggle);
+
+  m_btnThemeToggle = new QPushButton("Toggle Plot Theme", chartsWidget);
+  connect(m_btnThemeToggle, &QPushButton::clicked, this, [this]{ onThemeToggleClicked(); });
+  bottomRightLayout->addWidget(m_btnThemeToggle);
+
+  m_btnScaleToggle = new QPushButton("Toggle Log/Linear", chartsWidget);
+  connect(m_btnScaleToggle, &QPushButton::clicked, this, [this]{ onScaleToggleClicked(); });
+  bottomRightLayout->addWidget(m_btnScaleToggle);
+
+  m_btnCriticalPoint = new QPushButton("📍 Configure Critical Point...", chartsWidget);
+  m_btnCriticalPoint->setStyleSheet("QPushButton { background-color: #6f42c1; color: white; border-radius: 4px; font-weight: bold; padding: 4px; margin: 2px 4px 2px 4px; } "
+                                     "QPushButton:hover { background-color: #5a32a3; }");
+  connect(m_btnCriticalPoint, &QPushButton::clicked, this, &CompareWidget::onCriticalPointButtonClicked);
+  bottomRightLayout->addWidget(m_btnCriticalPoint);
+
+  chartsLayout->addLayout(bottomRightLayout);
 
   // ── Series visibility bar ────────────────────────────────────────────
   QGroupBox *visBox = new QGroupBox("Show/Hide Quantities Across All Slots", chartsWidget);
@@ -164,27 +184,6 @@ void CompareWidget::setupUi() {
 
   chartsLayout->addWidget(visBox);
 
-  QHBoxLayout *bottomRightLayout = new QHBoxLayout();
-  bottomRightLayout->addStretch();
-
-  QPushButton *btnExport = new QPushButton("📤 Export Active Plot", chartsWidget);
-  connect(btnExport, &QPushButton::clicked, this, &CompareWidget::onExportClicked);
-  bottomRightLayout->addWidget(btnExport);
-
-  m_btnAxisToggle = new QPushButton("Toggle Axes", chartsWidget);
-  connect(m_btnAxisToggle, &QPushButton::clicked, this, [this]{ onAxisToggleClicked(); });
-  bottomRightLayout->addWidget(m_btnAxisToggle);
-
-  m_btnThemeToggle = new QPushButton("Toggle Plot Theme", chartsWidget);
-  connect(m_btnThemeToggle, &QPushButton::clicked, this, [this]{ onThemeToggleClicked(); });
-  bottomRightLayout->addWidget(m_btnThemeToggle);
-
-  m_btnScaleToggle = new QPushButton("Toggle Log/Linear", chartsWidget);
-  connect(m_btnScaleToggle, &QPushButton::clicked, this, [this]{ onScaleToggleClicked(); });
-  bottomRightLayout->addWidget(m_btnScaleToggle);
-
-  chartsLayout->addLayout(bottomRightLayout);
-
   splitter->addWidget(leftPanel);
   splitter->addWidget(chartsWidget);
   splitter->setSizes({350, 650});
@@ -199,21 +198,19 @@ void CompareWidget::createSlotPanel(QWidget *parent) {
   for (int i = 0; i < NUM_SLOTS; i++) {
     auto &s = m_slots[i];
 
-    // Colored group box per slot
     QGroupBox *box = new QGroupBox(QString("Slot %1").arg(i + 1), parent);
     box->setCheckable(true);
-    box->setChecked(i == 0); // Open first by default, close rest
+    box->setChecked(i == 0); 
     box->setStyleSheet(
         QString("QGroupBox { border: 2px solid %1; border-radius: 4px; margin-top: 2ex; }"
                 "QGroupBox::title { color: %1; font-weight: bold; subcontrol-origin: margin; left: 8px; }")
             .arg(s.color.name()));
 
     QVBoxLayout *boxLayout = new QVBoxLayout(box);
-    QWidget *container = new QWidget(box); // This hides/shows
+    QWidget *container = new QWidget(box); 
     QGridLayout *grid = new QGridLayout(container);
     grid->setContentsMargins(0, 0, 0, 0);
 
-    // Collapsing logic
     connect(box, &QGroupBox::toggled, container, &QWidget::setVisible);
     container->setVisible(box->isChecked());
 
@@ -240,13 +237,13 @@ void CompareWidget::createSlotPanel(QWidget *parent) {
     grid->addWidget(new QLabel("Flavors (nf)"), row, 0);
     s.comboNf = new QComboBox();
     s.comboNf->addItems({"2", "3", "4"});
-    s.comboNf->setCurrentIndex(1); // Default to 3
+    s.comboNf->setCurrentIndex(1); 
     grid->addWidget(s.comboNf, row++, 1);
 
     grid->addWidget(new QLabel("EoS"), row, 0);
     s.comboEos = new QComboBox();
-    s.comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)"});
-    s.comboEos->setCurrentIndex(1); // Default to lattice
+    s.comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)"});
+    s.comboEos->setCurrentIndex(1); 
     grid->addWidget(s.comboEos, row++, 1);
 
     s.eosPathWidget = new QWidget();
@@ -290,7 +287,6 @@ void CompareWidget::createSlotPanel(QWidget *parent) {
     s.comboScan->addItems({"Low -> High (0)", "High -> Low (1)"});
     grid->addWidget(s.comboScan, row++, 1);
 
-    // Buttons layout
     QHBoxLayout *btnLayout = new QHBoxLayout();
     
     s.btnRun = new QPushButton("▶ Run Slot");
@@ -375,7 +371,6 @@ void CompareWidget::createChartPanel(QWidget *parent) {
   makeChart(m_lepChartView,  c3, m_lepAxisX,  m_lepAxisY,
             "Lepton μ",           "Chem. Pot. [MeV]");
 
-  // Line styles to distinguish quantities within the same slot
   static const Qt::PenStyle QTY_STYLES[3] = {Qt::SolidLine, Qt::DashLine, Qt::DotLine};
 
   for (int i = 0; i < NUM_SLOTS; i++) {
@@ -392,7 +387,7 @@ void CompareWidget::createChartPanel(QWidget *parent) {
       pen.setStyle(ps);
       pen.setWidthF(2.0);
       ser->setPen(pen);
-      ser->setVisible(false); // Hide by default until run
+      ser->setVisible(false); 
       ch->addSeries(ser);
       ser->attachAxis(ax);
       ser->attachAxis(ay);
@@ -411,7 +406,6 @@ void CompareWidget::createChartPanel(QWidget *parent) {
     s.serMnutau = makeSeries("|μντ|", c3, m_lepAxisX, m_lepAxisY, QTY_STYLES[2]);
   }
 
-  // Add Critical Point scatter series to the muChartView
   m_seriesCpB = new QScatterSeries(); m_seriesCpB->setName("CP |μB|"); m_seriesCpB->setMarkerShape(QScatterSeries::MarkerShapeStar); m_seriesCpB->setMarkerSize(12.0); m_seriesCpB->setColor(Qt::red); m_seriesCpB->setBorderColor(Qt::black);
   m_seriesCpQ = new QScatterSeries(); m_seriesCpQ->setName("CP |μQ|"); m_seriesCpQ->setMarkerShape(QScatterSeries::MarkerShapeStar); m_seriesCpQ->setMarkerSize(12.0); m_seriesCpQ->setColor(QColor(128, 0, 128)); m_seriesCpQ->setBorderColor(Qt::black);
   c2->addSeries(m_seriesCpB); m_seriesCpB->attachAxis(m_muAxisX); m_seriesCpB->attachAxis(m_muAxisY); m_seriesCpB->setVisible(false);
@@ -422,7 +416,6 @@ void CompareWidget::createChartPanel(QWidget *parent) {
 void CompareWidget::runSlot(int idx) {
   auto &s = m_slots[idx];
 
-  // Stop any existing run
   if (s.thread) {
     s.thread->quit();
     s.thread->wait();
@@ -452,24 +445,21 @@ void CompareWidget::runSlot(int idx) {
   s.worker->Tmax          = s.spinTmax->value();
   s.worker->nf            = s.comboNf->currentText().toInt();
   s.worker->eos           = s.comboEos->currentIndex();
-  s.worker->guessMethod   = s.comboGuess->currentIndex();
   s.worker->scanDirection = s.comboScan->currentIndex();
   s.worker->workingDir    = m_workingDir;
   s.worker->eosTableFilePath = s.lineEditEosPath->text();
 
-  s.worker->initialGuessType = m_initialGuessType;
-  s.worker->customGuessLowHigh = m_customGuessLowHigh;
-  s.worker->customGuessHighLow = m_customGuessHighLow;
+  s.worker->tolerance     = m_tolerance;
+  s.worker->maxIter       = m_maxIter;
+  s.worker->guessMethod   = s.comboGuess->currentIndex();
 
   s.worker->moveToThread(s.thread);
   connect(s.thread, &QThread::started, s.worker, &SimulationWorker::run);
 
-  // Connect log messages
   connect(s.worker, &SimulationWorker::logMessage, this, [this, idx](const QString &msg) {
       onLogMessage(msg, idx);
   });
 
-  // Step completed: append point to series and update axes
   connect(s.worker, &SimulationWorker::stepCompleted,
           [this, idx](TrajectoryPoint pt) {
     auto &sl = m_slots[idx];
@@ -592,7 +582,6 @@ void CompareWidget::updateChartAxes() {
             axis->setRange(min * 0.9, max * 1.1);
         }
     }
-    // Set format
     if (m_isLogScale) static_cast<QLogValueAxis*>(axis)->setLabelFormat("%g");
     else static_cast<QValueAxis*>(axis)->setLabelFormat("%g");
   };
@@ -618,13 +607,11 @@ void CompareWidget::updateChartAxes() {
 
 void CompareWidget::onLogMessage(const QString &msg, int slotIdx) {
     QString colorName = m_slots[slotIdx].color.name();
-    // Use bold for the prefix and close the tag
     QString prefix = QString("<b style=\"color:%1;\">[Slot %2] </b>").arg(colorName).arg(slotIdx + 1);
     
     if (msg.contains("<font ") || msg.contains("<span ")) {
         m_console->append(prefix + msg);
     } else {
-        // Wrap the message in white to prevent it from inheriting the prefix color if tags bleed
         m_console->append(prefix + "<span style=\"color:#ffffff;\">" + msg + "</span>");
     }
 }
@@ -637,7 +624,6 @@ void CompareWidget::onThemeToggleClicked() {
   m_muChartView->chart()->setTheme(newTheme);
   m_lepChartView->chart()->setTheme(newTheme);
 
-  // setTheme resets all custom colors and pen styles, so we restore them for ALL slots
   static const Qt::PenStyle QTY_STYLES[3] = {Qt::SolidLine, Qt::DashLine, Qt::DotLine};
   
   for (int i = 0; i < NUM_SLOTS; i++) {
@@ -676,7 +662,6 @@ void CompareWidget::replotData() {
   updateTitles(m_muAxisX, m_muAxisY, "Chem. Pot. [MeV]");
   updateTitles(m_lepAxisX, m_lepAxisY, "Chem. Pot. [MeV]");
 
-  // Re-plot data by rebuilding series manually based on the toggled axis orientation
   for (int i = 0; i < NUM_SLOTS; i++) {
     auto &sl = m_slots[i];
     clearSlotSeries(i);
@@ -744,7 +729,6 @@ void CompareWidget::onScaleToggleClicked() {
     swapAxes(m_muChartView,   m_muAxisX,   m_muAxisY,   "Chem. Pot. [MeV]");
     swapAxes(m_lepChartView,  m_lepAxisX,  m_lepAxisY,  "Chem. Pot. [MeV]");
 
-    // Attach ALL series for ALL slots to new axes
     for (int i = 0; i < NUM_SLOTS; i++) {
         auto &s = m_slots[i];
         if (s.sernB) { s.sernB->attachAxis(m_densAxisX); s.sernB->attachAxis(m_densAxisY); }
@@ -759,7 +743,6 @@ void CompareWidget::onScaleToggleClicked() {
         if (s.serMnutau) { s.serMnutau->attachAxis(m_lepAxisX); s.serMnutau->attachAxis(m_lepAxisY); }
     }
 
-    // Re-render everything
     bool hasAnyData = false;
     for (int i = 0; i < NUM_SLOTS; i++) if (!m_slots[i].data.isEmpty()) { hasAnyData = true; break; }
 
@@ -796,7 +779,7 @@ void CompareWidget::onExportClicked() {
   msgBox.addButton(QMessageBox::Cancel);
   msgBox.exec();
 
-  int currentTab = m_chartTabs->currentIndex(); // 0 = Densities, 1 = Chem Pot, 2 = Lepton
+  int currentTab = m_chartTabs->currentIndex();
 
   if (msgBox.clickedButton() == btnPdf) {
     QString fileName = QFileDialog::getSaveFileName(this, "Save PDF", QDir::currentPath(), "PDF Files (*.pdf)");
@@ -832,7 +815,6 @@ void CompareWidget::onExportClicked() {
     
     QTextStream out(&file);
 
-    // 1. Determine which slots have data and find the max row count
     QVector<int> activeSlots;
     int maxRows = 0;
     for (int i = 0; i < NUM_SLOTS; i++) {
@@ -842,7 +824,6 @@ void CompareWidget::onExportClicked() {
       }
     }
 
-    // 2. Write Header
     QStringList headerParts;
     for (int idx : activeSlots) {
       QString s = QString("S%1").arg(idx + 1);
@@ -856,7 +837,6 @@ void CompareWidget::onExportClicked() {
     }
     out << headerParts.join("\t") << "\n";
 
-    // 3. Write Data Rows
     for (int row = 0; row < maxRows; row++) {
       QStringList rowParts;
       for (int idx : activeSlots) {
@@ -871,7 +851,6 @@ void CompareWidget::onExportClicked() {
             rowParts << QString::number(pt.T) << QString::number(pt.munue) << QString::number(pt.munumu) << QString::number(pt.mnutau);
           }
         } else {
-          // Fill empty columns if this slot has fewer rows than the others
           int colCount = (currentTab == 0) ? 4 : ((currentTab == 1) ? 3 : 4);
           for (int c = 0; c < colCount; c++) rowParts << "";
         }
@@ -954,27 +933,49 @@ void CompareWidget::updateCriticalPoint() {
   }
 }
 
-void CompareWidget::onInitialGuessButtonClicked() {
-  if (!m_guessDialog) {
-    m_guessDialog = new QDialog(this);
-    m_guessDialog->setWindowTitle("Configure Initial Guess");
-    m_guessDialog->setMinimumWidth(400);
+void CompareWidget::onSolverSettingsButtonClicked() {
+  if (!m_solverSettingsDialog) {
+    m_solverSettingsDialog = new QDialog(this);
+    m_solverSettingsDialog->setWindowTitle("Solver Settings");
+    m_solverSettingsDialog->setMinimumWidth(420);
 
-    QVBoxLayout *vbox = new QVBoxLayout(m_guessDialog);
-    
-    QComboBox *comboType = new QComboBox(m_guessDialog);
+    QVBoxLayout *vbox = new QVBoxLayout(m_solverSettingsDialog);
+
+    // ── Convergence ───────────────────────────────────────────────────
+    QGroupBox *groupConv = new QGroupBox("Convergence", m_solverSettingsDialog);
+    QGridLayout *gridConv = new QGridLayout(groupConv);
+
+    gridConv->addWidget(new QLabel("Absolute Tolerance:"), 0, 0);
+    QDoubleSpinBox *spinTol = new QDoubleSpinBox(m_solverSettingsDialog);
+    spinTol->setDecimals(12);
+    spinTol->setRange(1e-12, 1.0);
+    spinTol->setValue(m_tolerance);
+    spinTol->setSingleStep(1e-6);
+    gridConv->addWidget(spinTol, 0, 1);
+
+    gridConv->addWidget(new QLabel("Max Iterations:"), 1, 0);
+    QSpinBox *spinMaxIter = new QSpinBox(m_solverSettingsDialog);
+    spinMaxIter->setRange(10, 10000);
+    spinMaxIter->setValue(m_maxIter);
+    gridConv->addWidget(spinMaxIter, 1, 1);
+
+    vbox->addWidget(groupConv);
+
+    // ── Guess ─────────────────────────────────────────────────────────
+    QGroupBox *groupGuess = new QGroupBox("Initial Guess Strategy", m_solverSettingsDialog);
+    QVBoxLayout *vboxGuess = new QVBoxLayout(groupGuess);
+
+
+
+    QComboBox *comboType = new QComboBox(m_solverSettingsDialog);
     comboType->addItems({"Standard Guess", "Custom Guess"});
     comboType->setCurrentIndex(m_initialGuessType);
-    
-    vbox->addWidget(new QLabel("Initial Guess Strategy:"));
-    vbox->addWidget(comboType);
+    vboxGuess->addWidget(new QLabel("Initial Guess Values:"));
+    vboxGuess->addWidget(comboType);
 
-    QGroupBox *groupLH = new QGroupBox("Low -> High Scan", m_guessDialog);
-    QGridLayout *gridLH = new QGridLayout(groupLH);
-    
     auto addSpin = [&](QGridLayout* grid, int row, const QString& label, double val) -> QDoubleSpinBox* {
       grid->addWidget(new QLabel(label), row, 0);
-      QDoubleSpinBox *spin = new QDoubleSpinBox(m_guessDialog);
+      QDoubleSpinBox *spin = new QDoubleSpinBox(m_solverSettingsDialog);
       spin->setRange(-10000, 10000);
       spin->setDecimals(5);
       spin->setValue(val);
@@ -982,22 +983,23 @@ void CompareWidget::onInitialGuessButtonClicked() {
       return spin;
     };
 
-    QDoubleSpinBox *lh_muB = addSpin(gridLH, 0, "muB:", m_customGuessLowHigh[0]);
-    QDoubleSpinBox *lh_muQ = addSpin(gridLH, 1, "muQ:", m_customGuessLowHigh[1]);
-    QDoubleSpinBox *lh_munue = addSpin(gridLH, 2, "munue:", m_customGuessLowHigh[2]);
+    QGroupBox *groupLH = new QGroupBox("Low → High Scan", m_solverSettingsDialog);
+    QGridLayout *gridLH = new QGridLayout(groupLH);
+    QDoubleSpinBox *lh_muB    = addSpin(gridLH, 0, "muB:",    m_customGuessLowHigh[0]);
+    QDoubleSpinBox *lh_muQ    = addSpin(gridLH, 1, "muQ:",    m_customGuessLowHigh[1]);
+    QDoubleSpinBox *lh_munue  = addSpin(gridLH, 2, "munue:",  m_customGuessLowHigh[2]);
     QDoubleSpinBox *lh_munumu = addSpin(gridLH, 3, "munumu:", m_customGuessLowHigh[3]);
     QDoubleSpinBox *lh_mnutau = addSpin(gridLH, 4, "mnutau:", m_customGuessLowHigh[4]);
-    vbox->addWidget(groupLH);
+    vboxGuess->addWidget(groupLH);
 
-    QGroupBox *groupHL = new QGroupBox("High -> Low Scan", m_guessDialog);
+    QGroupBox *groupHL = new QGroupBox("High → Low Scan", m_solverSettingsDialog);
     QGridLayout *gridHL = new QGridLayout(groupHL);
-    
-    QDoubleSpinBox *hl_muB = addSpin(gridHL, 0, "muB:", m_customGuessHighLow[0]);
-    QDoubleSpinBox *hl_muQ = addSpin(gridHL, 1, "muQ:", m_customGuessHighLow[1]);
-    QDoubleSpinBox *hl_munue = addSpin(gridHL, 2, "munue:", m_customGuessHighLow[2]);
+    QDoubleSpinBox *hl_muB    = addSpin(gridHL, 0, "muB:",    m_customGuessHighLow[0]);
+    QDoubleSpinBox *hl_muQ    = addSpin(gridHL, 1, "muQ:",    m_customGuessHighLow[1]);
+    QDoubleSpinBox *hl_munue  = addSpin(gridHL, 2, "munue:",  m_customGuessHighLow[2]);
     QDoubleSpinBox *hl_munumu = addSpin(gridHL, 3, "munumu:", m_customGuessHighLow[3]);
     QDoubleSpinBox *hl_mnutau = addSpin(gridHL, 4, "mnutau:", m_customGuessHighLow[4]);
-    vbox->addWidget(groupHL);
+    vboxGuess->addWidget(groupHL);
 
     auto updateFields = [=](int idx) {
       bool isCustom = (idx == 1);
@@ -1007,16 +1009,24 @@ void CompareWidget::onInitialGuessButtonClicked() {
     connect(comboType, &QComboBox::currentIndexChanged, updateFields);
     updateFields(m_initialGuessType);
 
-    QPushButton *btnSave = new QPushButton("Save and Close", m_guessDialog);
+    vbox->addWidget(groupGuess);
+
+    // ── Save ──────────────────────────────────────────────────────────
+    QPushButton *btnSave = new QPushButton("Save and Close", m_solverSettingsDialog);
+    btnSave->setStyleSheet("QPushButton { background-color: #007bff; color: white; border-radius: 4px; font-weight: bold; padding: 6px; } "
+                           "QPushButton:hover { background-color: #0056b3; }");
     connect(btnSave, &QPushButton::clicked, [=]() {
+      m_tolerance        = spinTol->value();
+      m_maxIter          = spinMaxIter->value();
+
       m_initialGuessType = comboType->currentIndex();
       m_customGuessLowHigh = {lh_muB->value(), lh_muQ->value(), lh_munue->value(), lh_munumu->value(), lh_mnutau->value()};
       m_customGuessHighLow = {hl_muB->value(), hl_muQ->value(), hl_munue->value(), hl_munumu->value(), hl_mnutau->value()};
-      m_guessDialog->accept();
+      m_solverSettingsDialog->accept();
     });
     vbox->addWidget(btnSave);
   }
-  m_guessDialog->show();
-  m_guessDialog->raise();
-  m_guessDialog->activateWindow();
+  m_solverSettingsDialog->show();
+  m_solverSettingsDialog->raise();
+  m_solverSettingsDialog->activateWindow();
 }

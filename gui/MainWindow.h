@@ -12,6 +12,7 @@ class QDoubleSpinBox;
 class QComboBox;
 class QPushButton;
 class QProgressBar;
+class QSpinBox;
 class QTextEdit;
 class QTabWidget;
 class QLabel;
@@ -55,7 +56,7 @@ private slots:
   void onExportFullDataClicked();
   void onCriticalPointButtonClicked();
   void updateCriticalPoint();
-  void onInitialGuessButtonClicked();
+  void onSolverSettingsButtonClicked();
 
 private:
   void setupUi();
@@ -81,6 +82,7 @@ private:
   QComboBox      *m_comboGuess;
   QComboBox      *m_comboScan;
 
+
   QWidget        *m_eosPathWidget;
   QLineEdit      *m_lineEditEosPath;
   QPushButton    *m_btnBrowseEos;
@@ -96,9 +98,9 @@ private:
   QPushButton    *m_btnRun;
   QPushButton    *m_btnStop;
   QPushButton    *m_btnCriticalPoint;
-  QPushButton    *m_btnInitialGuess;
+  QPushButton    *m_btnSolverSettings;
   QDialog        *m_cpDialog = nullptr;
-  QDialog        *m_guessDialog = nullptr;
+  QDialog        *m_solverSettingsDialog = nullptr;
   QProgressBar *m_progressBar;
   QTextEdit    *m_console;
   QLabel       *m_statusLabel;
@@ -165,6 +167,11 @@ private:
   int m_initialGuessType = 0; // 0 = Standard, 1 = Custom
   std::vector<double> m_customGuessLowHigh = {0.01, -0.001, -1e-05, -1e-05, -1e-05};
   std::vector<double> m_customGuessHighLow = {1.0, -0.1, -0.1, -0.1, -0.1};
+
+  // Solver settings state
+  double m_tolerance = 1e-6;
+  int m_maxIter = 100;
+  int m_guessMethod = 0; // 0 = Simple, 1 = Linear Extrap
 };
 
 #endif // MAINWINDOW_H

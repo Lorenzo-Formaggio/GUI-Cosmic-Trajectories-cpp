@@ -16,6 +16,7 @@ This application solves the evolution of chemical potentials ($\mu_B$, $\mu_Q$, 
 - **Physics Models (EoS)**:
   - Free Quark Gluon Plasma (QGP, 2-flavor, 3-flavor, or 4-flavor with Charm).
   - Lattice QCD-based EoS (3-flavor or 4-flavor with Charm).
+  - Entropy Contour-based EoS.
   - External Tabulated EoS (Import CSV/TXT tables). Features:
     - **Smart RAM Caching**: Heavy tables are loaded once and kept in memory for performance.
     - **Intelligent Temperature Clamping**: User-defined temperature ranges are respected if they fall within the table's bounds. If the user input exceeds the table range, the simulation automatically clamps to the available extremes and provides a clear warning in the console.
@@ -107,14 +108,14 @@ cmake --build .
 ```
 Then run the generated executable (e.g., `./CosmicTrajectoryGUI` on Mac/Linux or `CosmicTrajectoryGUI.exe` on Windows).
 
-## Usage
+## Usagecd
 
 ### Single Run Tab
 - Configure physics parameters (Baryon asymmetry $b$, Lepton asymmetries $l_e$, $l_\mu$, $l_\tau$).
 - **Advanced Configuration**:
-  - **📍 Configure Critical Point**: Set $(T, \mu_B, \mu_Q)$ coordinates for the QCD Critical Point to mark it on your plots.
-  - **⚙ Configure Initial Guess**: Toggle between Standard and Custom solver initialization to handle difficult convergence regions.
-- Select the **Equation of State (EoS)** and **Guess Method**.
+  - **📍 Configure Critical Point**: Set $(T, \mu_B, \mu_Q)$ coordinates for the QCD Critical Point to mark it on your plots (located below the charts).
+  - **⚙ Solver Settings**: Access a unified dialog to configure convergence tolerance, maximum iterations, and initial guess strategies (Standard vs Custom).
+- Select the **Equation of State (EoS)** and **Scan Direction**.
 - Click **"▶ Run Simulation"** to start, or **"⏹ Stop"** to abort a running process.
 - Use the checkboxes below the charts to toggle specific variables (e.g., $|n_Q|$, $\mu_B$).
 
@@ -123,7 +124,8 @@ Then run the generated executable (e.g., `./CosmicTrajectoryGUI` on Mac/Linux or
 - Each slot can be configured independently (e.g., testing different $dT$ or $b$ parameters).
 - **Slot Identification**: Traces are color-coded to their respective slot borders.
 - **Comparison Console**: A real-time console below the slots tracks logs and warnings for all active simulations, with each entry prefixed by its slot number and color.
-- **Global Tools**: Use the buttons at the top of the left panel to configure the **Critical Point** or **Initial Guess** globally for all comparison slots.
+- **Global Tools**: Use the buttons at the top of the left panel to configure the **Solver Settings** (Tolerance, Max Iterations, Initial Guess vectors) globally for all comparison slots.
+- **Per-Slot Guess Method**: Select the propagation strategy (Simple vs Linear Extrap) individually for each slot within its collapsible box.
 - Click **"▶ Run Slot"** to add a trajectory to the comparison chart, or the **"Stop"** button in the slot to abort it.
   
 ### EoS Explorer Tab
@@ -142,6 +144,7 @@ Click the **"📤 Export Active Plot"** button in the bottom-right corner:
 -   [**src/**](file:///Users/lorenzoformaggio/Desktop/Gui-Cosmic-trajectories-cpp/src): Core physics library (Solver, EOS logic, Equation definitions).
 -   [**include/**](file:///Users/lorenzoformaggio/Desktop/Gui-Cosmic-trajectories-cpp/include): Shared headers.
 -   [**LatticeEoS/**](file:///Users/lorenzoformaggio/Desktop/Gui-Cosmic-trajectories-cpp/LatticeEoS): Mandatory thermodynamic data tables for the Lattice QCD model.
+-   [**EntroContourEoS/**](file:///Users/lorenzoformaggio/Desktop/Gui-Cosmic-trajectories-cpp/EntroContourEoS): Data files for the Entropy Contour EoS model.
 -   **EoS_Table.txt**: Input file used when selecting "Interpolated Table" EoS.
 
 ---

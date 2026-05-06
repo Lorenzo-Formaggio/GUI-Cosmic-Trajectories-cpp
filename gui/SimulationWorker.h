@@ -55,6 +55,10 @@ public:
   std::vector<double> customGuessLowHigh = {0.01, -0.001, -1e-05, -1e-05, -1e-05};
   std::vector<double> customGuessHighLow = {1.0, -0.1, -0.1, -0.1, -0.1};
 
+  // Solver settings
+  double tolerance = 1e-6;
+  int maxIter = 100;
+
   // Working directory (for finding LatticeEoS/, EoS_Table.txt)
   QString workingDir;
 

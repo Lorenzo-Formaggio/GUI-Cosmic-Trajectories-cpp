@@ -19,9 +19,9 @@ void SimulationWorker::run() {
     emit logMessage("Initializing JEL tables...");
     initializeJELTables();
 
-    // Build path to LatticeEoS data relative to the project root
-    std::string latticeDir = workingDir.toStdString() + "/LatticeEoS/threeflavors/";
-    std::string eosTablePath = eosTableFilePath.isEmpty() ? (workingDir.toStdString() + "/EoS_Table.txt") : eosTableFilePath.toStdString();
+    // Build base path for EoS data relative to the project root
+    std::string baseDir = workingDir.toStdString();
+    std::string eosTablePath = eosTableFilePath.isEmpty() ? (baseDir + "/EoS_Table.txt") : eosTableFilePath.toStdString();
 
     // If using interpolated EoS, load the table and validate user T range
     double effectiveTmin = Tmin;
@@ -69,10 +69,11 @@ void SimulationWorker::run() {
     if (eos == 0) eosName = "Free QGP";
     else if (eos == 1) eosName = "Lattice QCD";
     else if (eos == 2) eosName = "Interpolated Table";
+    else if (eos == 3) eosName = "Entropy Contour";
     else eosName = "Unknown";
 
     emit logMessage(QString("Setting EoS: %1").arg(QString::fromStdString(eosName)));
-    QCD::setEoS(eos, latticeDir, nf);
+    QCD::setEoS(eos, baseDir, nf);
 
     // ── Prepare scan range ────────────────────────────────────────────────
     if (nf == 4 && eos == 1)
@@ -150,7 +151,7 @@ void SimulationWorker::run() {
           GetEq::getEquations(T, le, lmu, ltau, b, nf);
 
       std::vector<double> solution =
-          Solver::solveSystem(functions, targets, guess);
+          Solver::solveSystem(functions, targets, guess, tolerance, maxIter);
 
       double muB_sol    = solution[0];
       double muQ_sol    = solution[1];
