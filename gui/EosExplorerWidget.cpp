@@ -192,13 +192,56 @@ void EosExplorerWidget::setupUi() {
   QPushButton *btnPlotSettings = new QPushButton("Plot Settings", rightPanel);
   
   QMenu *plotMenu = new QMenu(this);
-  
+
+  // Section: Visibility / Abs
+  QAction *actShowHide = plotMenu->addAction("Show/Hide Quantities...");
+  connect(actShowHide, &QAction::triggered, this, [this]() {
+    QDialog dlg(this);
+    dlg.setWindowTitle("Show/Hide Quantities");
+    QVBoxLayout *v = new QVBoxLayout(&dlg);
+    v->addWidget(new QLabel("Per-chart absolute value (forced ON in log mode):"));
+    static const QStringList chartNames = {"nB", "nQ", "s"};
+    QVector<QCheckBox*> absChks;
+    for (int i = 0; i < NUM_CHARTS; ++i) {
+      auto *c = new QCheckBox(QString("|·| on %1").arg(chartNames[i]));
+      c->setChecked(m_useAbs[i] || m_isLogScale);
+      c->setEnabled(!m_isLogScale);
+      absChks.append(c);
+      v->addWidget(c);
+    }
+    QPushButton *ok = new QPushButton("OK");
+    connect(ok, &QPushButton::clicked, &dlg, &QDialog::accept);
+    v->addWidget(ok);
+    if (dlg.exec() == QDialog::Accepted) {
+      bool changed = false;
+      for (int i = 0; i < NUM_CHARTS; ++i) {
+        bool now = absChks[i]->isChecked();
+        if (m_useAbs[i] != now) { m_useAbs[i] = now; changed = true; }
+      }
+      if (changed) replotData();
+    }
+  });
+
+  plotMenu->addSeparator();
+
   // Section: View Controls
   QAction *actScale = plotMenu->addAction("Toggle Log/Linear");
   connect(actScale, &QAction::triggered, this, &EosExplorerWidget::onScaleToggleClicked);
 
   QAction *actTheme = plotMenu->addAction("Toggle Plot Theme");
   connect(actTheme, &QAction::triggered, this, &EosExplorerWidget::onThemeToggleClicked);
+
+  // Show/hide chart legend (applies to all 3 charts)
+  QAction *actLegend = plotMenu->addAction("Show Legend");
+  actLegend->setCheckable(true);
+  actLegend->setChecked(m_legendVisible);
+  connect(actLegend, &QAction::toggled, this, [this](bool on) {
+    m_legendVisible = on;
+    for (int i = 0; i < NUM_CHARTS; ++i) {
+      if (m_chartViews[i] && m_chartViews[i]->chart())
+        m_chartViews[i]->chart()->legend()->setVisible(on);
+    }
+  });
 
   plotMenu->addSeparator();
 
@@ -208,10 +251,22 @@ void EosExplorerWidget::setupUi() {
 
   btnPlotSettings->setMenu(plotMenu);
 
+  // ── Auto-Fit Limits button (next to Plot Settings) ───────────────────
+  QPushButton *btnAutoFit = new QPushButton("Auto-Fit Limits", rightPanel);
+  btnAutoFit->setToolTip("Fit axis ranges to the currently visible curves "
+                         "in the active chart (uses log/linear margins).");
+  connect(btnAutoFit, &QPushButton::clicked, this, [this]() {
+    int idx = m_chartTabs->currentIndex();
+    if (idx >= 0 && idx < NUM_CHARTS && m_chartViews[idx]) {
+      autoFitChartFromVisibleSeries(m_chartViews[idx]->chart());
+    }
+  });
+
   QHBoxLayout *toolsLayout = new QHBoxLayout();
   toolsLayout->setContentsMargins(0, 0, 0, 15);
   toolsLayout->addStretch();
   toolsLayout->addWidget(btnPlotSettings);
+  toolsLayout->addWidget(btnAutoFit);
   toolsLayout->addStretch();
   rightLayout->addLayout(toolsLayout);
 
@@ -280,7 +335,8 @@ void EosExplorerWidget::rebuildAxes(int chartIdx) {
             double T3 = pt.x() * pt.x() * pt.x();
             if (T3 > 0) y /= T3;
         }
-        y = m_isLogScale ? std::max(std::abs(y), 1e-15) : y;
+        if (m_isLogScale)             y = std::max(std::abs(y), 1e-15);
+        else if (m_useAbs[chartIdx])  y = std::abs(y);
         minX = std::min(minX, pt.x());
         maxX = std::max(maxX, pt.x());
         minY = std::min(minY, y);
@@ -297,6 +353,18 @@ void EosExplorerWidget::rebuildAxes(int chartIdx) {
     } else {
       m_axesX[chartIdx]->setRange(minX * 0.9, maxX * 1.1);
       m_axesY[chartIdx]->setRange(std::min(0.0, minY * 1.1), maxY * 1.1);
+    }
+  } else {
+    // No data yet — apply a sensible default range so the axes still
+    // render with tick marks, like the other widgets.
+    if (m_isLogScale) {
+      m_axesX[chartIdx]->setRange(1.0, 1000.0);
+      m_axesY[chartIdx]->setRange(1e-3, 1e3);
+    } else {
+      const double tMin = m_spinTmin ? m_spinTmin->value() : 80.0;
+      const double tMax = m_spinTmax ? m_spinTmax->value() : 200.0;
+      m_axesX[chartIdx]->setRange(tMin, tMax);
+      m_axesY[chartIdx]->setRange(0.0, 1.0);
     }
   }
 }
@@ -422,6 +490,8 @@ void EosExplorerWidget::onComputeClicked() {
     
     SeriesData newData;
     newData.label = seriesName;
+    newData.muB = muB;
+    newData.muQ = muQ;
 
     QLineSeries *series_arr[NUM_CHARTS];
     QColor c = nextColor(m_colorIndex);
@@ -446,7 +516,8 @@ void EosExplorerWidget::onComputeClicked() {
             double T3 = T * T * T;
             if (T3 > 0) yVal /= T3;
         }
-        yVal = m_isLogScale ? std::max(std::abs(yVal), 1e-15) : yVal;
+        if (m_isLogScale)            yVal = std::max(std::abs(yVal), 1e-15);
+        else if (m_useAbs[i])        yVal = std::abs(yVal);
         series_arr[i]->append(T, yVal);
       }
       
@@ -522,7 +593,8 @@ void EosExplorerWidget::replotData() {
               double T3 = pt.x() * pt.x() * pt.x();
               if (T3 > 0) y /= T3;
           }
-          y = m_isLogScale ? std::max(std::abs(y), 1e-15) : y;
+          if (m_isLogScale)         y = std::max(std::abs(y), 1e-15);
+          else if (m_useAbs[c])     y = std::abs(y);
           series->append(pt.x(), y);
         }
       }
@@ -583,34 +655,35 @@ void EosExplorerWidget::onExportClicked() {
       QMessageBox::critical(this, "Error", "Could not open file for writing.");
       return;
     }
-    
-    QTextStream out(&file);
-    
-    // Header
-    out << "T[MeV]";
-    for (const auto &series : m_allSeries) {
-      out << "\tnB[MeV^3]\tnQ[MeV^3]\ts[MeV^3]";
-    }
-    out << "\n";
 
-    // Assuming all series have the same number of points and x values
-    int numPoints = m_allSeries[0].nB_points.size();
-    for (int i = 0; i < numPoints; ++i) {
-      out << m_allSeries[0].nB_points[i].x();
-      for (const auto &series : m_allSeries) {
-        if (i < series.nB_points.size()) {
-           out << "\t" << series.nB_points[i].y()
-               << "\t" << series.nQ_points[i].y()
-               << "\t" << series.s_points[i].y();
-        } else {
-           out << "\tNaN\tNaN\tNaN";
-        }
+    QTextStream out(&file);
+    // Canonical Single-Run format. EoS Explorer doesn't compute leptons or
+    // lepton chem-pots, so those columns are written as 0; s_QCD and s_tot
+    // are identical here (no lepton contribution).
+    out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnB\tnQ\ts_QCD\ts_tot"
+           "\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\n";
+
+    for (const auto &series : m_allSeries) {
+      out << QString("# T-scan (muB=%1, muQ=%2)\n")
+                  .arg(series.muB).arg(series.muQ);
+      const int n = series.nB_points.size();
+      for (int i = 0; i < n; ++i) {
+        const double T  = series.nB_points[i].x();
+        const double nB = series.nB_points[i].y();
+        const double nQ = (i < series.nQ_points.size()) ? series.nQ_points[i].y() : 0.0;
+        const double s  = (i < series.s_points.size())  ? series.s_points[i].y()  : 0.0;
+        out << T
+            << "\t" << series.muB << "\t" << series.muQ
+            << "\t" << 0.0 << "\t" << 0.0 << "\t" << 0.0           // munue, munumu, mnutau
+            << "\t" << nB << "\t" << nQ << "\t" << s << "\t" << s  // s_QCD == s_tot
+            << "\t" << 0.0 << "\t" << 0.0 << "\t" << 0.0           // ne, nmu, ntau
+            << "\t" << 0.0 << "\t" << 0.0 << "\t" << 0.0           // nnue, nnumu, nnutau
+            << "\n";
       }
-      out << "\n";
     }
-    
+
     file.close();
-    QMessageBox::information(this, "Success", "All series data successfully exported to TXT.");
+    QMessageBox::information(this, "Success", "EoS data exported in Single Run format.");
   }
 }
 

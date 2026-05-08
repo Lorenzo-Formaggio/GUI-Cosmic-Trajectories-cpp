@@ -95,6 +95,11 @@ private:
   bool m_isLogScale = false;
   bool m_isNormalizedT3 = false;
 
+  // Per-chart abs flag (linear-mode only; log forces abs).
+  // Order matches the chart index: 0 = nB, 1 = nQ, 2 = s.
+  bool m_useAbs[NUM_CHARTS] = {false, false, false};
+  bool m_legendVisible = true;
+
   // Chart titles and Y-axis labels
   static constexpr const char* CHART_TITLES[NUM_CHARTS] = {
     "Baryon Density nB vs Temperature",
@@ -115,6 +120,8 @@ private:
   // ── Data storage for export ─────────────────────────────────────────
   struct SeriesData {
     QString label;
+    double muB = 0.0;
+    double muQ = 0.0;
     QVector<QPointF> nB_points;
     QVector<QPointF> nQ_points;
     QVector<QPointF> s_points;

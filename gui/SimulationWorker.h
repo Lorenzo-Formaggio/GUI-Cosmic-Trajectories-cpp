@@ -18,7 +18,7 @@ struct TrajectoryPoint {
   double munumu;
   double mnutau;
   double nB;
-  double nQ; // nQ_QCD
+  double nQ; // electric charge density from the active EoS
   double s;  // s_tot
   double s_QCD;
   double ne, nmu, ntau;

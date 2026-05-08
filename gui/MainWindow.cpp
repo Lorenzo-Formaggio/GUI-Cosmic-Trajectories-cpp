@@ -38,6 +38,13 @@
 #include <QtCharts/QScatterSeries>
 #include <QtCharts/QLogValueAxis>
 #include <QtCharts/QValueAxis>
+#include <QtDataVisualization/Q3DTheme>
+#include <QtDataVisualization/Q3DCamera>
+#include <QtDataVisualization/Q3DScene>
+#include <QtDataVisualization/QValue3DAxis>
+#include <QtDataVisualization/QAbstract3DGraph>
+#include <QSlider>
+#include <QFile>
 #include "TooltipChartView.h"
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
@@ -102,83 +109,96 @@ void MainWindow::setupUi() {
   QAction *actShowHide = plotMenu->addAction("Show/Hide Quantities...");
   connect(actShowHide, &QAction::triggered, this, [this]() {
     if (!m_visDialog) {
-      // ... (dialog logic kept as is)
       m_visDialog = new QDialog(this);
       m_visDialog->setWindowTitle("Show/Hide Series");
-      m_visDialog->setMinimumWidth(380);
+      m_visDialog->setMinimumWidth(420);
       QVBoxLayout *dlgLayout = new QVBoxLayout(m_visDialog);
 
-      auto makeChk = [](const QString &label, bool checked) -> QCheckBox* {
-        QCheckBox *chk = new QCheckBox(label);
-        chk->setChecked(checked);
-        return chk;
+      // Build a "row" with [visibility] [|abs|] for each quantity.
+      // The abs checkbox is disabled in log mode (abs is forced).
+      auto findMeta = [this](QXYSeries *s) -> SeriesMeta* {
+        for (auto &m : m_seriesMeta) if (m.series == s) return &m;
+        return nullptr;
+      };
+      auto addQuantityRow = [&, this](QGridLayout *grid, int row,
+                                      const QString &label, QCheckBox *&visChk,
+                                      QCheckBox *&absChk, QXYSeries *series) {
+        SeriesMeta *meta = findMeta(series);
+        const bool defaultAbs = meta ? meta->useAbs : false;
+        visChk = new QCheckBox(label);
+        visChk->setChecked(true);
+        absChk = new QCheckBox("|·|");
+        absChk->setChecked(defaultAbs);
+        absChk->setToolTip("Plot absolute value of this quantity. "
+                            "Forced ON in log mode.");
+        absChk->setEnabled(!m_isLogScale);
+        grid->addWidget(visChk, row, 0);
+        grid->addWidget(absChk, row, 1);
+        connect(visChk, &QCheckBox::toggled, this, [series](bool v){
+          if (series) series->setVisible(v);
+        });
+        connect(absChk, &QCheckBox::toggled, this, [this, series](bool on){
+          for (auto &m : m_seriesMeta) {
+            if (m.series == series) { m.useAbs = on; break; }
+          }
+          if (!m_trajectoryData.isEmpty()) replotData();
+          else refreshSeriesNames();
+        });
       };
 
       // ── Densities group ────────────────────────────────────
       QGroupBox *grpDens = new QGroupBox("Densities");
-      QHBoxLayout *layDens = new QHBoxLayout(grpDens);
-      m_chknB      = makeChk("nB",       true); layDens->addWidget(m_chknB);
-      m_chkS       = makeChk("s",        true); layDens->addWidget(m_chkS);
-      m_chknQ      = makeChk("|nQ_QCD|", true); layDens->addWidget(m_chknQ);
+      QGridLayout *layDens = new QGridLayout(grpDens);
+      addQuantityRow(layDens, 0, "nB",     m_chknB, m_absnB, m_seriesnB);
+      addQuantityRow(layDens, 1, "s",      m_chkS,  m_absS,  m_seriesS);
+      addQuantityRow(layDens, 2, "nQ", m_chknQ, m_absnQ, m_seriesnQ);
       dlgLayout->addWidget(grpDens);
 
       // ── Lepton Densities group ────────────────────────────
       QGroupBox *grpLepDens = new QGroupBox("Lepton Densities");
-      QHBoxLayout *layLepDens = new QHBoxLayout(grpLepDens);
-      m_chkNe      = makeChk("ne",       true); layLepDens->addWidget(m_chkNe);
-      m_chkNmu     = makeChk("nμ",       true); layLepDens->addWidget(m_chkNmu);
-      m_chkNtau    = makeChk("nτ",       true); layLepDens->addWidget(m_chkNtau);
-      m_chkNnue    = makeChk("nνe",      true); layLepDens->addWidget(m_chkNnue);
-      m_chkNnumu   = makeChk("nνμ",      true); layLepDens->addWidget(m_chkNnumu);
-      m_chkNnutau  = makeChk("nντ",      true); layLepDens->addWidget(m_chkNnutau);
+      QGridLayout *layLepDens = new QGridLayout(grpLepDens);
+      addQuantityRow(layLepDens, 0, "ne",    m_chkNe,     m_absNe,     m_seriesNe);
+      addQuantityRow(layLepDens, 1, "nμ",    m_chkNmu,    m_absNmu,    m_seriesNmu);
+      addQuantityRow(layLepDens, 2, "nτ",    m_chkNtau,   m_absNtau,   m_seriesNtau);
+      addQuantityRow(layLepDens, 3, "nνe",   m_chkNnue,   m_absNnue,   m_seriesNnue);
+      addQuantityRow(layLepDens, 4, "nνμ",   m_chkNnumu,  m_absNnumu,  m_seriesNnumu);
+      addQuantityRow(layLepDens, 5, "nντ",   m_chkNnutau, m_absNnutau, m_seriesNnutau);
       dlgLayout->addWidget(grpLepDens);
 
       // ── Chemical Potentials group ──────────────────────────
       QGroupBox *grpMu = new QGroupBox("Chemical Potentials");
-      QHBoxLayout *layMu = new QHBoxLayout(grpMu);
-      m_chkMuB     = makeChk("|μB|",     true); layMu->addWidget(m_chkMuB);
-      m_chkMuQ     = makeChk("|μQ|",     true); layMu->addWidget(m_chkMuQ);
+      QGridLayout *layMu = new QGridLayout(grpMu);
+      addQuantityRow(layMu, 0, "μB", m_chkMuB, m_absMuB, m_seriesMuB);
+      addQuantityRow(layMu, 1, "μQ", m_chkMuQ, m_absMuQ, m_seriesMuQ);
       dlgLayout->addWidget(grpMu);
 
       // ── Lepton Chem. Pot. group ────────────────────────────
       QGroupBox *grpLep = new QGroupBox("Lepton Chemical Potentials");
-      QHBoxLayout *layLep = new QHBoxLayout(grpLep);
-      m_chkMunue   = makeChk("|μνe|",    true); layLep->addWidget(m_chkMunue);
-      m_chkMunumu  = makeChk("|μνμ|",    true); layLep->addWidget(m_chkMunumu);
-      m_chkMnutau  = makeChk("|μντ|",    true); layLep->addWidget(m_chkMnutau);
+      QGridLayout *layLep = new QGridLayout(grpLep);
+      addQuantityRow(layLep, 0, "μνe", m_chkMunue,   m_absMunue,   m_seriesMunue);
+      addQuantityRow(layLep, 1, "μνμ", m_chkMunumu,  m_absMunumu,  m_seriesMunumu);
+      addQuantityRow(layLep, 2, "μντ", m_chkMnutau,  m_absMnutau,  m_seriesMnutau);
       dlgLayout->addWidget(grpLep);
 
       // ── Errors group ───────────────────────────────────────
       QGroupBox *grpErr = new QGroupBox("Residual Errors");
-      QHBoxLayout *layErr = new QHBoxLayout(grpErr);
-      m_chkErrB    = makeChk("err_b",    true); layErr->addWidget(m_chkErrB);
-      m_chkErrQ    = makeChk("err_q",    true); layErr->addWidget(m_chkErrQ);
-      m_chkErrLe   = makeChk("err_le",   true); layErr->addWidget(m_chkErrLe);
-      m_chkErrLmu  = makeChk("err_lmu",  true); layErr->addWidget(m_chkErrLmu);
-      m_chkErrLtau = makeChk("err_ltau", true); layErr->addWidget(m_chkErrLtau);
+      QGridLayout *layErr = new QGridLayout(grpErr);
+      addQuantityRow(layErr, 0, "err_b",    m_chkErrB,    m_absErrB,    m_seriesErrB);
+      addQuantityRow(layErr, 1, "err_q",    m_chkErrQ,    m_absErrQ,    m_seriesErrQ);
+      addQuantityRow(layErr, 2, "err_le",   m_chkErrLe,   m_absErrLe,   m_seriesErrLe);
+      addQuantityRow(layErr, 3, "err_lmu",  m_chkErrLmu,  m_absErrLmu,  m_seriesErrLmu);
+      addQuantityRow(layErr, 4, "err_ltau", m_chkErrLtau, m_absErrLtau, m_seriesErrLtau);
       dlgLayout->addWidget(grpErr);
-
-      // Wire checkboxes to series visibility
-      connect(m_chknB,    &QCheckBox::toggled, [this](bool v){ m_seriesnB->setVisible(v);    });
-      connect(m_chkS,     &QCheckBox::toggled, [this](bool v){ m_seriesS->setVisible(v);     });
-      connect(m_chknQ,    &QCheckBox::toggled, [this](bool v){ m_seriesnQ->setVisible(v);    });
-      connect(m_chkNe,    &QCheckBox::toggled, [this](bool v){ m_seriesNe->setVisible(v);    });
-      connect(m_chkNmu,   &QCheckBox::toggled, [this](bool v){ m_seriesNmu->setVisible(v);   });
-      connect(m_chkNtau,  &QCheckBox::toggled, [this](bool v){ m_seriesNtau->setVisible(v);  });
-      connect(m_chkNnue,  &QCheckBox::toggled, [this](bool v){ m_seriesNnue->setVisible(v);  });
-      connect(m_chkNnumu, &QCheckBox::toggled, [this](bool v){ m_seriesNnumu->setVisible(v); });
-      connect(m_chkNnutau,&QCheckBox::toggled, [this](bool v){ m_seriesNnutau->setVisible(v);});
-      connect(m_chkMuB,   &QCheckBox::toggled, [this](bool v){ m_seriesMuB->setVisible(v);   });
-      connect(m_chkMuQ,   &QCheckBox::toggled, [this](bool v){ m_seriesMuQ->setVisible(v);   });
-      connect(m_chkMunue, &QCheckBox::toggled, [this](bool v){ m_seriesMunue->setVisible(v); });
-      connect(m_chkMunumu,&QCheckBox::toggled, [this](bool v){ m_seriesMunumu->setVisible(v);});
-      connect(m_chkMnutau,&QCheckBox::toggled, [this](bool v){ m_seriesMnutau->setVisible(v);});
-      connect(m_chkErrB,   &QCheckBox::toggled, [this](bool v){ m_seriesErrB->setVisible(v);   });
-      connect(m_chkErrQ,   &QCheckBox::toggled, [this](bool v){ m_seriesErrQ->setVisible(v);   });
-      connect(m_chkErrLe,  &QCheckBox::toggled, [this](bool v){ m_seriesErrLe->setVisible(v);  });
-      connect(m_chkErrLmu, &QCheckBox::toggled, [this](bool v){ m_seriesErrLmu->setVisible(v); });
-      connect(m_chkErrLtau,&QCheckBox::toggled, [this](bool v){ m_seriesErrLtau->setVisible(v);});
     }
+    // Re-sync abs-checkbox enabled state with current scale before showing
+    auto syncAbsEnabled = [this](QCheckBox *c){ if (c) c->setEnabled(!m_isLogScale); };
+    syncAbsEnabled(m_absnB);  syncAbsEnabled(m_absS);   syncAbsEnabled(m_absnQ);
+    syncAbsEnabled(m_absNe);  syncAbsEnabled(m_absNmu); syncAbsEnabled(m_absNtau);
+    syncAbsEnabled(m_absNnue);syncAbsEnabled(m_absNnumu); syncAbsEnabled(m_absNnutau);
+    syncAbsEnabled(m_absMuB); syncAbsEnabled(m_absMuQ);
+    syncAbsEnabled(m_absMunue); syncAbsEnabled(m_absMunumu); syncAbsEnabled(m_absMnutau);
+    syncAbsEnabled(m_absErrB); syncAbsEnabled(m_absErrQ);
+    syncAbsEnabled(m_absErrLe); syncAbsEnabled(m_absErrLmu); syncAbsEnabled(m_absErrLtau);
     m_visDialog->show();
     m_visDialog->raise();
     m_visDialog->activateWindow();
@@ -196,6 +216,39 @@ void MainWindow::setupUi() {
   QAction *actTheme = plotMenu->addAction("Toggle Plot Theme");
   connect(actTheme, &QAction::triggered, this, &MainWindow::onThemeToggleClicked);
 
+  // Show/hide chart legend
+  QAction *actLegend = plotMenu->addAction("Show Legend");
+  actLegend->setCheckable(true);
+  actLegend->setChecked(m_legendVisible);
+  connect(actLegend, &QAction::toggled, this, [this](bool on) {
+    m_legendVisible = on;
+    refreshLegendVisibility();
+  });
+
+  // Configure which run parameters appear in legend names
+  QAction *actLegendCfg = plotMenu->addAction("Configure Legend...");
+  connect(actLegendCfg, &QAction::triggered, this, [this]() {
+    QDialog dlg(this);
+    dlg.setWindowTitle("Legend Content");
+    QVBoxLayout *v = new QVBoxLayout(&dlg);
+    v->addWidget(new QLabel("Append run parameters to legend entries:"));
+    auto *cB    = new QCheckBox("B  (baryon number)");        cB->setChecked(m_legendShowB);
+    auto *cLe   = new QCheckBox("Le (electron lepton)");      cLe->setChecked(m_legendShowLe);
+    auto *cLmu  = new QCheckBox("Lμ (muon lepton)");          cLmu->setChecked(m_legendShowLmu);
+    auto *cLtau = new QCheckBox("Lτ (tau lepton)");           cLtau->setChecked(m_legendShowLtau);
+    v->addWidget(cB); v->addWidget(cLe); v->addWidget(cLmu); v->addWidget(cLtau);
+    QPushButton *ok = new QPushButton("OK");
+    connect(ok, &QPushButton::clicked, &dlg, &QDialog::accept);
+    v->addWidget(ok);
+    if (dlg.exec() == QDialog::Accepted) {
+      m_legendShowB    = cB->isChecked();
+      m_legendShowLe   = cLe->isChecked();
+      m_legendShowLmu  = cLmu->isChecked();
+      m_legendShowLtau = cLtau->isChecked();
+      refreshSeriesNames();
+    }
+  });
+
   plotMenu->addSeparator();
 
   // Section: Tools & Export
@@ -207,10 +260,23 @@ void MainWindow::setupUi() {
 
   btnPlotSettings->setMenu(plotMenu);
 
+  // ── Auto-Fit Limits button (next to Plot Settings) ───────────────────
+  QPushButton *btnAutoFit = new QPushButton("Auto-Fit Limits", rightPanel);
+  btnAutoFit->setToolTip("Fit axis ranges to the currently visible curves "
+                         "in the active chart (uses log/linear margins).");
+  connect(btnAutoFit, &QPushButton::clicked, this, [this]() {
+    QWidget *current = m_chartTabs->currentWidget();
+    auto *view = qobject_cast<TooltipChartView*>(current);
+    if (view && view->chart()) {
+      autoFitChartFromVisibleSeries(view->chart());
+    }
+  });
+
   QHBoxLayout *bottomRightLayout = new QHBoxLayout();
   bottomRightLayout->setContentsMargins(0, 0, 0, 15);
   bottomRightLayout->addStretch();
   bottomRightLayout->addWidget(btnPlotSettings);
+  bottomRightLayout->addWidget(btnAutoFit);
   bottomRightLayout->addStretch();
   
   rightLayout->addLayout(bottomRightLayout);
@@ -478,7 +544,7 @@ void MainWindow::createChartPanel(QWidget *parent) {
   setupChart(m_densityChartView, c1, m_densAxisX, m_densAxisY, "Densities vs Temperature", "Densities [MeV^3]");
   m_seriesnB = new QLineSeries(); m_seriesnB->setName("nB"); m_seriesnB->setColor(Qt::blue);
   m_seriesS  = new QLineSeries(); m_seriesS->setName("s");   m_seriesS->setColor(Qt::green);
-  m_seriesnQ = new QLineSeries(); m_seriesnQ->setName("|nQ_QCD|"); m_seriesnQ->setColor(QColor(255, 165, 0)); // Orange
+  m_seriesnQ = new QLineSeries(); m_seriesnQ->setName("|nQ|"); m_seriesnQ->setColor(QColor(255, 165, 0)); // Orange
   c1->addSeries(m_seriesnB); m_seriesnB->attachAxis(m_densAxisX); m_seriesnB->attachAxis(m_densAxisY);
   c1->addSeries(m_seriesS);  m_seriesS->attachAxis(m_densAxisX);  m_seriesS->attachAxis(m_densAxisY);
   c1->addSeries(m_seriesnQ); m_seriesnQ->attachAxis(m_densAxisX); m_seriesnQ->attachAxis(m_densAxisY);
@@ -541,6 +607,135 @@ void MainWindow::createChartPanel(QWidget *parent) {
     m_errAxisX->setTitleText("Temperature [MeV]");
     m_errAxisY->setTitleText("Relative Error");
   }
+
+  // Register all data series with their base name and default abs flag.
+  // Quantities previously displayed as "|·|" default to abs=ON; signed-or-positive
+  // quantities default to abs=OFF.
+  registerSeriesAbs(m_seriesnB,     "nB",       false);
+  registerSeriesAbs(m_seriesS,      "s",        false);
+  registerSeriesAbs(m_seriesnQ,     "nQ",   true);
+
+  registerSeriesAbs(m_seriesNe,     "ne",       false);
+  registerSeriesAbs(m_seriesNmu,    "nμ",       false);
+  registerSeriesAbs(m_seriesNtau,   "nτ",       false);
+  registerSeriesAbs(m_seriesNnue,   "nνe",      false);
+  registerSeriesAbs(m_seriesNnumu,  "nνμ",      false);
+  registerSeriesAbs(m_seriesNnutau, "nντ",      false);
+
+  registerSeriesAbs(m_seriesMuB,    "μB",       true);
+  registerSeriesAbs(m_seriesMuQ,    "μQ",       true);
+
+  registerSeriesAbs(m_seriesMunue,  "μνe",      true);
+  registerSeriesAbs(m_seriesMunumu, "μνμ",      true);
+  registerSeriesAbs(m_seriesMnutau, "μντ",      true);
+
+  registerSeriesAbs(m_seriesErrB,    "err_b",      true);
+  registerSeriesAbs(m_seriesErrQ,    "err_charge", true);
+  registerSeriesAbs(m_seriesErrLe,   "err_le",     true);
+  registerSeriesAbs(m_seriesErrLmu,  "err_lmu",    true);
+  registerSeriesAbs(m_seriesErrLtau, "err_ltau",   true);
+
+  refreshSeriesNames();
+  refreshLegendVisibility();
+
+  // ── 3D trajectory tab (μB, μQ, T) ───────────────────────────────────
+  // Q3DScatter is a QWindow; embed it via createWindowContainer so it can
+  // live inside QTabWidget alongside the 2D chart views.
+  m_scatter3D = new Q3DScatter();
+  m_scatter3D->activeTheme()->setType(Q3DTheme::ThemeQt);
+  m_scatter3D->activeTheme()->setBackgroundColor(QColor("#2b2b2b"));
+  m_scatter3D->activeTheme()->setWindowColor(QColor("#2b2b2b"));
+  m_scatter3D->activeTheme()->setLabelTextColor(Qt::white);
+  m_scatter3D->setShadowQuality(QAbstract3DGraph::ShadowQualityNone);
+
+  // Explicit value axes with auto-fit + a bit of segment density.
+  auto *axX = new QValue3DAxis(); axX->setTitle("μB [MeV]");          axX->setTitleVisible(true);
+  axX->setAutoAdjustRange(true);  axX->setLabelFormat(QStringLiteral("%.1f"));
+  auto *axY = new QValue3DAxis(); axY->setTitle("Temperature T [MeV]"); axY->setTitleVisible(true);
+  axY->setAutoAdjustRange(true);  axY->setLabelFormat(QStringLiteral("%.1f"));
+  auto *axZ = new QValue3DAxis(); axZ->setTitle("μQ [MeV]");          axZ->setTitleVisible(true);
+  axZ->setAutoAdjustRange(true);  axZ->setLabelFormat(QStringLiteral("%.1f"));
+  m_scatter3D->setAxisX(axX);
+  m_scatter3D->setAxisY(axY);
+  m_scatter3D->setAxisZ(axZ);
+
+  // Make the bounding box roomier on the floor (X = μB, Z = μQ) so μB
+  // doesn't visually collapse when its data range is small.
+  m_scatter3D->setAspectRatio(2.5);
+  m_scatter3D->setHorizontalAspectRatio(1.0);
+
+  m_scatter3D->scene()->activeCamera()->setCameraPreset(Q3DCamera::CameraPresetIsometricRight);
+  m_scatter3D->setSelectionMode(QAbstract3DGraph::SelectionItem);
+
+  m_series3D = new QScatter3DSeries();
+  m_series3D->setName("Trajectory");
+  // Sphere mesh + small size + per-segment subdivision below makes the
+  // trajectory render as a continuous tube rather than a sparse scatter.
+  m_series3D->setItemSize(0.06f);
+  m_series3D->setMesh(QAbstract3DSeries::MeshSphere);
+  m_series3D->setBaseColor(QColor(255, 165, 0));
+  // Hover tooltip: show the (μB, T, μQ) triple for the selected point.
+  m_series3D->setItemLabelFormat(QStringLiteral(
+      "μB: @xLabel MeV\nT: @yLabel MeV\nμQ: @zLabel MeV"));
+  m_scatter3D->addSeries(m_series3D);
+
+  m_scatter3DContainer = QWidget::createWindowContainer(m_scatter3D, m_chartTabs);
+  m_scatter3DContainer->setMinimumSize(QSize(320, 240));
+  m_scatter3DContainer->setFocusPolicy(Qt::StrongFocus);
+
+  // First-order surface overlay (rendered as a translucent sphere cloud).
+  // Disabled until the user picks the Entropy Contour EoS.
+  m_surface3D = new QScatter3DSeries();
+  m_surface3D->setName("First-order surface");
+  m_surface3D->setItemSize(0.05f);
+  m_surface3D->setMesh(QAbstract3DSeries::MeshSphere);
+  m_surface3D->setBaseColor(QColor(80, 160, 255, 90));
+  m_surface3D->setVisible(false);
+  m_scatter3D->addSeries(m_surface3D);
+
+  // Toolbar: enable surface + opacity slider, sit above the 3D view
+  QWidget *tabRoot = new QWidget(m_chartTabs);
+  QVBoxLayout *tabLay = new QVBoxLayout(tabRoot);
+  tabLay->setContentsMargins(0, 0, 0, 0);
+
+  QHBoxLayout *toolBar = new QHBoxLayout();
+  toolBar->setContentsMargins(8, 4, 8, 4);
+  m_chkContinuous3D = new QCheckBox("Continuous line", tabRoot);
+  m_chkContinuous3D->setChecked(m_continuous3D);
+  m_chkContinuous3D->setToolTip("Linearly interpolate between trajectory points "
+                                 "to show a continuous tube. Off = raw points.");
+  m_chkSurface = new QCheckBox("Show first-order surface", tabRoot);
+  m_chkSurface->setEnabled(false);
+  m_chkSurface->setToolTip("Available when the Entropy Contour EoS is selected.");
+  m_lblSurfaceOpacity = new QLabel("Opacity:", tabRoot);
+  m_sliderSurfaceOpacity = new QSlider(Qt::Horizontal, tabRoot);
+  m_sliderSurfaceOpacity->setRange(5, 255);
+  m_sliderSurfaceOpacity->setValue(90);
+  m_sliderSurfaceOpacity->setEnabled(false);
+  m_sliderSurfaceOpacity->setMaximumWidth(220);
+  toolBar->addWidget(m_chkContinuous3D);
+  toolBar->addSpacing(20);
+  toolBar->addWidget(m_chkSurface);
+  toolBar->addStretch();
+  toolBar->addWidget(m_lblSurfaceOpacity);
+  toolBar->addWidget(m_sliderSurfaceOpacity);
+  tabLay->addLayout(toolBar);
+  tabLay->addWidget(m_scatter3DContainer, /*stretch=*/1);
+
+  connect(m_chkContinuous3D, &QCheckBox::toggled, this, [this](bool on) {
+    m_continuous3D = on;
+    rebuild3DSeriesFromTrajectory();
+  });
+  connect(m_chkSurface, &QCheckBox::toggled, this, [this](bool on) {
+    if (on && !m_surfaceLoaded) loadFirstOrderSurface();
+    if (m_surface3D) m_surface3D->setVisible(on && m_surfaceLoaded);
+    if (m_sliderSurfaceOpacity) m_sliderSurfaceOpacity->setEnabled(on && m_surfaceLoaded);
+  });
+  connect(m_sliderSurfaceOpacity, &QSlider::valueChanged, this, [this](int) {
+    applySurfaceColor();
+  });
+
+  m_chartTabs->addTab(tabRoot, "3D Trajectory");
 }
 
 void MainWindow::onEosChanged(int index) {
@@ -550,6 +745,15 @@ void MainWindow::onEosChanged(int index) {
   bool showEosPath = (index == 2);
   m_labelEosPath->setVisible(showEosPath);
   m_eosPathWidget->setVisible(showEosPath);
+
+  // First-order surface overlay is only meaningful for the Entropy Contour EoS.
+  const bool entrCont = (index == 3);
+  if (m_chkSurface) m_chkSurface->setEnabled(entrCont);
+  if (m_sliderSurfaceOpacity) m_sliderSurfaceOpacity->setEnabled(entrCont && m_chkSurface && m_chkSurface->isChecked());
+  if (!entrCont) {
+    if (m_chkSurface) m_chkSurface->setChecked(false);
+    if (m_surface3D)  m_surface3D->setVisible(false);
+  }
 }
 
 void MainWindow::clearCharts(bool keepData) {
@@ -576,7 +780,11 @@ void MainWindow::clearCharts(bool keepData) {
   m_seriesErrLe->clear();
   m_seriesErrLmu->clear();
   m_seriesErrLtau->clear();
-  
+
+  if (m_series3D && m_series3D->dataProxy()) {
+    m_series3D->dataProxy()->resetArray(new QScatterDataArray);
+  }
+
   if (!keepData) {
     m_trajectoryData.clear();
   }
@@ -608,6 +816,15 @@ void MainWindow::onRunClicked() {
   m_worker->le = m_spinLe->value();
   m_worker->lmu = m_spinLmu->value();
   m_worker->ltau = m_spinLtau->value();
+
+  // Snapshot run parameters for legend display
+  m_runB    = m_spinB->value();
+  m_runLe   = m_spinLe->value();
+  m_runLmu  = m_spinLmu->value();
+  m_runLtau = m_spinLtau->value();
+  m_runParamsValid = true;
+  refreshSeriesNames();
+  refreshLegendVisibility();
   m_worker->dT = m_spinDT->value();
   m_worker->Tmin = m_spinTmin->value();
   m_worker->Tmax = m_spinTmax->value();
@@ -666,62 +883,83 @@ void MainWindow::onStopClicked() {
 void MainWindow::onStepCompleted(TrajectoryPoint pt) {
   // Store data
   m_trajectoryData.append(pt);
-  
-  auto val = [this](double v) { 
-    if (m_isLogScale) return std::max(std::abs(v), 1e-15);
-    return v;
-  };
+
+  auto V = [this](QXYSeries *s, double v) { return absTransform(s, v); };
 
   if (m_tempIsVertical) {
-    m_seriesnB->append(val(pt.nB), pt.T);
-    m_seriesS->append(val(pt.s), pt.T);
-    m_seriesnQ->append(val(pt.nQ), pt.T);
-    
-    m_seriesNe->append(val(pt.ne), pt.T);
-    m_seriesNmu->append(val(pt.nmu), pt.T);
-    m_seriesNtau->append(val(pt.ntau), pt.T);
-    m_seriesNnue->append(val(pt.nnue), pt.T);
-    m_seriesNnumu->append(val(pt.nnumu), pt.T);
-    m_seriesNnutau->append(val(pt.nnutau), pt.T);
+    m_seriesnB->append(V(m_seriesnB, pt.nB), pt.T);
+    m_seriesS->append(V(m_seriesS, pt.s), pt.T);
+    m_seriesnQ->append(V(m_seriesnQ, pt.nQ), pt.T);
 
-    m_seriesMuB->append(val(pt.muB), pt.T);
-    m_seriesMuQ->append(val(pt.muQ), pt.T);
+    m_seriesNe->append(V(m_seriesNe, pt.ne), pt.T);
+    m_seriesNmu->append(V(m_seriesNmu, pt.nmu), pt.T);
+    m_seriesNtau->append(V(m_seriesNtau, pt.ntau), pt.T);
+    m_seriesNnue->append(V(m_seriesNnue, pt.nnue), pt.T);
+    m_seriesNnumu->append(V(m_seriesNnumu, pt.nnumu), pt.T);
+    m_seriesNnutau->append(V(m_seriesNnutau, pt.nnutau), pt.T);
 
-    m_seriesMunue->append(val(pt.munue), pt.T);
-    m_seriesMunumu->append(val(pt.munumu), pt.T);
-    m_seriesMnutau->append(val(pt.mnutau), pt.T);
+    m_seriesMuB->append(V(m_seriesMuB, pt.muB), pt.T);
+    m_seriesMuQ->append(V(m_seriesMuQ, pt.muQ), pt.T);
+
+    m_seriesMunue->append(V(m_seriesMunue, pt.munue), pt.T);
+    m_seriesMunumu->append(V(m_seriesMunumu, pt.munumu), pt.T);
+    m_seriesMnutau->append(V(m_seriesMnutau, pt.mnutau), pt.T);
 
     // Errors: Temperature horizontally by default
-    m_seriesErrB->append(pt.T, val(pt.err_b));
-    m_seriesErrQ->append(pt.T, val(pt.err_charge));
-    m_seriesErrLe->append(pt.T, val(pt.err_le));
-    m_seriesErrLmu->append(pt.T, val(pt.err_lmu));
-    m_seriesErrLtau->append(pt.T, val(pt.err_ltau));
+    m_seriesErrB->append(pt.T, V(m_seriesErrB, pt.err_b));
+    m_seriesErrQ->append(pt.T, V(m_seriesErrQ, pt.err_charge));
+    m_seriesErrLe->append(pt.T, V(m_seriesErrLe, pt.err_le));
+    m_seriesErrLmu->append(pt.T, V(m_seriesErrLmu, pt.err_lmu));
+    m_seriesErrLtau->append(pt.T, V(m_seriesErrLtau, pt.err_ltau));
   } else {
-    m_seriesnB->append(pt.T, val(pt.nB));
-    m_seriesS->append(pt.T, val(pt.s));
-    m_seriesnQ->append(pt.T, val(pt.nQ));
-    
-    m_seriesNe->append(pt.T, val(pt.ne));
-    m_seriesNmu->append(pt.T, val(pt.nmu));
-    m_seriesNtau->append(pt.T, val(pt.ntau));
-    m_seriesNnue->append(pt.T, val(pt.nnue));
-    m_seriesNnumu->append(pt.T, val(pt.nnumu));
-    m_seriesNnutau->append(pt.T, val(pt.nnutau));
+    m_seriesnB->append(pt.T, V(m_seriesnB, pt.nB));
+    m_seriesS->append(pt.T, V(m_seriesS, pt.s));
+    m_seriesnQ->append(pt.T, V(m_seriesnQ, pt.nQ));
 
-    m_seriesMuB->append(pt.T, val(pt.muB));
-    m_seriesMuQ->append(pt.T, val(pt.muQ));
+    m_seriesNe->append(pt.T, V(m_seriesNe, pt.ne));
+    m_seriesNmu->append(pt.T, V(m_seriesNmu, pt.nmu));
+    m_seriesNtau->append(pt.T, V(m_seriesNtau, pt.ntau));
+    m_seriesNnue->append(pt.T, V(m_seriesNnue, pt.nnue));
+    m_seriesNnumu->append(pt.T, V(m_seriesNnumu, pt.nnumu));
+    m_seriesNnutau->append(pt.T, V(m_seriesNnutau, pt.nnutau));
 
-    m_seriesMunue->append(pt.T, val(pt.munue));
-    m_seriesMunumu->append(pt.T, val(pt.munumu));
-    m_seriesMnutau->append(pt.T, val(pt.mnutau));
+    m_seriesMuB->append(pt.T, V(m_seriesMuB, pt.muB));
+    m_seriesMuQ->append(pt.T, V(m_seriesMuQ, pt.muQ));
+
+    m_seriesMunue->append(pt.T, V(m_seriesMunue, pt.munue));
+    m_seriesMunumu->append(pt.T, V(m_seriesMunumu, pt.munumu));
+    m_seriesMnutau->append(pt.T, V(m_seriesMnutau, pt.mnutau));
 
     // Errors: Flipped
-    m_seriesErrB->append(val(pt.err_b), pt.T);
-    m_seriesErrQ->append(val(pt.err_charge), pt.T);
-    m_seriesErrLe->append(val(pt.err_le), pt.T);
-    m_seriesErrLmu->append(val(pt.err_lmu), pt.T);
-    m_seriesErrLtau->append(val(pt.err_ltau), pt.T);
+    m_seriesErrB->append(V(m_seriesErrB, pt.err_b), pt.T);
+    m_seriesErrQ->append(V(m_seriesErrQ, pt.err_charge), pt.T);
+    m_seriesErrLe->append(V(m_seriesErrLe, pt.err_le), pt.T);
+    m_seriesErrLmu->append(V(m_seriesErrLmu, pt.err_lmu), pt.T);
+    m_seriesErrLtau->append(V(m_seriesErrLtau, pt.err_ltau), pt.T);
+  }
+
+  // 3D trajectory: signed (μB, T, μQ) — Y is vertical.
+  if (m_series3D && m_series3D->dataProxy()) {
+    QScatterDataArray seg;
+    if (m_continuous3D && m_trajectoryData.size() >= 2) {
+      // Subdivide segment between previous and current step for a tube look.
+      constexpr int kSubdiv = 20;
+      const auto &prev = m_trajectoryData[m_trajectoryData.size() - 2];
+      seg.reserve(kSubdiv);
+      for (int k = 1; k <= kSubdiv; ++k) {
+        const float t = float(k) / float(kSubdiv);
+        seg.append(QScatterDataItem(QVector3D(
+            static_cast<float>(prev.muB * (1.0 - t) + pt.muB * t),
+            static_cast<float>(prev.T   * (1.0 - t) + pt.T   * t),
+            static_cast<float>(prev.muQ * (1.0 - t) + pt.muQ * t))));
+      }
+    } else {
+      // Plain raw point — most precise, no interpolation.
+      seg.append(QScatterDataItem(QVector3D(static_cast<float>(pt.muB),
+                                              static_cast<float>(pt.T),
+                                              static_cast<float>(pt.muQ))));
+    }
+    m_series3D->dataProxy()->addItems(seg);
   }
 
   updateChartAxes();
@@ -896,57 +1134,59 @@ void MainWindow::replotData() {
 
   // Re-plot data by rebuilding series and keeping underlying memory
   clearCharts(true);
-  
-  auto val = [this](double v) { 
-    if (m_isLogScale) return std::max(std::abs(v), 1e-15);
-    return v;
-  };
+
+  auto V = [this](QXYSeries *s, double v) { return absTransform(s, v); };
 
   for (const auto &pt : m_trajectoryData) {
     if (m_tempIsVertical) {
-      m_seriesnB->append(val(pt.nB), pt.T);
-      m_seriesS->append(val(pt.s), pt.T);
-      m_seriesnQ->append(val(pt.nQ), pt.T);
-      m_seriesNe->append(val(pt.ne), pt.T);
-      m_seriesNmu->append(val(pt.nmu), pt.T);
-      m_seriesNtau->append(val(pt.ntau), pt.T);
-      m_seriesNnue->append(val(pt.nnue), pt.T);
-      m_seriesNnumu->append(val(pt.nnumu), pt.T);
-      m_seriesNnutau->append(val(pt.nnutau), pt.T);
-      m_seriesMuB->append(val(pt.muB), pt.T);
-      m_seriesMuQ->append(val(pt.muQ), pt.T);
-      m_seriesMunue->append(val(pt.munue), pt.T);
-      m_seriesMunumu->append(val(pt.munumu), pt.T);
-      m_seriesMnutau->append(val(pt.mnutau), pt.T);
+      m_seriesnB->append(V(m_seriesnB, pt.nB), pt.T);
+      m_seriesS->append(V(m_seriesS, pt.s), pt.T);
+      m_seriesnQ->append(V(m_seriesnQ, pt.nQ), pt.T);
+      m_seriesNe->append(V(m_seriesNe, pt.ne), pt.T);
+      m_seriesNmu->append(V(m_seriesNmu, pt.nmu), pt.T);
+      m_seriesNtau->append(V(m_seriesNtau, pt.ntau), pt.T);
+      m_seriesNnue->append(V(m_seriesNnue, pt.nnue), pt.T);
+      m_seriesNnumu->append(V(m_seriesNnumu, pt.nnumu), pt.T);
+      m_seriesNnutau->append(V(m_seriesNnutau, pt.nnutau), pt.T);
+      m_seriesMuB->append(V(m_seriesMuB, pt.muB), pt.T);
+      m_seriesMuQ->append(V(m_seriesMuQ, pt.muQ), pt.T);
+      m_seriesMunue->append(V(m_seriesMunue, pt.munue), pt.T);
+      m_seriesMunumu->append(V(m_seriesMunumu, pt.munumu), pt.T);
+      m_seriesMnutau->append(V(m_seriesMnutau, pt.mnutau), pt.T);
       // Errors: Temp on X
-      m_seriesErrB->append(pt.T, val(pt.err_b));
-      m_seriesErrQ->append(pt.T, val(pt.err_charge));
-      m_seriesErrLe->append(pt.T, val(pt.err_le));
-      m_seriesErrLmu->append(pt.T, val(pt.err_lmu));
-      m_seriesErrLtau->append(pt.T, val(pt.err_ltau));
+      m_seriesErrB->append(pt.T, V(m_seriesErrB, pt.err_b));
+      m_seriesErrQ->append(pt.T, V(m_seriesErrQ, pt.err_charge));
+      m_seriesErrLe->append(pt.T, V(m_seriesErrLe, pt.err_le));
+      m_seriesErrLmu->append(pt.T, V(m_seriesErrLmu, pt.err_lmu));
+      m_seriesErrLtau->append(pt.T, V(m_seriesErrLtau, pt.err_ltau));
     } else {
-      m_seriesnB->append(pt.T, val(pt.nB));
-      m_seriesS->append(pt.T, val(pt.s));
-      m_seriesnQ->append(pt.T, val(pt.nQ));
-      m_seriesNe->append(pt.T, val(pt.ne));
-      m_seriesNmu->append(pt.T, val(pt.nmu));
-      m_seriesNtau->append(pt.T, val(pt.ntau));
-      m_seriesNnue->append(pt.T, val(pt.nnue));
-      m_seriesNnumu->append(pt.T, val(pt.nnumu));
-      m_seriesNnutau->append(pt.T, val(pt.nnutau));
-      m_seriesMuB->append(pt.T, val(pt.muB));
-      m_seriesMuQ->append(pt.T, val(pt.muQ));
-      m_seriesMunue->append(pt.T, val(pt.munue));
-      m_seriesMunumu->append(pt.T, val(pt.munumu));
-      m_seriesMnutau->append(pt.T, val(pt.mnutau));
+      m_seriesnB->append(pt.T, V(m_seriesnB, pt.nB));
+      m_seriesS->append(pt.T, V(m_seriesS, pt.s));
+      m_seriesnQ->append(pt.T, V(m_seriesnQ, pt.nQ));
+      m_seriesNe->append(pt.T, V(m_seriesNe, pt.ne));
+      m_seriesNmu->append(pt.T, V(m_seriesNmu, pt.nmu));
+      m_seriesNtau->append(pt.T, V(m_seriesNtau, pt.ntau));
+      m_seriesNnue->append(pt.T, V(m_seriesNnue, pt.nnue));
+      m_seriesNnumu->append(pt.T, V(m_seriesNnumu, pt.nnumu));
+      m_seriesNnutau->append(pt.T, V(m_seriesNnutau, pt.nnutau));
+      m_seriesMuB->append(pt.T, V(m_seriesMuB, pt.muB));
+      m_seriesMuQ->append(pt.T, V(m_seriesMuQ, pt.muQ));
+      m_seriesMunue->append(pt.T, V(m_seriesMunue, pt.munue));
+      m_seriesMunumu->append(pt.T, V(m_seriesMunumu, pt.munumu));
+      m_seriesMnutau->append(pt.T, V(m_seriesMnutau, pt.mnutau));
       // Errors: Flipped
-      m_seriesErrB->append(val(pt.err_b), pt.T);
-      m_seriesErrQ->append(val(pt.err_charge), pt.T);
-      m_seriesErrLe->append(val(pt.err_le), pt.T);
-      m_seriesErrLmu->append(val(pt.err_lmu), pt.T);
-      m_seriesErrLtau->append(val(pt.err_ltau), pt.T);
+      m_seriesErrB->append(V(m_seriesErrB, pt.err_b), pt.T);
+      m_seriesErrQ->append(V(m_seriesErrQ, pt.err_charge), pt.T);
+      m_seriesErrLe->append(V(m_seriesErrLe, pt.err_le), pt.T);
+      m_seriesErrLmu->append(V(m_seriesErrLmu, pt.err_lmu), pt.T);
+      m_seriesErrLtau->append(V(m_seriesErrLtau, pt.err_ltau), pt.T);
     }
   }
+
+  rebuild3DSeriesFromTrajectory();
+
+  refreshSeriesNames();
+  refreshLegendVisibility();
   updateChartAxes();
 }
 
@@ -1032,7 +1272,20 @@ void MainWindow::onScaleToggleClicked() {
     // Re-render everything
     if (!m_trajectoryData.isEmpty()) {
         replotData();
+    } else {
+        refreshSeriesNames();
     }
+
+    // Sync abs-checkbox enabled state with the new scale
+    auto syncAbsEnabled = [this](QCheckBox *c){ if (c) c->setEnabled(!m_isLogScale); };
+    syncAbsEnabled(m_absnB);  syncAbsEnabled(m_absS);   syncAbsEnabled(m_absnQ);
+    syncAbsEnabled(m_absNe);  syncAbsEnabled(m_absNmu); syncAbsEnabled(m_absNtau);
+    syncAbsEnabled(m_absNnue);syncAbsEnabled(m_absNnumu); syncAbsEnabled(m_absNnutau);
+    syncAbsEnabled(m_absMuB); syncAbsEnabled(m_absMuQ);
+    syncAbsEnabled(m_absMunue); syncAbsEnabled(m_absMunumu); syncAbsEnabled(m_absMnutau);
+    syncAbsEnabled(m_absErrB); syncAbsEnabled(m_absErrQ);
+    syncAbsEnabled(m_absErrLe); syncAbsEnabled(m_absErrLmu); syncAbsEnabled(m_absErrLtau);
+
     updateCriticalPoint();
 }
 
@@ -1101,7 +1354,7 @@ void MainWindow::onExportClicked() {
     
     QTextStream out(&file);
     if (currentTab == 0) {
-      out << "T\tnB\ts\t|nQ_QCD|\tnnue\tnnumu\tnnutau\n";
+      out << "T\tnB\ts\t|nQ|\tnnue\tnnumu\tnnutau\n";
       for (const auto &pt : m_trajectoryData) out << pt.T << "\t" << pt.nB << "\t" << pt.s << "\t" << pt.nQ << "\t" << pt.nnue << "\t" << pt.nnumu << "\t" << pt.nnutau << "\n";
     } else if (currentTab == 1) {
       out << "T\t|muB|\t|muQ|\n";
@@ -1135,7 +1388,7 @@ void MainWindow::onExportFullDataClicked() {
 
   QTextStream out(&file);
   // Header
-  out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnB\tnQ_QCD\ts_QCD\ts_tot\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\n";
+  out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnB\tnQ\ts_QCD\ts_tot\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\n";
   
   for (const auto &pt : m_trajectoryData) {
     out << pt.T << "\t" 
@@ -1233,9 +1486,15 @@ void MainWindow::onSolverSettingsButtonClicked() {
   if (!m_solverSettingsDialog) {
     m_solverSettingsDialog = new QDialog(this);
     m_solverSettingsDialog->setWindowTitle("Solver Settings");
-    m_solverSettingsDialog->setMinimumWidth(420);
+    m_solverSettingsDialog->setMinimumWidth(720);
 
     QVBoxLayout *vbox = new QVBoxLayout(m_solverSettingsDialog);
+    QHBoxLayout *cols = new QHBoxLayout();
+    QVBoxLayout *colLeft  = new QVBoxLayout();
+    QVBoxLayout *colRight = new QVBoxLayout();
+    cols->addLayout(colLeft);
+    cols->addLayout(colRight);
+    vbox->addLayout(cols);
 
     // ── Convergence settings ──────────────────────────────────────────
     QGroupBox *groupConv = new QGroupBox("Convergence", m_solverSettingsDialog);
@@ -1255,7 +1514,7 @@ void MainWindow::onSolverSettingsButtonClicked() {
     spinMaxIter->setValue(m_maxIter);
     gridConv->addWidget(spinMaxIter, 1, 1);
 
-    vbox->addWidget(groupConv);
+    colLeft->addWidget(groupConv);
 
     // ── Guess method ─────────────────────────────────────────────────
     QGroupBox *groupGuess = new QGroupBox("Initial Guess Strategy", m_solverSettingsDialog);
@@ -1309,7 +1568,7 @@ void MainWindow::onSolverSettingsButtonClicked() {
     connect(comboType, &QComboBox::currentIndexChanged, updateFields);
     updateFields(m_initialGuessType);
 
-    vbox->addWidget(groupGuess);
+    colRight->addWidget(groupGuess);
 
     // ── Metropolis Pre-Optimizer ──────────────────────────────────────
     QGroupBox *groupMetro = new QGroupBox("Metropolis Pre-Optimizer", m_solverSettingsDialog);
@@ -1351,7 +1610,8 @@ void MainWindow::onSolverSettingsButtonClicked() {
     connect(comboMetroMode, &QComboBox::currentIndexChanged, updateMetroEnabled);
     updateMetroEnabled(m_metropolisMode);
 
-    vbox->addWidget(groupMetro);
+    colLeft->addWidget(groupMetro);
+    colLeft->addStretch();
 
     // ── Save button ───────────────────────────────────────────────────
     QPushButton *btnSave = new QPushButton("Save and Close", m_solverSettingsDialog);
@@ -1374,4 +1634,135 @@ void MainWindow::onSolverSettingsButtonClicked() {
   m_solverSettingsDialog->show();
   m_solverSettingsDialog->raise();
   m_solverSettingsDialog->activateWindow();
+}
+
+// ── Per-series abs/legend helpers ─────────────────────────────────────────
+void MainWindow::registerSeriesAbs(QXYSeries *s, const QString &baseName, bool defaultAbs) {
+  m_seriesMeta.append({s, baseName, defaultAbs});
+}
+
+double MainWindow::absTransform(QXYSeries *s, double v) const {
+  // In log scale, abs is forced regardless of user choice (negative values
+  // can't be plotted on a log axis).
+  if (m_isLogScale) return std::max(std::abs(v), 1e-15);
+  for (const auto &m : m_seriesMeta) {
+    if (m.series == s) return m.useAbs ? std::abs(v) : v;
+  }
+  return v;
+}
+
+QString MainWindow::legendSuffix() const {
+  if (!m_runParamsValid) return QString();
+  QStringList parts;
+  if (m_legendShowB)    parts << QString("B=%1").arg(m_runB,    0, 'g', 4);
+  if (m_legendShowLe)   parts << QString("Le=%1").arg(m_runLe,  0, 'g', 4);
+  if (m_legendShowLmu)  parts << QString("Lμ=%1").arg(m_runLmu, 0, 'g', 4);
+  if (m_legendShowLtau) parts << QString("Lτ=%1").arg(m_runLtau,0, 'g', 4);
+  if (parts.isEmpty()) return QString();
+  return QString(" (%1)").arg(parts.join(", "));
+}
+
+void MainWindow::refreshSeriesNames() {
+  const QString suffix = legendSuffix();
+  for (const auto &m : m_seriesMeta) {
+    if (!m.series) continue;
+    // In log scale we always show abs (forced); in linear we follow useAbs.
+    const bool showBars = m_isLogScale || m.useAbs;
+    const QString display = showBars ? QString("|%1|").arg(m.baseName) : m.baseName;
+    m.series->setName(display + suffix);
+  }
+  // Critical-point scatter series carry suffix too if visible
+  if (m_seriesCpB) m_seriesCpB->setName(QString("CP |μB|") + suffix);
+  if (m_seriesCpQ) m_seriesCpQ->setName(QString("CP |μQ|") + suffix);
+}
+
+void MainWindow::refreshLegendVisibility() {
+  TooltipChartView *views[] = {m_densityChartView, m_leptonDensChartView,
+                                m_muChartView, m_leptonChartView, m_errorChartView};
+  for (auto *v : views) {
+    if (v && v->chart()) v->chart()->legend()->setVisible(m_legendVisible);
+  }
+}
+
+// ── First-order surface overlay (Entropy Contour EoS) ────────────────────
+void MainWindow::loadFirstOrderSurface() {
+  if (m_surfaceLoaded || !m_surface3D) return;
+
+  // assets/first_order_surface.dat lives next to the project root. The
+  // application is launched from gui/build/, so go up two levels.
+  QDir dir(QCoreApplication::applicationDirPath());
+  dir.cdUp(); dir.cdUp();
+  const QString path = dir.absoluteFilePath("assets/first_order_surface.dat");
+
+  QFile f(path);
+  if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    QMessageBox::warning(this, "Surface Data",
+        QString("Could not open %1").arg(path));
+    return;
+  }
+  QTextStream in(&f);
+  QScatterDataArray *arr = new QScatterDataArray;
+  arr->reserve(20000);
+  while (!in.atEnd()) {
+    QString line = in.readLine().trimmed();
+    if (line.isEmpty() || line.startsWith('#')) continue;
+    const QStringList toks = line.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+    // Columns: T  muB  muS  muQ  dnB
+    if (toks.size() < 4) continue;
+    bool okT = false, okB = false, okQ = false;
+    const double T   = toks[0].toDouble(&okT);
+    const double muB = toks[1].toDouble(&okB);
+    const double muQ = toks[3].toDouble(&okQ);
+    if (!okT || !okB || !okQ) continue;
+    arr->append(QScatterDataItem(QVector3D(static_cast<float>(muB),
+                                            static_cast<float>(T),
+                                            static_cast<float>(muQ))));
+  }
+  f.close();
+  m_surface3D->dataProxy()->resetArray(arr);
+  m_surfaceLoaded = true;
+  applySurfaceColor();
+  onLogMessage(QString("Loaded first-order surface: %1 points.").arg(arr->size()));
+}
+
+void MainWindow::applySurfaceColor() {
+  if (!m_surface3D || !m_sliderSurfaceOpacity) return;
+  const int alpha = m_sliderSurfaceOpacity->value();
+  QColor c(80, 160, 255, alpha);
+  m_surface3D->setBaseColor(c);
+}
+
+void MainWindow::rebuild3DSeriesFromTrajectory() {
+  if (!m_series3D || !m_series3D->dataProxy()) return;
+  QScatterDataArray *arr = new QScatterDataArray;
+  if (!m_trajectoryData.isEmpty()) {
+    if (m_continuous3D) {
+      constexpr int kSubdiv = 20;
+      arr->reserve(static_cast<int>(m_trajectoryData.size()) * kSubdiv);
+      const auto &p0 = m_trajectoryData.first();
+      arr->append(QScatterDataItem(QVector3D(static_cast<float>(p0.muB),
+                                              static_cast<float>(p0.T),
+                                              static_cast<float>(p0.muQ))));
+      for (int i = 1; i < m_trajectoryData.size(); ++i) {
+        const auto &a = m_trajectoryData[i - 1];
+        const auto &b = m_trajectoryData[i];
+        for (int k = 1; k <= kSubdiv; ++k) {
+          const float t = float(k) / float(kSubdiv);
+          arr->append(QScatterDataItem(QVector3D(
+              static_cast<float>(a.muB * (1.0 - t) + b.muB * t),
+              static_cast<float>(a.T   * (1.0 - t) + b.T   * t),
+              static_cast<float>(a.muQ * (1.0 - t) + b.muQ * t))));
+        }
+      }
+    } else {
+      // Raw points only — most precise.
+      arr->reserve(static_cast<int>(m_trajectoryData.size()));
+      for (const auto &p : m_trajectoryData) {
+        arr->append(QScatterDataItem(QVector3D(static_cast<float>(p.muB),
+                                                static_cast<float>(p.T),
+                                                static_cast<float>(p.muQ))));
+      }
+    }
+  }
+  m_series3D->dataProxy()->resetArray(arr);
 }

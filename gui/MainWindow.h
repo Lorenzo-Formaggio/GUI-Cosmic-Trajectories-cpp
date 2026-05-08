@@ -6,6 +6,7 @@
 #include <QMainWindow>
 #include <QThread>
 #include <QVector>
+#include <QHash>
 
 // Forward declarations (Qt)
 class QDoubleSpinBox;
@@ -18,6 +19,7 @@ class QTabWidget;
 class QLabel;
 class QCheckBox;
 class QLineEdit;
+class QSlider;
 
 #include <QtCharts/QChartView>
 #include <QtCharts/QLineSeries>
@@ -25,6 +27,10 @@ class QLineEdit;
 #include <QtCharts/QValueAxis>
 #include <QtCharts/QAbstractAxis>
 #include <QtCharts/QScatterSeries>
+#include <QtCharts/QXYSeries>
+#include <QtDataVisualization/Q3DScatter>
+#include <QtDataVisualization/QScatter3DSeries>
+#include <QtDataVisualization/QScatterDataProxy>
 #include "TooltipChartView.h"
 
 /**
@@ -68,6 +74,13 @@ private:
   void replotData();
   void updateChartAxes();
   void updateAxesTypes();
+
+  // Per-series abs/legend helpers
+  void registerSeriesAbs(QXYSeries *s, const QString &baseName, bool defaultAbs);
+  double absTransform(QXYSeries *s, double v) const;
+  QString legendSuffix() const;
+  void refreshSeriesNames();
+  void refreshLegendVisibility();
 
   // ── Parameter widgets ───────────────────────────────────────────────
   QDoubleSpinBox *m_spinB;
@@ -128,6 +141,41 @@ private:
   QCheckBox *m_chkMnutau;
   QCheckBox *m_chkErrB, *m_chkErrQ, *m_chkErrLe, *m_chkErrLmu, *m_chkErrLtau;
 
+  // Per-quantity absolute-value checkboxes (mirror visibility set)
+  QCheckBox *m_absnB = nullptr;
+  QCheckBox *m_absS = nullptr;
+  QCheckBox *m_absnQ = nullptr;
+  QCheckBox *m_absNnue = nullptr;
+  QCheckBox *m_absNnumu = nullptr;
+  QCheckBox *m_absNnutau = nullptr;
+  QCheckBox *m_absNe = nullptr;
+  QCheckBox *m_absNmu = nullptr;
+  QCheckBox *m_absNtau = nullptr;
+  QCheckBox *m_absMuB = nullptr;
+  QCheckBox *m_absMuQ = nullptr;
+  QCheckBox *m_absMunue = nullptr;
+  QCheckBox *m_absMunumu = nullptr;
+  QCheckBox *m_absMnutau = nullptr;
+  QCheckBox *m_absErrB = nullptr, *m_absErrQ = nullptr, *m_absErrLe = nullptr,
+            *m_absErrLmu = nullptr, *m_absErrLtau = nullptr;
+
+  // Per-series abs flag + base name (no |·| bars). Linear scan is fine for ~20 entries.
+  struct SeriesMeta { QXYSeries *series; QString baseName; bool useAbs; };
+  QVector<SeriesMeta> m_seriesMeta;
+
+  // Legend customization
+  bool m_legendVisible       = true;
+  bool m_legendShowB         = false;
+  bool m_legendShowLe        = false;
+  bool m_legendShowLmu       = false;
+  bool m_legendShowLtau      = false;
+  // Run parameter snapshot (set on each Run click)
+  bool   m_runParamsValid = false;
+  double m_runB    = 0.0;
+  double m_runLe   = 0.0;
+  double m_runLmu  = 0.0;
+  double m_runLtau = 0.0;
+
   // ── Chart widgets ───────────────────────────────────────────────────
   QTabWidget *m_chartTabs;
 
@@ -162,6 +210,25 @@ private:
   // Tab 4: Residual Errors
   TooltipChartView *m_errorChartView;
   QLineSeries *m_seriesErrB, *m_seriesErrQ, *m_seriesErrLe, *m_seriesErrLmu, *m_seriesErrLtau;
+
+  // Tab 5: 3D trajectory in (μB, μQ, T) — T is the vertical axis.
+  Q3DScatter      *m_scatter3D    = nullptr;
+  QScatter3DSeries *m_series3D    = nullptr;
+  QWidget         *m_scatter3DContainer = nullptr;
+
+  // First-order surface overlay (Entropy Contour EoS only)
+  QScatter3DSeries *m_surface3D   = nullptr;
+  QCheckBox       *m_chkSurface   = nullptr;
+  QSlider         *m_sliderSurfaceOpacity = nullptr;
+  QLabel          *m_lblSurfaceOpacity = nullptr;
+  bool             m_surfaceLoaded = false;
+  void loadFirstOrderSurface();
+  void applySurfaceColor();
+
+  // 3D trajectory rendering: raw points (precise) vs subdivided line look.
+  QCheckBox *m_chkContinuous3D = nullptr;
+  bool       m_continuous3D = false;
+  void rebuild3DSeriesFromTrajectory();
 
   // Axes
   QAbstractAxis *m_densAxisX, *m_densAxisY;

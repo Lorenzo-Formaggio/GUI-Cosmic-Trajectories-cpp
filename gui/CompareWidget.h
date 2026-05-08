@@ -59,6 +59,13 @@ struct SlotConfig {
   QVector<TrajectoryPoint> data;
   QColor color;
 
+  // Snapshot of run parameters (set when the slot is run)
+  bool   runParamsValid = false;
+  double B    = 0.0;
+  double Le   = 0.0;
+  double Lmu  = 0.0;
+  double Ltau = 0.0;
+
   // Chart series (one per quantity)
   QLineSeries *sernB    = nullptr;
   QLineSeries *serS     = nullptr;
@@ -94,6 +101,12 @@ private:
   void updateChartAxes();
   void updateSlotSeriesVisibility(int idx);
   void onLogMessage(const QString &msg, int slotIdx);
+
+  // Per-quantity abs/legend helpers
+  double absVal(double v, bool useAbs) const;
+  QString legendSuffix(const SlotConfig &s) const;
+  void refreshSeriesNames();
+  void refreshLegendVisibility();
   
   void onThemeToggleClicked();
   void onAxisToggleClicked();
@@ -137,6 +150,33 @@ private:
   QCheckBox *m_chkMunue   = nullptr;
   QCheckBox *m_chkMunumu  = nullptr;
   QCheckBox *m_chkMnutau  = nullptr;
+
+  // Per-quantity absolute-value checkboxes (mirror visibility set)
+  QCheckBox *m_absnB      = nullptr;
+  QCheckBox *m_absS       = nullptr;
+  QCheckBox *m_absnQ      = nullptr;
+  QCheckBox *m_absMuB     = nullptr;
+  QCheckBox *m_absMuQ     = nullptr;
+  QCheckBox *m_absMunue   = nullptr;
+  QCheckBox *m_absMunumu  = nullptr;
+  QCheckBox *m_absMnutau  = nullptr;
+
+  // Per-quantity abs-flag state (defaults match the previous |·| display)
+  bool m_useAbsnB     = false;
+  bool m_useAbsS      = false;
+  bool m_useAbsnQ     = true;
+  bool m_useAbsMuB    = true;
+  bool m_useAbsMuQ    = true;
+  bool m_useAbsMunue  = true;
+  bool m_useAbsMunumu = true;
+  bool m_useAbsMnutau = true;
+
+  // Legend customization
+  bool m_legendVisible       = true;
+  bool m_legendShowB         = false;
+  bool m_legendShowLe        = false;
+  bool m_legendShowLmu       = false;
+  bool m_legendShowLtau      = false;
 
   // Critical point widgets
   QDoubleSpinBox *m_spinCpT   = nullptr;

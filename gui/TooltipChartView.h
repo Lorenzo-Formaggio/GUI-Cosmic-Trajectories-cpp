@@ -9,7 +9,104 @@
 #include <QtCharts/QLineSeries>
 #include <QtCharts/QLogValueAxis>
 #include <QtCharts/QValueAxis>
+#include <QtCharts/QXYSeries>
 #include <cmath>
+#include <limits>
+
+/**
+ * @brief Adjust a chart's axes to fit the currently visible XY series.
+ *
+ * Iterates all visible QXYSeries (line/scatter) attached to the chart,
+ * computes min/max of the actual point coordinates, and applies the new
+ * range to the first horizontal/vertical axis. Both X and Y are fit
+ * independently from the same point cloud. Margins are chosen based on
+ * the axis type (QLogValueAxis vs QValueAxis).
+ *
+ * Returns true if a range was applied, false if there were no visible
+ * data points to fit.
+ */
+inline bool autoFitChartFromVisibleSeries(QChart *chart) {
+  if (!chart) return false;
+
+  QAbstractAxis *axisX = nullptr;
+  QAbstractAxis *axisY = nullptr;
+  const auto axesH = chart->axes(Qt::Horizontal);
+  const auto axesV = chart->axes(Qt::Vertical);
+  if (!axesH.isEmpty()) axisX = axesH.first();
+  if (!axesV.isEmpty()) axisY = axesV.first();
+  if (!axisX || !axisY) return false;
+
+  const bool logX = qobject_cast<QLogValueAxis*>(axisX) != nullptr;
+  const bool logY = qobject_cast<QLogValueAxis*>(axisY) != nullptr;
+
+  double minX =  std::numeric_limits<double>::infinity();
+  double maxX = -std::numeric_limits<double>::infinity();
+  double minY =  std::numeric_limits<double>::infinity();
+  double maxY = -std::numeric_limits<double>::infinity();
+  bool hasX = false, hasY = false;
+
+  // The widgets clamp near-zero values to 1e-15 when the axis is log so the
+  // point can still be plotted. These placeholders shouldn't drive the
+  // autofit min, so skip anything at/under this threshold for log axes.
+  constexpr double kLogClampThreshold = 1e-14;
+
+  for (auto *abs : chart->series()) {
+    if (!abs || !abs->isVisible()) continue;
+    auto *xy = qobject_cast<QXYSeries*>(abs);
+    if (!xy) continue;
+    const auto pts = xy->points();
+    for (const QPointF &p : pts) {
+      double x = p.x();
+      double y = p.y();
+      if (!std::isfinite(x) || !std::isfinite(y)) continue;
+      bool xOk = true, yOk = true;
+      if (logX) {
+        x = std::abs(x);
+        if (x <= 0 || x <= kLogClampThreshold) xOk = false;
+      }
+      if (logY) {
+        y = std::abs(y);
+        if (y <= 0 || y <= kLogClampThreshold) yOk = false;
+      }
+      if (xOk) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        hasX = true;
+      }
+      if (yOk) {
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+        hasY = true;
+      }
+    }
+  }
+
+  if (!hasX && !hasY) return false;
+
+  auto applyRange = [](QAbstractAxis *axis, double lo, double hi, bool isLog) {
+    if (!std::isfinite(lo) || !std::isfinite(hi)) return;
+    if (isLog) {
+      if (lo <= 0) lo = 1e-15;
+      if (hi <= lo) hi = lo * 10.0;
+      const double logLo = std::log10(lo) - 0.15;
+      const double logHi = std::log10(hi) + 0.15;
+      axis->setRange(std::pow(10.0, logLo), std::pow(10.0, logHi));
+    } else {
+      double range = hi - lo;
+      double pad;
+      if (range <= 0) {
+        pad = std::max(std::abs(hi) * 0.05, 1.0);
+      } else {
+        pad = range * 0.05;
+      }
+      axis->setRange(lo - pad, hi + pad);
+    }
+  };
+
+  if (hasX) applyRange(axisX, minX, maxX, logX);
+  if (hasY) applyRange(axisY, minY, maxY, logY);
+  return true;
+}
 
 /**
  * @brief A QChartView subclass with a persistent hover label.

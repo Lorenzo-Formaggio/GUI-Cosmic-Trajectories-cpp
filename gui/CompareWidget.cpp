@@ -127,20 +127,41 @@ void CompareWidget::setupUi() {
   
   QMenu *plotMenu = new QMenu(this);
 
-  // Initialize visibility checkboxes early to avoid null pointer issues
+  // Initialize visibility checkboxes early to avoid null pointer issues.
+  // They live on `this` until the dialog reparents them, so hide them now to
+  // keep them from showing as floating widgets in the corner.
   auto makeChk = [this](const QString &label, bool checked) -> QCheckBox* {
     QCheckBox *chk = new QCheckBox(label, this);
     chk->setChecked(checked);
+    chk->hide();
     return chk;
   };
   m_chknB      = makeChk("nB",       true);
   m_chkS       = makeChk("s",        true);
-  m_chknQ      = makeChk("|nQ_QCD|", true);
-  m_chkMuB     = makeChk("|μB|",     true);
-  m_chkMuQ     = makeChk("|μQ|",     true);
-  m_chkMunue   = makeChk("|μνe|",    true);
-  m_chkMunumu  = makeChk("|μνμ|",    true);
-  m_chkMnutau  = makeChk("|μντ|",    true);
+  m_chknQ      = makeChk("nQ",   true);
+  m_chkMuB     = makeChk("μB",       true);
+  m_chkMuQ     = makeChk("μQ",       true);
+  m_chkMunue   = makeChk("μνe",      true);
+  m_chkMunumu  = makeChk("μνμ",      true);
+  m_chkMnutau  = makeChk("μντ",      true);
+
+  // Per-quantity abs checkboxes
+  auto makeAbs = [this](bool checked) -> QCheckBox* {
+    QCheckBox *chk = new QCheckBox("|·|", this);
+    chk->setChecked(checked);
+    chk->setToolTip("Plot absolute value of this quantity. Forced ON in log mode.");
+    chk->setEnabled(!m_isLogScale);
+    chk->hide();
+    return chk;
+  };
+  m_absnB      = makeAbs(m_useAbsnB);
+  m_absS       = makeAbs(m_useAbsS);
+  m_absnQ      = makeAbs(m_useAbsnQ);
+  m_absMuB     = makeAbs(m_useAbsMuB);
+  m_absMuQ     = makeAbs(m_useAbsMuQ);
+  m_absMunue   = makeAbs(m_useAbsMunue);
+  m_absMunumu  = makeAbs(m_useAbsMunumu);
+  m_absMnutau  = makeAbs(m_useAbsMnutau);
 
   // Wire checkboxes to series visibility updates
   auto updateAll = [this]{ for(int i=0;i<NUM_SLOTS;i++) updateSlotSeriesVisibility(i); };
@@ -152,6 +173,18 @@ void CompareWidget::setupUi() {
   connect(m_chkMunue, &QCheckBox::toggled, this, updateAll);
   connect(m_chkMunumu,&QCheckBox::toggled, this, updateAll);
   connect(m_chkMnutau,&QCheckBox::toggled, this, updateAll);
+
+  // Wire abs checkboxes — replot from cached data
+  auto onAbsChanged = [this]() { replotData(); };
+  connect(m_absnB,    &QCheckBox::toggled, this, [this](bool on){ m_useAbsnB = on;     replotData(); });
+  connect(m_absS,     &QCheckBox::toggled, this, [this](bool on){ m_useAbsS = on;      replotData(); });
+  connect(m_absnQ,    &QCheckBox::toggled, this, [this](bool on){ m_useAbsnQ = on;     replotData(); });
+  connect(m_absMuB,   &QCheckBox::toggled, this, [this](bool on){ m_useAbsMuB = on;    replotData(); });
+  connect(m_absMuQ,   &QCheckBox::toggled, this, [this](bool on){ m_useAbsMuQ = on;    replotData(); });
+  connect(m_absMunue, &QCheckBox::toggled, this, [this](bool on){ m_useAbsMunue = on;  replotData(); });
+  connect(m_absMunumu,&QCheckBox::toggled, this, [this](bool on){ m_useAbsMunumu = on; replotData(); });
+  connect(m_absMnutau,&QCheckBox::toggled, this, [this](bool on){ m_useAbsMnutau = on; replotData(); });
+  (void)onAbsChanged;
   
   // Section: Visibility
   QAction *actShowHide = plotMenu->addAction("Show/Hide Quantities...");
@@ -162,29 +195,39 @@ void CompareWidget::setupUi() {
       m_visDialog->setMinimumWidth(380);
       QVBoxLayout *dlgLayout = new QVBoxLayout(m_visDialog);
 
+      auto addRow = [](QGridLayout *grid, int row, QCheckBox *vis, QCheckBox *abs) {
+        grid->addWidget(vis, row, 0); vis->show();
+        grid->addWidget(abs, row, 1); abs->show();
+      };
+
       // ── Densities group ────────────────────────────────────
       QGroupBox *grpDens = new QGroupBox("Densities");
-      QHBoxLayout *layDens = new QHBoxLayout(grpDens);
-      layDens->addWidget(m_chknB);
-      layDens->addWidget(m_chkS);
-      layDens->addWidget(m_chknQ);
+      QGridLayout *layDens = new QGridLayout(grpDens);
+      addRow(layDens, 0, m_chknB, m_absnB);
+      addRow(layDens, 1, m_chkS,  m_absS);
+      addRow(layDens, 2, m_chknQ, m_absnQ);
       dlgLayout->addWidget(grpDens);
 
       // ── Chemical Potentials group ──────────────────────────
       QGroupBox *grpMu = new QGroupBox("Chemical Potentials");
-      QHBoxLayout *layMu = new QHBoxLayout(grpMu);
-      layMu->addWidget(m_chkMuB);
-      layMu->addWidget(m_chkMuQ);
+      QGridLayout *layMu = new QGridLayout(grpMu);
+      addRow(layMu, 0, m_chkMuB, m_absMuB);
+      addRow(layMu, 1, m_chkMuQ, m_absMuQ);
       dlgLayout->addWidget(grpMu);
 
       // ── Lepton Chem. Pot. group ────────────────────────────
       QGroupBox *grpLep = new QGroupBox("Lepton Chemical Potentials");
-      QHBoxLayout *layLep = new QHBoxLayout(grpLep);
-      layLep->addWidget(m_chkMunue);
-      layLep->addWidget(m_chkMunumu);
-      layLep->addWidget(m_chkMnutau);
+      QGridLayout *layLep = new QGridLayout(grpLep);
+      addRow(layLep, 0, m_chkMunue,   m_absMunue);
+      addRow(layLep, 1, m_chkMunumu,  m_absMunumu);
+      addRow(layLep, 2, m_chkMnutau,  m_absMnutau);
       dlgLayout->addWidget(grpLep);
     }
+    // Re-sync abs-checkbox enabled state with current scale before showing
+    auto syncAbs = [this](QCheckBox *c){ if (c) c->setEnabled(!m_isLogScale); };
+    syncAbs(m_absnB);  syncAbs(m_absS);   syncAbs(m_absnQ);
+    syncAbs(m_absMuB); syncAbs(m_absMuQ);
+    syncAbs(m_absMunue); syncAbs(m_absMunumu); syncAbs(m_absMnutau);
     m_visDialog->show();
     m_visDialog->raise();
     m_visDialog->activateWindow();
@@ -202,6 +245,39 @@ void CompareWidget::setupUi() {
   QAction *actTheme = plotMenu->addAction("Toggle Plot Theme");
   connect(actTheme, &QAction::triggered, this, [this]{ onThemeToggleClicked(); });
 
+  // Show/hide chart legend
+  QAction *actLegend = plotMenu->addAction("Show Legend");
+  actLegend->setCheckable(true);
+  actLegend->setChecked(m_legendVisible);
+  connect(actLegend, &QAction::toggled, this, [this](bool on) {
+    m_legendVisible = on;
+    refreshLegendVisibility();
+  });
+
+  // Configure which run parameters appear in legend names
+  QAction *actLegendCfg = plotMenu->addAction("Configure Legend...");
+  connect(actLegendCfg, &QAction::triggered, this, [this]() {
+    QDialog dlg(this);
+    dlg.setWindowTitle("Legend Content");
+    QVBoxLayout *v = new QVBoxLayout(&dlg);
+    v->addWidget(new QLabel("Append per-slot run parameters to legend entries:"));
+    auto *cB    = new QCheckBox("B  (baryon number)");        cB->setChecked(m_legendShowB);
+    auto *cLe   = new QCheckBox("Le (electron lepton)");      cLe->setChecked(m_legendShowLe);
+    auto *cLmu  = new QCheckBox("Lμ (muon lepton)");          cLmu->setChecked(m_legendShowLmu);
+    auto *cLtau = new QCheckBox("Lτ (tau lepton)");           cLtau->setChecked(m_legendShowLtau);
+    v->addWidget(cB); v->addWidget(cLe); v->addWidget(cLmu); v->addWidget(cLtau);
+    QPushButton *ok = new QPushButton("OK");
+    connect(ok, &QPushButton::clicked, &dlg, &QDialog::accept);
+    v->addWidget(ok);
+    if (dlg.exec() == QDialog::Accepted) {
+      m_legendShowB    = cB->isChecked();
+      m_legendShowLe   = cLe->isChecked();
+      m_legendShowLmu  = cLmu->isChecked();
+      m_legendShowLtau = cLtau->isChecked();
+      refreshSeriesNames();
+    }
+  });
+
   plotMenu->addSeparator();
 
   // Section: Tools & Export
@@ -213,10 +289,23 @@ void CompareWidget::setupUi() {
 
   btnPlotSettings->setMenu(plotMenu);
 
+  // ── Auto-Fit Limits button (next to Plot Settings) ───────────────────
+  QPushButton *btnAutoFit = new QPushButton("Auto-Fit Limits", chartsWidget);
+  btnAutoFit->setToolTip("Fit axis ranges to the currently visible curves "
+                         "in the active chart (uses log/linear margins).");
+  connect(btnAutoFit, &QPushButton::clicked, this, [this]() {
+    QWidget *current = m_chartTabs->currentWidget();
+    auto *view = qobject_cast<TooltipChartView*>(current);
+    if (view && view->chart()) {
+      autoFitChartFromVisibleSeries(view->chart());
+    }
+  });
+
   QHBoxLayout *bottomRightLayout = new QHBoxLayout();
   bottomRightLayout->setContentsMargins(0, 0, 0, 15);
   bottomRightLayout->addStretch();
   bottomRightLayout->addWidget(btnPlotSettings);
+  bottomRightLayout->addWidget(btnAutoFit);
   bottomRightLayout->addStretch();
   chartsLayout->addLayout(bottomRightLayout);
 
@@ -430,7 +519,7 @@ void CompareWidget::createChartPanel(QWidget *parent) {
 
     s.sernB    = makeSeries("nB",  c1, m_densAxisX, m_densAxisY, QTY_STYLES[0]);
     s.serS     = makeSeries("s",   c1, m_densAxisX, m_densAxisY, QTY_STYLES[1]);
-    s.sernQ    = makeSeries("|nQ_QCD|", c1, m_densAxisX, m_densAxisY, QTY_STYLES[2]);
+    s.sernQ    = makeSeries("|nQ|", c1, m_densAxisX, m_densAxisY, QTY_STYLES[2]);
 
     s.serMuB   = makeSeries("|μB|", c2, m_muAxisX, m_muAxisY, QTY_STYLES[0]);
     s.serMuQ   = makeSeries("|μQ|", c2, m_muAxisX, m_muAxisY, QTY_STYLES[1]);
@@ -475,6 +564,15 @@ void CompareWidget::runSlot(int idx) {
   s.worker->le            = s.spinLe->value();
   s.worker->lmu           = s.spinLmu->value();
   s.worker->ltau          = s.spinLtau->value();
+
+  // Snapshot run params for legend display
+  s.B    = s.spinB->value();
+  s.Le   = s.spinLe->value();
+  s.Lmu  = s.spinLmu->value();
+  s.Ltau = s.spinLtau->value();
+  s.runParamsValid = true;
+  refreshSeriesNames();
+  refreshLegendVisibility();
   s.worker->dT            = s.spinDT->value();
   s.worker->Tmin          = s.spinTmin->value();
   s.worker->Tmax          = s.spinTmax->value();
@@ -505,31 +603,27 @@ void CompareWidget::runSlot(int idx) {
     auto &sl = m_slots[idx];
     if (!sl.worker) return; // Slot was cleared/stopped
     sl.data.append(pt);
-    auto val = [this](double x) { 
-        if (m_isLogScale) return std::max(std::abs(x), 1e-15);
-        return x;
-    };
 
     updateSlotSeriesVisibility(idx);
 
     if (m_tempIsVertical) {
-      if (sl.sernB) sl.sernB->append(val(pt.nB), pt.T);
-      if (sl.serS)  sl.serS->append(val(pt.s),   pt.T);
-      if (sl.sernQ) sl.sernQ->append(val(pt.nQ), pt.T);
-      if (sl.serMuB) sl.serMuB->append(val(pt.muB), pt.T);
-      if (sl.serMuQ) sl.serMuQ->append(val(pt.muQ), pt.T);
-      if (sl.serMunue) sl.serMunue->append(val(pt.munue), pt.T);
-      if (sl.serMunumu) sl.serMunumu->append(val(pt.munumu), pt.T);
-      if (sl.serMnutau) sl.serMnutau->append(val(pt.mnutau), pt.T);
+      if (sl.sernB) sl.sernB->append(absVal(pt.nB, m_useAbsnB), pt.T);
+      if (sl.serS)  sl.serS->append(absVal(pt.s, m_useAbsS),    pt.T);
+      if (sl.sernQ) sl.sernQ->append(absVal(pt.nQ, m_useAbsnQ), pt.T);
+      if (sl.serMuB) sl.serMuB->append(absVal(pt.muB, m_useAbsMuB), pt.T);
+      if (sl.serMuQ) sl.serMuQ->append(absVal(pt.muQ, m_useAbsMuQ), pt.T);
+      if (sl.serMunue) sl.serMunue->append(absVal(pt.munue, m_useAbsMunue), pt.T);
+      if (sl.serMunumu) sl.serMunumu->append(absVal(pt.munumu, m_useAbsMunumu), pt.T);
+      if (sl.serMnutau) sl.serMnutau->append(absVal(pt.mnutau, m_useAbsMnutau), pt.T);
     } else {
-      if (sl.sernB) sl.sernB->append(pt.T, val(pt.nB));
-      if (sl.serS)  sl.serS->append(pt.T, val(pt.s));
-      if (sl.sernQ) sl.sernQ->append(pt.T, val(pt.nQ));
-      if (sl.serMuB) sl.serMuB->append(pt.T, val(pt.muB));
-      if (sl.serMuQ) sl.serMuQ->append(pt.T, val(pt.muQ));
-      if (sl.serMunue) sl.serMunue->append(pt.T, val(pt.munue));
-      if (sl.serMunumu) sl.serMunumu->append(pt.T, val(pt.munumu));
-      if (sl.serMnutau) sl.serMnutau->append(pt.T, val(pt.mnutau));
+      if (sl.sernB) sl.sernB->append(pt.T, absVal(pt.nB, m_useAbsnB));
+      if (sl.serS)  sl.serS->append(pt.T, absVal(pt.s, m_useAbsS));
+      if (sl.sernQ) sl.sernQ->append(pt.T, absVal(pt.nQ, m_useAbsnQ));
+      if (sl.serMuB) sl.serMuB->append(pt.T, absVal(pt.muB, m_useAbsMuB));
+      if (sl.serMuQ) sl.serMuQ->append(pt.T, absVal(pt.muQ, m_useAbsMuQ));
+      if (sl.serMunue) sl.serMunue->append(pt.T, absVal(pt.munue, m_useAbsMunue));
+      if (sl.serMunumu) sl.serMunumu->append(pt.T, absVal(pt.munumu, m_useAbsMunumu));
+      if (sl.serMnutau) sl.serMnutau->append(pt.T, absVal(pt.mnutau, m_useAbsMnutau));
     }
     updateChartAxes();
   });
@@ -709,35 +803,32 @@ void CompareWidget::replotData() {
   for (int i = 0; i < NUM_SLOTS; i++) {
     auto &sl = m_slots[i];
     clearSlotSeries(i);
-    
-    auto val = [this](double v) { 
-        if (m_isLogScale) return std::max(std::abs(v), 1e-15);
-        return v;
-    };
 
     for (const auto &pt : sl.data) {
       if (m_tempIsVertical) {
-        if(sl.sernB) sl.sernB->append(val(pt.nB), pt.T);
-        if(sl.serS) sl.serS->append(val(pt.s),   pt.T);
-        if(sl.sernQ) sl.sernQ->append(val(pt.nQ), pt.T);
-        if(sl.serMuB) sl.serMuB->append(val(pt.muB), pt.T);
-        if(sl.serMuQ) sl.serMuQ->append(val(pt.muQ), pt.T);
-        if(sl.serMunue) sl.serMunue->append(val(pt.munue), pt.T);
-        if(sl.serMunumu) sl.serMunumu->append(val(pt.munumu), pt.T);
-        if(sl.serMnutau) sl.serMnutau->append(val(pt.mnutau), pt.T);
+        if(sl.sernB) sl.sernB->append(absVal(pt.nB, m_useAbsnB), pt.T);
+        if(sl.serS) sl.serS->append(absVal(pt.s, m_useAbsS),    pt.T);
+        if(sl.sernQ) sl.sernQ->append(absVal(pt.nQ, m_useAbsnQ), pt.T);
+        if(sl.serMuB) sl.serMuB->append(absVal(pt.muB, m_useAbsMuB), pt.T);
+        if(sl.serMuQ) sl.serMuQ->append(absVal(pt.muQ, m_useAbsMuQ), pt.T);
+        if(sl.serMunue) sl.serMunue->append(absVal(pt.munue, m_useAbsMunue), pt.T);
+        if(sl.serMunumu) sl.serMunumu->append(absVal(pt.munumu, m_useAbsMunumu), pt.T);
+        if(sl.serMnutau) sl.serMnutau->append(absVal(pt.mnutau, m_useAbsMnutau), pt.T);
       } else {
-        if(sl.sernB) sl.sernB->append(pt.T, val(pt.nB));
-        if(sl.serS) sl.serS->append(pt.T, val(pt.s));
-        if(sl.sernQ) sl.sernQ->append(pt.T, val(pt.nQ));
-        if(sl.serMuB) sl.serMuB->append(pt.T, val(pt.muB));
-        if(sl.serMuQ) sl.serMuQ->append(pt.T, val(pt.muQ));
-        if(sl.serMunue) sl.serMunue->append(pt.T, val(pt.munue));
-        if(sl.serMunumu) sl.serMunumu->append(pt.T, val(pt.munumu));
-        if(sl.serMnutau) sl.serMnutau->append(pt.T, val(pt.mnutau));
+        if(sl.sernB) sl.sernB->append(pt.T, absVal(pt.nB, m_useAbsnB));
+        if(sl.serS) sl.serS->append(pt.T, absVal(pt.s, m_useAbsS));
+        if(sl.sernQ) sl.sernQ->append(pt.T, absVal(pt.nQ, m_useAbsnQ));
+        if(sl.serMuB) sl.serMuB->append(pt.T, absVal(pt.muB, m_useAbsMuB));
+        if(sl.serMuQ) sl.serMuQ->append(pt.T, absVal(pt.muQ, m_useAbsMuQ));
+        if(sl.serMunue) sl.serMunue->append(pt.T, absVal(pt.munue, m_useAbsMunue));
+        if(sl.serMunumu) sl.serMunumu->append(pt.T, absVal(pt.munumu, m_useAbsMunumu));
+        if(sl.serMnutau) sl.serMnutau->append(pt.T, absVal(pt.mnutau, m_useAbsMnutau));
       }
     }
     updateSlotSeriesVisibility(i);
   }
+  refreshSeriesNames();
+  refreshLegendVisibility();
   updateChartAxes();
   updateCriticalPoint();
 }
@@ -793,9 +884,16 @@ void CompareWidget::onScaleToggleClicked() {
     if (hasAnyData) {
         replotData();
     } else {
+        refreshSeriesNames();
         updateChartAxes();
     }
-    
+
+    // Sync abs-checkbox enabled state with the new scale
+    auto syncAbs = [this](QCheckBox *c){ if (c) c->setEnabled(!m_isLogScale); };
+    syncAbs(m_absnB);  syncAbs(m_absS);   syncAbs(m_absnQ);
+    syncAbs(m_absMuB); syncAbs(m_absMuQ);
+    syncAbs(m_absMunue); syncAbs(m_absMunumu); syncAbs(m_absMnutau);
+
     m_seriesCpB->attachAxis(m_muAxisX); m_seriesCpB->attachAxis(m_muAxisY);
     m_seriesCpQ->attachAxis(m_muAxisX); m_seriesCpQ->attachAxis(m_muAxisY);
     updateCriticalPoint();
@@ -856,54 +954,34 @@ void CompareWidget::onExportClicked() {
       QMessageBox::critical(this, "Error", "Could not open file for writing.");
       return;
     }
-    
+
     QTextStream out(&file);
+    // Canonical Single-Run format. Slots are written sequentially, separated
+    // by a "# Slot N ..." comment line so the trajectories can be told apart.
+    out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnB\tnQ\ts_QCD\ts_tot"
+           "\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\n";
 
-    QVector<int> activeSlots;
-    int maxRows = 0;
-    for (int i = 0; i < NUM_SLOTS; i++) {
-      if (!m_slots[i].data.isEmpty()) {
-        activeSlots.append(i);
-        maxRows = std::max(maxRows, (int)m_slots[i].data.size());
+    for (int i = 0; i < NUM_SLOTS; ++i) {
+      const auto &s = m_slots[i];
+      if (s.data.isEmpty()) continue;
+      out << QString("# Slot S%1").arg(i + 1);
+      if (s.runParamsValid) {
+        out << QString(" (B=%1, Le=%2, Lmu=%3, Ltau=%4)")
+                   .arg(s.B).arg(s.Le).arg(s.Lmu).arg(s.Ltau);
       }
-    }
-
-    QStringList headerParts;
-    for (int idx : activeSlots) {
-      QString s = QString("S%1").arg(idx + 1);
-      if (currentTab == 0) {
-        headerParts << ("T_" + s) << ("nB_" + s) << ("s_" + s) << ("|nQ_QCD|_" + s);
-      } else if (currentTab == 1) {
-        headerParts << ("T_" + s) << ("|muB|_" + s) << ("|muQ|_" + s);
-      } else if (currentTab == 2) {
-        headerParts << ("T_" + s) << ("|munue|_" + s) << ("|munumu|_" + s) << ("|mnutau|_" + s);
+      out << "\n";
+      for (const auto &pt : s.data) {
+        out << pt.T << "\t" << pt.muB << "\t" << pt.muQ
+            << "\t" << pt.munue << "\t" << pt.munumu << "\t" << pt.mnutau
+            << "\t" << pt.nB << "\t" << pt.nQ << "\t" << pt.s_QCD << "\t" << pt.s
+            << "\t" << pt.ne << "\t" << pt.nmu << "\t" << pt.ntau
+            << "\t" << pt.nnue << "\t" << pt.nnumu << "\t" << pt.nnutau
+            << "\n";
       }
-    }
-    out << headerParts.join("\t") << "\n";
-
-    for (int row = 0; row < maxRows; row++) {
-      QStringList rowParts;
-      for (int idx : activeSlots) {
-        const auto &data = m_slots[idx].data;
-        if (row < data.size()) {
-          const auto &pt = data[row];
-          if (currentTab == 0) {
-            rowParts << QString::number(pt.T) << QString::number(pt.nB) << QString::number(pt.s) << QString::number(pt.nQ);
-          } else if (currentTab == 1) {
-            rowParts << QString::number(pt.T) << QString::number(pt.muB) << QString::number(pt.muQ);
-          } else if (currentTab == 2) {
-            rowParts << QString::number(pt.T) << QString::number(pt.munue) << QString::number(pt.munumu) << QString::number(pt.mnutau);
-          }
-        } else {
-          int colCount = (currentTab == 0) ? 4 : ((currentTab == 1) ? 3 : 4);
-          for (int c = 0; c < colCount; c++) rowParts << "";
-        }
-      }
-      out << rowParts.join("\t") << "\n";
     }
 
     file.close();
-    QMessageBox::information(this, "Success", "Comparative data successfully exported to TXT (Parallel Columns).");
+    QMessageBox::information(this, "Success", "Comparative data exported in Single Run format.");
   }
 }
 
@@ -981,9 +1059,15 @@ void CompareWidget::onSolverSettingsButtonClicked() {
   if (!m_solverSettingsDialog) {
     m_solverSettingsDialog = new QDialog(this);
     m_solverSettingsDialog->setWindowTitle("Solver Settings");
-    m_solverSettingsDialog->setMinimumWidth(420);
+    m_solverSettingsDialog->setMinimumWidth(720);
 
     QVBoxLayout *vbox = new QVBoxLayout(m_solverSettingsDialog);
+    QHBoxLayout *cols = new QHBoxLayout();
+    QVBoxLayout *colLeft  = new QVBoxLayout();
+    QVBoxLayout *colRight = new QVBoxLayout();
+    cols->addLayout(colLeft);
+    cols->addLayout(colRight);
+    vbox->addLayout(cols);
 
     // ── Convergence ───────────────────────────────────────────────────
     QGroupBox *groupConv = new QGroupBox("Convergence", m_solverSettingsDialog);
@@ -1003,7 +1087,7 @@ void CompareWidget::onSolverSettingsButtonClicked() {
     spinMaxIter->setValue(m_maxIter);
     gridConv->addWidget(spinMaxIter, 1, 1);
 
-    vbox->addWidget(groupConv);
+    colLeft->addWidget(groupConv);
 
     // ── Guess ─────────────────────────────────────────────────────────
     QGroupBox *groupGuess = new QGroupBox("Initial Guess Strategy", m_solverSettingsDialog);
@@ -1053,7 +1137,7 @@ void CompareWidget::onSolverSettingsButtonClicked() {
     connect(comboType, &QComboBox::currentIndexChanged, updateFields);
     updateFields(m_initialGuessType);
 
-    vbox->addWidget(groupGuess);
+    colRight->addWidget(groupGuess);
 
     // ── Metropolis Pre-Optimizer ──────────────────────────────────────
     QGroupBox *groupMetro = new QGroupBox("Metropolis Pre-Optimizer", m_solverSettingsDialog);
@@ -1095,7 +1179,8 @@ void CompareWidget::onSolverSettingsButtonClicked() {
     connect(comboMetroMode, &QComboBox::currentIndexChanged, updateMetroEnabled);
     updateMetroEnabled(m_metropolisMode);
 
-    vbox->addWidget(groupMetro);
+    colLeft->addWidget(groupMetro);
+    colLeft->addStretch();
 
     // ── Save ──────────────────────────────────────────────────────────
     QPushButton *btnSave = new QPushButton("Save and Close", m_solverSettingsDialog);
@@ -1119,4 +1204,56 @@ void CompareWidget::onSolverSettingsButtonClicked() {
   m_solverSettingsDialog->show();
   m_solverSettingsDialog->raise();
   m_solverSettingsDialog->activateWindow();
+}
+
+// ── Per-quantity abs / legend helpers ─────────────────────────────────────
+double CompareWidget::absVal(double v, bool useAbs) const {
+  if (m_isLogScale) return std::max(std::abs(v), 1e-15);
+  return useAbs ? std::abs(v) : v;
+}
+
+QString CompareWidget::legendSuffix(const SlotConfig &s) const {
+  if (!s.runParamsValid) return QString();
+  QStringList parts;
+  if (m_legendShowB)    parts << QString("B=%1").arg(s.B,    0, 'g', 4);
+  if (m_legendShowLe)   parts << QString("Le=%1").arg(s.Le,  0, 'g', 4);
+  if (m_legendShowLmu)  parts << QString("Lμ=%1").arg(s.Lmu, 0, 'g', 4);
+  if (m_legendShowLtau) parts << QString("Lτ=%1").arg(s.Ltau,0, 'g', 4);
+  if (parts.isEmpty()) return QString();
+  return QString(" (%1)").arg(parts.join(", "));
+}
+
+void CompareWidget::refreshSeriesNames() {
+  auto fmtName = [](bool useAbs, const QString &base) {
+    return useAbs ? QString("|%1|").arg(base) : base;
+  };
+  for (int i = 0; i < NUM_SLOTS; ++i) {
+    auto &s = m_slots[i];
+    const QString prefix = QString("S%1: ").arg(i + 1);
+    const QString sfx = legendSuffix(s);
+    const bool absForceLog = m_isLogScale; // log forces abs display
+    auto absnB     = absForceLog ? true : m_useAbsnB;
+    auto absS      = absForceLog ? true : m_useAbsS;
+    auto absnQ     = absForceLog ? true : m_useAbsnQ;
+    auto absMuB    = absForceLog ? true : m_useAbsMuB;
+    auto absMuQ    = absForceLog ? true : m_useAbsMuQ;
+    auto absMunue  = absForceLog ? true : m_useAbsMunue;
+    auto absMunumu = absForceLog ? true : m_useAbsMunumu;
+    auto absMnutau = absForceLog ? true : m_useAbsMnutau;
+    if (s.sernB)    s.sernB->setName(prefix + fmtName(absnB,    "nB")     + sfx);
+    if (s.serS)     s.serS->setName( prefix + fmtName(absS,     "s")      + sfx);
+    if (s.sernQ)    s.sernQ->setName(prefix + fmtName(absnQ,    "nQ") + sfx);
+    if (s.serMuB)   s.serMuB->setName(prefix + fmtName(absMuB,  "μB")     + sfx);
+    if (s.serMuQ)   s.serMuQ->setName(prefix + fmtName(absMuQ,  "μQ")     + sfx);
+    if (s.serMunue) s.serMunue->setName(prefix + fmtName(absMunue,  "μνe") + sfx);
+    if (s.serMunumu)s.serMunumu->setName(prefix + fmtName(absMunumu, "μνμ") + sfx);
+    if (s.serMnutau)s.serMnutau->setName(prefix + fmtName(absMnutau, "μντ") + sfx);
+  }
+}
+
+void CompareWidget::refreshLegendVisibility() {
+  TooltipChartView *views[] = {m_densChartView, m_muChartView, m_lepChartView};
+  for (auto *v : views) {
+    if (v && v->chart()) v->chart()->legend()->setVisible(m_legendVisible);
+  }
 }

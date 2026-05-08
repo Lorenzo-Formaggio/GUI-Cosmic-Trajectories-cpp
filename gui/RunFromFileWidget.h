@@ -134,6 +134,12 @@ private:
   QColor interpolatedColor(const RunSource &src, int rowIdx, int total) const;
   void   refreshSourceSeriesColors(int sourceIdx);
 
+  // Abs/legend helpers
+  double absVal(double v, bool useAbs) const;
+  QString legendSuffix(const TrajParamRow &row) const;
+  void refreshSeriesNames();
+  void refreshLegendVisibility();
+
   QString m_workingDir;
   QVector<RunSource> m_sources;
 
@@ -190,6 +196,46 @@ private:
   QCheckBox    *m_chkMunue  = nullptr;
   QCheckBox    *m_chkMunumu = nullptr;
   QCheckBox    *m_chkMnutau = nullptr;
+
+  // Per-quantity abs checkboxes (mirror visibility set)
+  QCheckBox    *m_absnB     = nullptr;
+  QCheckBox    *m_absS      = nullptr;
+  QCheckBox    *m_absnQ     = nullptr;
+  QCheckBox    *m_absNe     = nullptr;
+  QCheckBox    *m_absNmu    = nullptr;
+  QCheckBox    *m_absNtau   = nullptr;
+  QCheckBox    *m_absNnue   = nullptr;
+  QCheckBox    *m_absNnumu  = nullptr;
+  QCheckBox    *m_absNnutau = nullptr;
+  QCheckBox    *m_absMuB    = nullptr;
+  QCheckBox    *m_absMuQ    = nullptr;
+  QCheckBox    *m_absMunue  = nullptr;
+  QCheckBox    *m_absMunumu = nullptr;
+  QCheckBox    *m_absMnutau = nullptr;
+
+  // Per-quantity abs flags (defaults match previous "|·|" labels)
+  bool m_useAbsnB     = false;
+  bool m_useAbsS      = false;
+  bool m_useAbsnQ     = true;
+  bool m_useAbsNe     = false;
+  bool m_useAbsNmu    = false;
+  bool m_useAbsNtau   = false;
+  bool m_useAbsNnue   = false;
+  bool m_useAbsNnumu  = false;
+  bool m_useAbsNnutau = false;
+  bool m_useAbsMuB    = true;
+  bool m_useAbsMuQ    = true;
+  bool m_useAbsMunue  = true;
+  bool m_useAbsMunumu = true;
+  bool m_useAbsMnutau = true;
+
+  // Legend customization
+  bool m_legendVisible       = true;
+  bool m_legendShowSourceTag = true;   // include the "S<i>" prefix
+  bool m_legendShowB         = false;
+  bool m_legendShowLe        = false;
+  bool m_legendShowLmu       = false;
+  bool m_legendShowLtau      = false;
 
   // Manual axis limits (one entry per chart-axis); autoRange=true defers to data.
   struct AxisLimit { bool autoRange = true; double lo = 0.0; double hi = 1.0; };

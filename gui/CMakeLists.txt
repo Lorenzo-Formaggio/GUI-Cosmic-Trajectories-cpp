@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
 # ── Qt6 ──────────────────────────────────────────────────────────────────────
-find_package(Qt6 REQUIRED COMPONENTS Widgets Charts)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Charts DataVisualization)
 
 # ── GSL ──────────────────────────────────────────────────────────────────────
 find_package(GSL REQUIRED)
@@ -63,6 +63,7 @@ target_include_directories(CosmicTrajectoryGUI PRIVATE
 target_link_libraries(CosmicTrajectoryGUI PRIVATE
     Qt6::Widgets
     Qt6::Charts
+    Qt6::DataVisualization
     ${GSL_LIBRARIES}
 )
 

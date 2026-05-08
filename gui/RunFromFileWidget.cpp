@@ -242,71 +242,125 @@ void RunFromFileWidget::setupUi() {
   
   QMenu *plotMenu = new QMenu(this);
 
-  // Initialize visibility checkboxes early to avoid null pointer issues
+  // Initialize visibility checkboxes early to avoid null pointer issues.
+  // They live on `this` until the dialog reparents them, so hide them now to
+  // keep them from showing as floating widgets in the corner.
   auto makeChk = [this](const QString &label, bool checked) -> QCheckBox* {
     QCheckBox *chk = new QCheckBox(label, this);
     chk->setChecked(checked);
+    chk->hide();
     connect(chk, &QCheckBox::toggled, this, [this]{ updateSeriesVisibility(); });
     return chk;
   };
-  m_chknB      = makeChk("nB",       true);
-  m_chkS       = makeChk("s",        true);
-  m_chknQ      = makeChk("|nQ_QCD|", true);
-  m_chkNe      = makeChk("ne",       true);
-  m_chkNmu     = makeChk("nμ",       true);
-  m_chkNtau    = makeChk("nτ",       true);
-  m_chkNnue    = makeChk("nνe",      true);
-  m_chkNnumu   = makeChk("nνμ",      true);
-  m_chkNnutau  = makeChk("nντ",      true);
-  m_chkMuB     = makeChk("|μB|",     true);
-  m_chkMuQ     = makeChk("|μQ|",     true);
-  m_chkMunue   = makeChk("|μνe|",    true);
-  m_chkMunumu  = makeChk("|μνμ|",    true);
-  m_chkMnutau  = makeChk("|μντ|",    true);
-  
+  m_chknB      = makeChk("nB",     true);
+  m_chkS       = makeChk("s",      true);
+  m_chknQ      = makeChk("nQ", true);
+  m_chkNe      = makeChk("ne",     true);
+  m_chkNmu     = makeChk("nμ",     true);
+  m_chkNtau    = makeChk("nτ",     true);
+  m_chkNnue    = makeChk("nνe",    true);
+  m_chkNnumu   = makeChk("nνμ",    true);
+  m_chkNnutau  = makeChk("nντ",    true);
+  m_chkMuB     = makeChk("μB",     true);
+  m_chkMuQ     = makeChk("μQ",     true);
+  m_chkMunue   = makeChk("μνe",    true);
+  m_chkMunumu  = makeChk("μνμ",    true);
+  m_chkMnutau  = makeChk("μντ",    true);
+
+  // Per-quantity abs checkboxes
+  auto makeAbs = [this](bool checked) -> QCheckBox* {
+    QCheckBox *chk = new QCheckBox("|·|", this);
+    chk->setChecked(checked);
+    chk->setToolTip("Plot absolute value of this quantity. Forced ON in log mode.");
+    chk->setEnabled(!m_isLogScale);
+    chk->hide();
+    return chk;
+  };
+  m_absnB     = makeAbs(m_useAbsnB);
+  m_absS      = makeAbs(m_useAbsS);
+  m_absnQ     = makeAbs(m_useAbsnQ);
+  m_absNe     = makeAbs(m_useAbsNe);
+  m_absNmu    = makeAbs(m_useAbsNmu);
+  m_absNtau   = makeAbs(m_useAbsNtau);
+  m_absNnue   = makeAbs(m_useAbsNnue);
+  m_absNnumu  = makeAbs(m_useAbsNnumu);
+  m_absNnutau = makeAbs(m_useAbsNnutau);
+  m_absMuB    = makeAbs(m_useAbsMuB);
+  m_absMuQ    = makeAbs(m_useAbsMuQ);
+  m_absMunue  = makeAbs(m_useAbsMunue);
+  m_absMunumu = makeAbs(m_useAbsMunumu);
+  m_absMnutau = makeAbs(m_useAbsMnutau);
+
+  // Wire abs checkboxes — replot from cached data
+  connect(m_absnB,     &QCheckBox::toggled, this, [this](bool on){ m_useAbsnB = on;     replotAll(); });
+  connect(m_absS,      &QCheckBox::toggled, this, [this](bool on){ m_useAbsS = on;      replotAll(); });
+  connect(m_absnQ,     &QCheckBox::toggled, this, [this](bool on){ m_useAbsnQ = on;     replotAll(); });
+  connect(m_absNe,     &QCheckBox::toggled, this, [this](bool on){ m_useAbsNe = on;     replotAll(); });
+  connect(m_absNmu,    &QCheckBox::toggled, this, [this](bool on){ m_useAbsNmu = on;    replotAll(); });
+  connect(m_absNtau,   &QCheckBox::toggled, this, [this](bool on){ m_useAbsNtau = on;   replotAll(); });
+  connect(m_absNnue,   &QCheckBox::toggled, this, [this](bool on){ m_useAbsNnue = on;   replotAll(); });
+  connect(m_absNnumu,  &QCheckBox::toggled, this, [this](bool on){ m_useAbsNnumu = on;  replotAll(); });
+  connect(m_absNnutau, &QCheckBox::toggled, this, [this](bool on){ m_useAbsNnutau = on; replotAll(); });
+  connect(m_absMuB,    &QCheckBox::toggled, this, [this](bool on){ m_useAbsMuB = on;    replotAll(); });
+  connect(m_absMuQ,    &QCheckBox::toggled, this, [this](bool on){ m_useAbsMuQ = on;    replotAll(); });
+  connect(m_absMunue,  &QCheckBox::toggled, this, [this](bool on){ m_useAbsMunue = on;  replotAll(); });
+  connect(m_absMunumu, &QCheckBox::toggled, this, [this](bool on){ m_useAbsMunumu = on; replotAll(); });
+  connect(m_absMnutau, &QCheckBox::toggled, this, [this](bool on){ m_useAbsMnutau = on; replotAll(); });
+
   // Section: Visibility
   QAction *actShowHide = plotMenu->addAction("Show/Hide Quantities...");
   connect(actShowHide, &QAction::triggered, this, [this]() {
     if (!m_visDialog) {
       m_visDialog = new QDialog(this);
       m_visDialog->setWindowTitle("Show/Hide Series Across All Sources");
-      m_visDialog->setMinimumWidth(380);
+      m_visDialog->setMinimumWidth(420);
       QVBoxLayout *dlgLayout = new QVBoxLayout(m_visDialog);
+
+      auto addRow = [](QGridLayout *grid, int row, QCheckBox *vis, QCheckBox *abs) {
+        grid->addWidget(vis, row, 0); vis->show();
+        grid->addWidget(abs, row, 1); abs->show();
+      };
 
       // ── Densities group ────────────────────────────────────
       QGroupBox *grpDens = new QGroupBox("Densities");
-      QHBoxLayout *layDens = new QHBoxLayout(grpDens);
-      layDens->addWidget(m_chknB);
-      layDens->addWidget(m_chkS);
-      layDens->addWidget(m_chknQ);
+      QGridLayout *layDens = new QGridLayout(grpDens);
+      addRow(layDens, 0, m_chknB, m_absnB);
+      addRow(layDens, 1, m_chkS,  m_absS);
+      addRow(layDens, 2, m_chknQ, m_absnQ);
       dlgLayout->addWidget(grpDens);
 
       // ── Lepton Densities group ────────────────────────────
       QGroupBox *grpLepDens = new QGroupBox("Lepton Densities");
-      QHBoxLayout *layLepDens = new QHBoxLayout(grpLepDens);
-      layLepDens->addWidget(m_chkNe);
-      layLepDens->addWidget(m_chkNmu);
-      layLepDens->addWidget(m_chkNtau);
-      layLepDens->addWidget(m_chkNnue);
-      layLepDens->addWidget(m_chkNnumu);
-      layLepDens->addWidget(m_chkNnutau);
+      QGridLayout *layLepDens = new QGridLayout(grpLepDens);
+      addRow(layLepDens, 0, m_chkNe,     m_absNe);
+      addRow(layLepDens, 1, m_chkNmu,    m_absNmu);
+      addRow(layLepDens, 2, m_chkNtau,   m_absNtau);
+      addRow(layLepDens, 3, m_chkNnue,   m_absNnue);
+      addRow(layLepDens, 4, m_chkNnumu,  m_absNnumu);
+      addRow(layLepDens, 5, m_chkNnutau, m_absNnutau);
       dlgLayout->addWidget(grpLepDens);
 
       // ── Chemical Potentials group ──────────────────────────
       QGroupBox *grpMu = new QGroupBox("Chemical Potentials");
-      QHBoxLayout *layMu = new QHBoxLayout(grpMu);
-      layMu->addWidget(m_chkMuB);
-      layMu->addWidget(m_chkMuQ);
+      QGridLayout *layMu = new QGridLayout(grpMu);
+      addRow(layMu, 0, m_chkMuB, m_absMuB);
+      addRow(layMu, 1, m_chkMuQ, m_absMuQ);
       dlgLayout->addWidget(grpMu);
 
       // ── Lepton Chem. Pot. group ────────────────────────────
       QGroupBox *grpLep = new QGroupBox("Lepton Chemical Potentials");
-      QHBoxLayout *layLep = new QHBoxLayout(grpLep);
-      layLep->addWidget(m_chkMunue);
-      layLep->addWidget(m_chkMunumu);
-      layLep->addWidget(m_chkMnutau);
+      QGridLayout *layLep = new QGridLayout(grpLep);
+      addRow(layLep, 0, m_chkMunue,   m_absMunue);
+      addRow(layLep, 1, m_chkMunumu,  m_absMunumu);
+      addRow(layLep, 2, m_chkMnutau,  m_absMnutau);
       dlgLayout->addWidget(grpLep);
     }
+    auto syncAbs = [this](QCheckBox *c){ if (c) c->setEnabled(!m_isLogScale); };
+    syncAbs(m_absnB); syncAbs(m_absS); syncAbs(m_absnQ);
+    syncAbs(m_absNe); syncAbs(m_absNmu); syncAbs(m_absNtau);
+    syncAbs(m_absNnue); syncAbs(m_absNnumu); syncAbs(m_absNnutau);
+    syncAbs(m_absMuB); syncAbs(m_absMuQ);
+    syncAbs(m_absMunue); syncAbs(m_absMunumu); syncAbs(m_absMnutau);
     m_visDialog->show();
     m_visDialog->raise();
     m_visDialog->activateWindow();
@@ -327,6 +381,42 @@ void RunFromFileWidget::setupUi() {
   QAction *actTheme = plotMenu->addAction("Toggle Plot Theme");
   connect(actTheme, &QAction::triggered, this, &RunFromFileWidget::onThemeToggle);
 
+  // Show/hide chart legend
+  QAction *actLegend = plotMenu->addAction("Show Legend");
+  actLegend->setCheckable(true);
+  actLegend->setChecked(m_legendVisible);
+  connect(actLegend, &QAction::toggled, this, [this](bool on) {
+    m_legendVisible = on;
+    refreshLegendVisibility();
+  });
+
+  // Configure which prefix/parameters appear in legend names
+  QAction *actLegendCfg = plotMenu->addAction("Configure Legend...");
+  connect(actLegendCfg, &QAction::triggered, this, [this]() {
+    QDialog dlg(this);
+    dlg.setWindowTitle("Legend Content");
+    QVBoxLayout *v = new QVBoxLayout(&dlg);
+    auto *cTag  = new QCheckBox("Show source tag (\"S\")"); cTag->setChecked(m_legendShowSourceTag);
+    v->addWidget(cTag);
+    v->addWidget(new QLabel("Append per-row run parameters to legend entries:"));
+    auto *cB    = new QCheckBox("B  (baryon number)");        cB->setChecked(m_legendShowB);
+    auto *cLe   = new QCheckBox("Le (electron lepton)");      cLe->setChecked(m_legendShowLe);
+    auto *cLmu  = new QCheckBox("Lμ (muon lepton)");          cLmu->setChecked(m_legendShowLmu);
+    auto *cLtau = new QCheckBox("Lτ (tau lepton)");           cLtau->setChecked(m_legendShowLtau);
+    v->addWidget(cB); v->addWidget(cLe); v->addWidget(cLmu); v->addWidget(cLtau);
+    QPushButton *ok = new QPushButton("OK");
+    connect(ok, &QPushButton::clicked, &dlg, &QDialog::accept);
+    v->addWidget(ok);
+    if (dlg.exec() == QDialog::Accepted) {
+      m_legendShowSourceTag = cTag->isChecked();
+      m_legendShowB    = cB->isChecked();
+      m_legendShowLe   = cLe->isChecked();
+      m_legendShowLmu  = cLmu->isChecked();
+      m_legendShowLtau = cLtau->isChecked();
+      refreshSeriesNames();
+    }
+  });
+
   plotMenu->addSeparator();
 
   // Section: Export
@@ -338,10 +428,23 @@ void RunFromFileWidget::setupUi() {
 
   btnPlotSettings->setMenu(plotMenu);
 
+  // ── Auto-Fit Limits button (next to Plot Settings) ───────────────────
+  QPushButton *btnAutoFit = new QPushButton("Auto-Fit Limits", rightPanel);
+  btnAutoFit->setToolTip("Fit axis ranges to the currently visible curves "
+                         "in the active chart (uses log/linear margins).");
+  connect(btnAutoFit, &QPushButton::clicked, this, [this]() {
+    QWidget *current = m_chartTabs->currentWidget();
+    auto *view = qobject_cast<TooltipChartView*>(current);
+    if (view && view->chart()) {
+      autoFitChartFromVisibleSeries(view->chart());
+    }
+  });
+
   QHBoxLayout *toolsLayout = new QHBoxLayout();
   toolsLayout->setContentsMargins(0, 0, 0, 15);
   toolsLayout->addStretch();
   toolsLayout->addWidget(btnPlotSettings);
+  toolsLayout->addWidget(btnAutoFit);
   toolsLayout->addStretch();
   rightLayout->addLayout(toolsLayout);
 
@@ -389,6 +492,22 @@ void RunFromFileWidget::createChartPanel(QWidget *parent) {
     chart->addAxis(axX, Qt::AlignBottom);
     axY->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : valLabel);
     chart->addAxis(axY, Qt::AlignLeft);
+
+    // Default range so the axes render with tick marks before any data is
+    // plotted. Once the user runs the batch, updateChartAxes() overrides.
+    const double tMin = m_spinTmin ? m_spinTmin->value() : 80.0;
+    const double tMax = m_spinTmax ? m_spinTmax->value() : 200.0;
+    if (m_isLogScale) {
+      axX->setRange(m_tempIsVertical ? 1e-3 : tMin,
+                    m_tempIsVertical ? 1e3  : tMax);
+      axY->setRange(m_tempIsVertical ? tMin : 1e-3,
+                    m_tempIsVertical ? tMax : 1e3);
+    } else {
+      axX->setRange(m_tempIsVertical ? 0.0 : tMin,
+                    m_tempIsVertical ? 1.0 : tMax);
+      axY->setRange(m_tempIsVertical ? tMin : 0.0,
+                    m_tempIsVertical ? tMax : 1.0);
+    }
 
     view = new TooltipChartView(chart);
     view->setRenderHint(QPainter::Antialiasing);
@@ -844,22 +963,24 @@ void RunFromFileWidget::onRunAll() {
         vec[j] = ls;
       }
     };
+    // showInLegend=true makes the row-0 marker visible in the legend; only
+    // higher rows have their markers hidden to avoid clutter.
     buildSeries(m_densView->chart(), m_densAxisX, m_densAxisY, src.series_nB, "nB", true);
-    buildSeries(m_densView->chart(), m_densAxisX, m_densAxisY, src.series_s,  "s",  false);
-    buildSeries(m_densView->chart(), m_densAxisX, m_densAxisY, src.series_nQ, "|nQ_QCD|", false);
-    
-    buildSeries(m_lepDensView->chart(), m_lepDensAxisX, m_lepDensAxisY, src.series_ne, "ne", false);
-    buildSeries(m_lepDensView->chart(), m_lepDensAxisX, m_lepDensAxisY, src.series_nmu, "nμ", false);
-    buildSeries(m_lepDensView->chart(), m_lepDensAxisX, m_lepDensAxisY, src.series_ntau, "nτ", false);
-    buildSeries(m_lepDensView->chart(), m_lepDensAxisX, m_lepDensAxisY, src.series_nnue, "nνe", false);
-    buildSeries(m_lepDensView->chart(), m_lepDensAxisX, m_lepDensAxisY, src.series_nnumu, "nνμ", false);
-    buildSeries(m_lepDensView->chart(), m_lepDensAxisX, m_lepDensAxisY, src.series_nnutau, "nντ", false);
+    buildSeries(m_densView->chart(), m_densAxisX, m_densAxisY, src.series_s,  "s",  true);
+    buildSeries(m_densView->chart(), m_densAxisX, m_densAxisY, src.series_nQ, "nQ", true);
 
-    buildSeries(m_muView->chart(),   m_muAxisX,   m_muAxisY,   src.series_muB, "|μB|", false);
-    buildSeries(m_muView->chart(),   m_muAxisX,   m_muAxisY,   src.series_muQ, "|μQ|", false);
-    buildSeries(m_lepView->chart(),  m_lepAxisX,  m_lepAxisY,  src.series_munue,  "|μνe|", false);
-    buildSeries(m_lepView->chart(),  m_lepAxisX,  m_lepAxisY,  src.series_munumu, "|μνμ|", false);
-    buildSeries(m_lepView->chart(),  m_lepAxisX,  m_lepAxisY,  src.series_mnutau, "|μντ|", false);
+    buildSeries(m_lepDensView->chart(), m_lepDensAxisX, m_lepDensAxisY, src.series_ne, "ne", true);
+    buildSeries(m_lepDensView->chart(), m_lepDensAxisX, m_lepDensAxisY, src.series_nmu, "nμ", true);
+    buildSeries(m_lepDensView->chart(), m_lepDensAxisX, m_lepDensAxisY, src.series_ntau, "nτ", true);
+    buildSeries(m_lepDensView->chart(), m_lepDensAxisX, m_lepDensAxisY, src.series_nnue, "nνe", true);
+    buildSeries(m_lepDensView->chart(), m_lepDensAxisX, m_lepDensAxisY, src.series_nnumu, "nνμ", true);
+    buildSeries(m_lepDensView->chart(), m_lepDensAxisX, m_lepDensAxisY, src.series_nnutau, "nντ", true);
+
+    buildSeries(m_muView->chart(),   m_muAxisX,   m_muAxisY,   src.series_muB, "μB", true);
+    buildSeries(m_muView->chart(),   m_muAxisX,   m_muAxisY,   src.series_muQ, "μQ", true);
+    buildSeries(m_lepView->chart(),  m_lepAxisX,  m_lepAxisY,  src.series_munue,  "μνe", true);
+    buildSeries(m_lepView->chart(),  m_lepAxisX,  m_lepAxisY,  src.series_munumu, "μνμ", true);
+    buildSeries(m_lepView->chart(),  m_lepAxisX,  m_lepAxisY,  src.series_mnutau, "μντ", true);
 
     for (int j = 0; j < rows.size(); ++j) {
       QueueEntry q{i, j};
@@ -868,8 +989,10 @@ void RunFromFileWidget::onRunAll() {
     setSourceStatus(i, QString("Queued: %1 trajectories").arg(rows.size()), "#17a2b8");
   }
 
-  // Apply current show/hide state to the freshly created series.
+  // Apply current show/hide state and abs/legend names to fresh series.
   updateSeriesVisibility();
+  refreshSeriesNames();
+  refreshLegendVisibility();
 
   if (m_runQueue.isEmpty()) {
     logMessage("<font color='#ffc107'>Nothing to run.</font>");
@@ -984,33 +1107,28 @@ void RunFromFileWidget::onWorkerStepCompleted(TrajectoryPoint pt) {
 
   src.data[m_currentRowIdx].append(pt);
 
-  auto val = [this](double v) {
-    if (m_isLogScale) return std::max(std::abs(v), 1e-15);
-    return v;
-  };
-
   auto append = [&](QLineSeries *s, double xVal, double yVal) {
     if (!s) return;
     if (m_tempIsVertical) s->append(yVal, xVal);  // X = quantity, Y = T
     else                  s->append(xVal, yVal);  // X = T,        Y = quantity
   };
 
-  append(src.series_nB[m_currentRowIdx], pt.T, val(pt.nB));
-  append(src.series_s[m_currentRowIdx],  pt.T, val(pt.s));
-  append(src.series_nQ[m_currentRowIdx], pt.T, val(pt.nQ));
-  
-  append(src.series_ne[m_currentRowIdx], pt.T, val(pt.ne));
-  append(src.series_nmu[m_currentRowIdx], pt.T, val(pt.nmu));
-  append(src.series_ntau[m_currentRowIdx], pt.T, val(pt.ntau));
-  append(src.series_nnue[m_currentRowIdx], pt.T, val(pt.nnue));
-  append(src.series_nnumu[m_currentRowIdx], pt.T, val(pt.nnumu));
-  append(src.series_nnutau[m_currentRowIdx], pt.T, val(pt.nnutau));
+  append(src.series_nB[m_currentRowIdx], pt.T, absVal(pt.nB, m_useAbsnB));
+  append(src.series_s[m_currentRowIdx],  pt.T, absVal(pt.s, m_useAbsS));
+  append(src.series_nQ[m_currentRowIdx], pt.T, absVal(pt.nQ, m_useAbsnQ));
 
-  append(src.series_muB[m_currentRowIdx], pt.T, val(pt.muB));
-  append(src.series_muQ[m_currentRowIdx], pt.T, val(pt.muQ));
-  append(src.series_munue[m_currentRowIdx],  pt.T, val(pt.munue));
-  append(src.series_munumu[m_currentRowIdx], pt.T, val(pt.munumu));
-  append(src.series_mnutau[m_currentRowIdx], pt.T, val(pt.mnutau));
+  append(src.series_ne[m_currentRowIdx],     pt.T, absVal(pt.ne,     m_useAbsNe));
+  append(src.series_nmu[m_currentRowIdx],    pt.T, absVal(pt.nmu,    m_useAbsNmu));
+  append(src.series_ntau[m_currentRowIdx],   pt.T, absVal(pt.ntau,   m_useAbsNtau));
+  append(src.series_nnue[m_currentRowIdx],   pt.T, absVal(pt.nnue,   m_useAbsNnue));
+  append(src.series_nnumu[m_currentRowIdx],  pt.T, absVal(pt.nnumu,  m_useAbsNnumu));
+  append(src.series_nnutau[m_currentRowIdx], pt.T, absVal(pt.nnutau, m_useAbsNnutau));
+
+  append(src.series_muB[m_currentRowIdx],    pt.T, absVal(pt.muB,    m_useAbsMuB));
+  append(src.series_muQ[m_currentRowIdx],    pt.T, absVal(pt.muQ,    m_useAbsMuQ));
+  append(src.series_munue[m_currentRowIdx],  pt.T, absVal(pt.munue,  m_useAbsMunue));
+  append(src.series_munumu[m_currentRowIdx], pt.T, absVal(pt.munumu, m_useAbsMunumu));
+  append(src.series_mnutau[m_currentRowIdx], pt.T, absVal(pt.mnutau, m_useAbsMnutau));
 
   updateChartAxes();
 }
@@ -1081,20 +1199,16 @@ void RunFromFileWidget::onClearAll() {
 
 // ── Plot helpers ───────────────────────────────────────────────────────────
 void RunFromFileWidget::replotAll() {
-  // Re-fill all series from m_sources (used after axis/scale toggle).
-  auto val = [this](double v) {
-    if (m_isLogScale) return std::max(std::abs(v), 1e-15);
-    return v;
-  };
-
+  // Re-fill all series from m_sources (used after axis/scale/abs toggle).
   auto fill = [&](QLineSeries *s, const QVector<TrajectoryPoint> &pts,
-                  double TrajectoryPoint::*qty) {
+                  double TrajectoryPoint::*qty, bool useAbs) {
     if (!s) return;
     s->clear();
     for (const auto &pt : pts) {
+      double v = absVal(pt.*qty, useAbs);
       double x, y;
-      if (m_tempIsVertical) { x = val(pt.*qty); y = pt.T; }
-      else                  { x = pt.T;        y = val(pt.*qty); }
+      if (m_tempIsVertical) { x = v;    y = pt.T; }
+      else                  { x = pt.T; y = v; }
       s->append(x, y);
     }
   };
@@ -1102,22 +1216,24 @@ void RunFromFileWidget::replotAll() {
   for (auto &src : m_sources) {
     for (int j = 0; j < src.data.size(); ++j) {
       const auto &pts = src.data[j];
-      if (j < src.series_nB.size())     fill(src.series_nB[j],     pts, &TrajectoryPoint::nB);
-      if (j < src.series_s.size())      fill(src.series_s[j],      pts, &TrajectoryPoint::s);
-      if (j < src.series_nQ.size())     fill(src.series_nQ[j],     pts, &TrajectoryPoint::nQ);
-      if (j < src.series_ne.size())     fill(src.series_ne[j],     pts, &TrajectoryPoint::ne);
-      if (j < src.series_nmu.size())    fill(src.series_nmu[j],    pts, &TrajectoryPoint::nmu);
-      if (j < src.series_ntau.size())   fill(src.series_ntau[j],   pts, &TrajectoryPoint::ntau);
-      if (j < src.series_nnue.size())   fill(src.series_nnue[j],   pts, &TrajectoryPoint::nnue);
-      if (j < src.series_nnumu.size())  fill(src.series_nnumu[j],  pts, &TrajectoryPoint::nnumu);
-      if (j < src.series_nnutau.size()) fill(src.series_nnutau[j], pts, &TrajectoryPoint::nnutau);
-      if (j < src.series_muB.size())    fill(src.series_muB[j],    pts, &TrajectoryPoint::muB);
-      if (j < src.series_muQ.size())    fill(src.series_muQ[j],    pts, &TrajectoryPoint::muQ);
-      if (j < src.series_munue.size())  fill(src.series_munue[j],  pts, &TrajectoryPoint::munue);
-      if (j < src.series_munumu.size()) fill(src.series_munumu[j], pts, &TrajectoryPoint::munumu);
-      if (j < src.series_mnutau.size()) fill(src.series_mnutau[j], pts, &TrajectoryPoint::mnutau);
+      if (j < src.series_nB.size())     fill(src.series_nB[j],     pts, &TrajectoryPoint::nB,     m_useAbsnB);
+      if (j < src.series_s.size())      fill(src.series_s[j],      pts, &TrajectoryPoint::s,      m_useAbsS);
+      if (j < src.series_nQ.size())     fill(src.series_nQ[j],     pts, &TrajectoryPoint::nQ,     m_useAbsnQ);
+      if (j < src.series_ne.size())     fill(src.series_ne[j],     pts, &TrajectoryPoint::ne,     m_useAbsNe);
+      if (j < src.series_nmu.size())    fill(src.series_nmu[j],    pts, &TrajectoryPoint::nmu,    m_useAbsNmu);
+      if (j < src.series_ntau.size())   fill(src.series_ntau[j],   pts, &TrajectoryPoint::ntau,   m_useAbsNtau);
+      if (j < src.series_nnue.size())   fill(src.series_nnue[j],   pts, &TrajectoryPoint::nnue,   m_useAbsNnue);
+      if (j < src.series_nnumu.size())  fill(src.series_nnumu[j],  pts, &TrajectoryPoint::nnumu,  m_useAbsNnumu);
+      if (j < src.series_nnutau.size()) fill(src.series_nnutau[j], pts, &TrajectoryPoint::nnutau, m_useAbsNnutau);
+      if (j < src.series_muB.size())    fill(src.series_muB[j],    pts, &TrajectoryPoint::muB,    m_useAbsMuB);
+      if (j < src.series_muQ.size())    fill(src.series_muQ[j],    pts, &TrajectoryPoint::muQ,    m_useAbsMuQ);
+      if (j < src.series_munue.size())  fill(src.series_munue[j],  pts, &TrajectoryPoint::munue,  m_useAbsMunue);
+      if (j < src.series_munumu.size()) fill(src.series_munumu[j], pts, &TrajectoryPoint::munumu, m_useAbsMunumu);
+      if (j < src.series_mnutau.size()) fill(src.series_mnutau[j], pts, &TrajectoryPoint::mnutau, m_useAbsMnutau);
     }
   }
+  refreshSeriesNames();
+  refreshLegendVisibility();
   updateChartAxes();
 }
 
@@ -1128,22 +1244,17 @@ void RunFromFileWidget::updateChartAxes() {
   double minLep  = 1e99, maxLep  = -1e99;
   bool hasData = false;
 
-  auto val = [this](double v) {
-    if (m_isLogScale) return std::max(std::abs(v), 1e-15);
-    return v;
-  };
-
   for (const auto &src : m_sources) {
     for (const auto &pts : src.data) {
       for (const auto &p : pts) {
         hasData = true;
         minT = std::min(minT, p.T);    maxT = std::max(maxT, p.T);
-        minDens = std::min({minDens, val(p.nB), val(p.s), val(p.nQ)});
-        maxDens = std::max({maxDens, val(p.nB), val(p.s), val(p.nQ)});
-        minMu = std::min({minMu, val(p.muB), val(p.muQ)});
-        maxMu = std::max({maxMu, val(p.muB), val(p.muQ)});
-        minLep = std::min({minLep, val(p.munue), val(p.munumu), val(p.mnutau)});
-        maxLep = std::max({maxLep, val(p.munue), val(p.munumu), val(p.mnutau)});
+        minDens = std::min({minDens, absVal(p.nB, m_useAbsnB), absVal(p.s, m_useAbsS), absVal(p.nQ, m_useAbsnQ)});
+        maxDens = std::max({maxDens, absVal(p.nB, m_useAbsnB), absVal(p.s, m_useAbsS), absVal(p.nQ, m_useAbsnQ)});
+        minMu = std::min({minMu, absVal(p.muB, m_useAbsMuB), absVal(p.muQ, m_useAbsMuQ)});
+        maxMu = std::max({maxMu, absVal(p.muB, m_useAbsMuB), absVal(p.muQ, m_useAbsMuQ)});
+        minLep = std::min({minLep, absVal(p.munue, m_useAbsMunue), absVal(p.munumu, m_useAbsMunumu), absVal(p.mnutau, m_useAbsMnutau)});
+        maxLep = std::max({maxLep, absVal(p.munue, m_useAbsMunue), absVal(p.munumu, m_useAbsMunumu), absVal(p.mnutau, m_useAbsMnutau)});
       }
     }
   }
@@ -1270,17 +1381,20 @@ void RunFromFileWidget::onAxisLimitsClicked() {
       if (m_isLogScale) return std::max(std::abs(v), 1e-15);
       return v;
     };
+    (void)val; // silenced — we use absVal() below for per-quantity behavior
     for (const auto &src : m_sources) for (const auto &pts : src.data) for (const auto &p : pts) {
       any = true;
       minT = std::min(minT, p.T);   maxT = std::max(maxT, p.T);
-      minDens = std::min({minDens, val(p.nB), val(p.s), val(p.nQ)});
-      maxDens = std::max({maxDens, val(p.nB), val(p.s), val(p.nQ)});
-      minLepDens = std::min({minLepDens, val(p.ne), val(p.nmu), val(p.ntau), val(p.nnue), val(p.nnumu), val(p.nnutau)});
-      maxLepDens = std::max({maxLepDens, val(p.ne), val(p.nmu), val(p.ntau), val(p.nnue), val(p.nnumu), val(p.nnutau)});
-      minMu = std::min({minMu, val(p.muB), val(p.muQ)});
-      maxMu = std::max({maxMu, val(p.muB), val(p.muQ)});
-      minLep = std::min({minLep, val(p.munue), val(p.munumu), val(p.mnutau)});
-      maxLep = std::max({maxLep, val(p.munue), val(p.munumu), val(p.mnutau)});
+      minDens = std::min({minDens, absVal(p.nB, m_useAbsnB), absVal(p.s, m_useAbsS), absVal(p.nQ, m_useAbsnQ)});
+      maxDens = std::max({maxDens, absVal(p.nB, m_useAbsnB), absVal(p.s, m_useAbsS), absVal(p.nQ, m_useAbsnQ)});
+      minLepDens = std::min({minLepDens, absVal(p.ne, m_useAbsNe), absVal(p.nmu, m_useAbsNmu), absVal(p.ntau, m_useAbsNtau),
+                                          absVal(p.nnue, m_useAbsNnue), absVal(p.nnumu, m_useAbsNnumu), absVal(p.nnutau, m_useAbsNnutau)});
+      maxLepDens = std::max({maxLepDens, absVal(p.ne, m_useAbsNe), absVal(p.nmu, m_useAbsNmu), absVal(p.ntau, m_useAbsNtau),
+                                          absVal(p.nnue, m_useAbsNnue), absVal(p.nnumu, m_useAbsNnumu), absVal(p.nnutau, m_useAbsNnutau)});
+      minMu = std::min({minMu, absVal(p.muB, m_useAbsMuB), absVal(p.muQ, m_useAbsMuQ)});
+      maxMu = std::max({maxMu, absVal(p.muB, m_useAbsMuB), absVal(p.muQ, m_useAbsMuQ)});
+      minLep = std::min({minLep, absVal(p.munue, m_useAbsMunue), absVal(p.munumu, m_useAbsMunumu), absVal(p.mnutau, m_useAbsMnutau)});
+      maxLep = std::max({maxLep, absVal(p.munue, m_useAbsMunue), absVal(p.munumu, m_useAbsMunumu), absVal(p.mnutau, m_useAbsMnutau)});
     }
     if (!any) return;
     auto seed = [&](Row &r, double lo, double hi) {
@@ -1390,6 +1504,14 @@ void RunFromFileWidget::onScaleToggle() {
     reattach(src.series_mnutau, m_lepAxisX,  m_lepAxisY);
   }
 
+  // Sync abs-checkbox enabled state with the new scale
+  auto syncAbs = [this](QCheckBox *c){ if (c) c->setEnabled(!m_isLogScale); };
+  syncAbs(m_absnB); syncAbs(m_absS); syncAbs(m_absnQ);
+  syncAbs(m_absNe); syncAbs(m_absNmu); syncAbs(m_absNtau);
+  syncAbs(m_absNnue); syncAbs(m_absNnumu); syncAbs(m_absNnutau);
+  syncAbs(m_absMuB); syncAbs(m_absMuQ);
+  syncAbs(m_absMunue); syncAbs(m_absMunumu); syncAbs(m_absMnutau);
+
   replotAll();
 }
 
@@ -1480,31 +1602,29 @@ void RunFromFileWidget::onExportFullData() {
   }
   QTextStream out(&file);
 
-  // Header
-  out << "source_idx\tsource_file\trow_idx\teos\tnf\tb\tle\tlmu\tltau"
-      << "\tT\tmuB\tmuQ\tmunue\tmunumu\tmnutau"
-      << "\tnB\tnQ_QCD\ts_QCD\ts_tot"
-      << "\tne\tnmu\tntau\tnnue\tnnumu\tnnutau"
-      << "\terr_b\terr_charge\terr_le\terr_lmu\terr_ltau\n";
+  // Canonical Single-Run format. Trajectories from each (source, row) are
+  // written sequentially, separated by a "# Source N, Row M ..." comment
+  // line that carries the per-row run parameters.
+  out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnB\tnQ\ts_QCD\ts_tot"
+         "\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\n";
 
   for (int i = 0; i < m_sources.size(); ++i) {
     const RunSource &src = m_sources[i];
-    QString srcName = QFileInfo(src.filePath).fileName();
+    const QString srcName = QFileInfo(src.filePath).fileName();
     for (int j = 0; j < src.data.size(); ++j) {
       const auto &pts = src.data[j];
       if (pts.isEmpty()) continue;
       const TrajParamRow &p = (j < src.rows.size()) ? src.rows[j] : TrajParamRow{0, 0, 0, 0};
+      out << QString("# Source S%1·R%2 [%3] (B=%4, Le=%5, Lmu=%6, Ltau=%7, eos=%8, nf=%9)\n")
+                  .arg(i + 1).arg(j + 1).arg(srcName)
+                  .arg(p.b).arg(p.le).arg(p.lmu).arg(p.ltau)
+                  .arg(src.eos).arg(src.nf);
       for (const auto &pt : pts) {
-        out << (i + 1) << "\t" << srcName << "\t" << (j + 1)
-            << "\t" << src.eos << "\t" << src.nf
-            << "\t" << p.b << "\t" << p.le << "\t" << p.lmu << "\t" << p.ltau
-            << "\t" << pt.T << "\t" << pt.muB << "\t" << pt.muQ
+        out << pt.T << "\t" << pt.muB << "\t" << pt.muQ
             << "\t" << pt.munue << "\t" << pt.munumu << "\t" << pt.mnutau
             << "\t" << pt.nB << "\t" << pt.nQ << "\t" << pt.s_QCD << "\t" << pt.s
             << "\t" << pt.ne << "\t" << pt.nmu << "\t" << pt.ntau
             << "\t" << pt.nnue << "\t" << pt.nnumu << "\t" << pt.nnutau
-            << "\t" << pt.err_b << "\t" << pt.err_charge
-            << "\t" << pt.err_le << "\t" << pt.err_lmu << "\t" << pt.err_ltau
             << "\n";
       }
     }
@@ -1554,9 +1674,15 @@ void RunFromFileWidget::onSolverSettingsClicked() {
   if (!m_solverDialog) {
     m_solverDialog = new QDialog(this);
     m_solverDialog->setWindowTitle("Solver Settings");
-    m_solverDialog->setMinimumWidth(420);
+    m_solverDialog->setMinimumWidth(720);
 
     QVBoxLayout *vbox = new QVBoxLayout(m_solverDialog);
+    QHBoxLayout *cols = new QHBoxLayout();
+    QVBoxLayout *colLeft  = new QVBoxLayout();
+    QVBoxLayout *colRight = new QVBoxLayout();
+    cols->addLayout(colLeft);
+    cols->addLayout(colRight);
+    vbox->addLayout(cols);
 
     // Convergence
     QGroupBox *groupConv = new QGroupBox("Convergence", m_solverDialog);
@@ -1573,7 +1699,7 @@ void RunFromFileWidget::onSolverSettingsClicked() {
     spinMaxIter->setRange(10, 10000);
     spinMaxIter->setValue(m_maxIter);
     gridConv->addWidget(spinMaxIter, 1, 1);
-    vbox->addWidget(groupConv);
+    colLeft->addWidget(groupConv);
 
     // Initial guess
     QGroupBox *groupGuess = new QGroupBox("Initial Guess Values", m_solverDialog);
@@ -1615,7 +1741,7 @@ void RunFromFileWidget::onSolverSettingsClicked() {
     };
     connect(comboType, &QComboBox::currentIndexChanged, updateFields);
     updateFields(m_initialGuessType);
-    vbox->addWidget(groupGuess);
+    colRight->addWidget(groupGuess);
 
     // Metropolis
     QGroupBox *groupMetro = new QGroupBox("Metropolis Pre-Optimizer", m_solverDialog);
@@ -1641,7 +1767,8 @@ void RunFromFileWidget::onSolverSettingsClicked() {
     };
     connect(comboMetroMode, &QComboBox::currentIndexChanged, updMetro);
     updMetro(m_metropolisMode);
-    vbox->addWidget(groupMetro);
+    colLeft->addWidget(groupMetro);
+    colLeft->addStretch();
 
     QPushButton *btnSave = new QPushButton("Save and Close", m_solverDialog);
     connect(btnSave, &QPushButton::clicked, [=]() {
@@ -1661,4 +1788,80 @@ void RunFromFileWidget::onSolverSettingsClicked() {
   m_solverDialog->show();
   m_solverDialog->raise();
   m_solverDialog->activateWindow();
+}
+
+// ── Per-quantity abs / legend helpers ─────────────────────────────────────
+double RunFromFileWidget::absVal(double v, bool useAbs) const {
+  if (m_isLogScale) return std::max(std::abs(v), 1e-15);
+  return useAbs ? std::abs(v) : v;
+}
+
+QString RunFromFileWidget::legendSuffix(const TrajParamRow &row) const {
+  QStringList parts;
+  if (m_legendShowB)    parts << QString("B=%1").arg(row.b,    0, 'g', 4);
+  if (m_legendShowLe)   parts << QString("Le=%1").arg(row.le,  0, 'g', 4);
+  if (m_legendShowLmu)  parts << QString("Lμ=%1").arg(row.lmu, 0, 'g', 4);
+  if (m_legendShowLtau) parts << QString("Lτ=%1").arg(row.ltau,0, 'g', 4);
+  if (parts.isEmpty()) return QString();
+  return QString(" (%1)").arg(parts.join(", "));
+}
+
+void RunFromFileWidget::refreshSeriesNames() {
+  auto bar = [](bool on, const QString &s){ return on ? QString("|%1|").arg(s) : s; };
+  // Every row of every source gets its own legend marker so per-row run
+  // parameters (B, Le, Lμ, Lτ) are distinguishable. To keep the legend
+  // tidy the user can hide entire quantities via "Show/Hide Quantities".
+  for (int i = 0; i < m_sources.size(); ++i) {
+    auto &src = m_sources[i];
+    auto setNameFor = [&, this](QChart *chart, QVector<QLineSeries*> &vec,
+                                const QString &base, bool useAbs) {
+      const bool absDisplay = m_isLogScale || useAbs;
+      const QString shown = bar(absDisplay, base);
+      for (int j = 0; j < vec.size(); ++j) {
+        QLineSeries *ls = vec[j];
+        if (!ls) continue;
+        const TrajParamRow &row = (j < src.rows.size()) ? src.rows[j] : TrajParamRow{};
+        const QString srcTag = m_legendShowSourceTag ? QString("S%1").arg(i + 1)
+                                                      : QString();
+        // Build "S1·R3 ", "R3 ", "S1 ", or "" depending on tag and row count.
+        QString prefix;
+        const bool needRowTag = (vec.size() > 1);
+        if (!srcTag.isEmpty() && needRowTag) {
+          prefix = QString("%1·R%2 ").arg(srcTag).arg(j + 1);
+        } else if (!srcTag.isEmpty()) {
+          prefix = srcTag + QStringLiteral(" ");
+        } else if (needRowTag) {
+          prefix = QString("R%1 ").arg(j + 1);
+        }
+        ls->setName(prefix + shown + legendSuffix(row));
+
+        // Show every row's legend marker.
+        if (chart && chart->legend()) {
+          const auto markers = chart->legend()->markers(ls);
+          for (auto *m : markers) m->setVisible(true);
+        }
+      }
+    };
+    setNameFor(m_densView->chart(),    src.series_nB,     "nB",     m_useAbsnB);
+    setNameFor(m_densView->chart(),    src.series_s,      "s",      m_useAbsS);
+    setNameFor(m_densView->chart(),    src.series_nQ,     "nQ", m_useAbsnQ);
+    setNameFor(m_lepDensView->chart(), src.series_ne,     "ne",     m_useAbsNe);
+    setNameFor(m_lepDensView->chart(), src.series_nmu,    "nμ",     m_useAbsNmu);
+    setNameFor(m_lepDensView->chart(), src.series_ntau,   "nτ",     m_useAbsNtau);
+    setNameFor(m_lepDensView->chart(), src.series_nnue,   "nνe",    m_useAbsNnue);
+    setNameFor(m_lepDensView->chart(), src.series_nnumu,  "nνμ",    m_useAbsNnumu);
+    setNameFor(m_lepDensView->chart(), src.series_nnutau, "nντ",    m_useAbsNnutau);
+    setNameFor(m_muView->chart(),      src.series_muB,    "μB",     m_useAbsMuB);
+    setNameFor(m_muView->chart(),      src.series_muQ,    "μQ",     m_useAbsMuQ);
+    setNameFor(m_lepView->chart(),     src.series_munue,  "μνe",    m_useAbsMunue);
+    setNameFor(m_lepView->chart(),     src.series_munumu, "μνμ",    m_useAbsMunumu);
+    setNameFor(m_lepView->chart(),     src.series_mnutau, "μντ",    m_useAbsMnutau);
+  }
+}
+
+void RunFromFileWidget::refreshLegendVisibility() {
+  TooltipChartView *views[] = {m_densView, m_lepDensView, m_muView, m_lepView};
+  for (auto *v : views) {
+    if (v && v->chart()) v->chart()->legend()->setVisible(m_legendVisible);
+  }
 }
