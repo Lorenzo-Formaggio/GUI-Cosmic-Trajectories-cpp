@@ -124,16 +124,14 @@ void EosExplorerWidget::setupUi() {
 
   // Compute / Clear Buttons
   QHBoxLayout *actionLayout = new QHBoxLayout();
-  m_btnCompute = new QPushButton("▶ Compute");
+  m_btnCompute = new QPushButton("Compute");
+  m_btnCompute->setObjectName("BtnCompute");
   m_btnCompute->setMinimumHeight(28); // Smaller button
-  m_btnCompute->setStyleSheet("QPushButton { background-color: #28a745; color: white; border-radius: 4px; font-weight: bold; } "
-                              "QPushButton:hover { background-color: #218838; }");
   connect(m_btnCompute, &QPushButton::clicked, this, &EosExplorerWidget::onComputeClicked);
 
-  m_btnClear = new QPushButton("🗑 Clear Charts");
+  m_btnClear = new QPushButton("Clear Charts");
+  m_btnClear->setObjectName("BtnClear");
   m_btnClear->setMinimumHeight(28); // Smaller button
-  m_btnClear->setStyleSheet("QPushButton { background-color: #dc3545; color: white; border-radius: 4px; font-weight: bold; } "
-                            "QPushButton:hover { background-color: #c82333; }");
   connect(m_btnClear, &QPushButton::clicked, this, &EosExplorerWidget::onClearClicked);
 
   actionLayout->addWidget(m_btnCompute);
@@ -153,7 +151,6 @@ void EosExplorerWidget::setupUi() {
   m_console = new QTextEdit();
   m_console->setReadOnly(true);
   m_console->setFontFamily("Courier");
-  m_console->setStyleSheet("background-color: #1e1e1e; color: #ffffff; border: 1px solid #333;");
   m_console->setMinimumHeight(150);
   consoleLayout->addWidget(m_console);
   
@@ -190,31 +187,10 @@ void EosExplorerWidget::setupUi() {
   rebuildAllAxes();
 
   // ── Plot Settings Menu (Sleek Dark Styling) ───────────────────────────
+  // ── Plot Settings Menu (Inherits Global Style) ───────────────────────────
   QPushButton *btnPlotSettings = new QPushButton("Plot Settings", rightPanel);
-  btnPlotSettings->setStyleSheet(
-      "QPushButton { "
-      "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4e5d6c, stop:1 #2b3e50); "
-      "  color: white; "
-      "  border: 1px solid #1a252f; "
-      "  border-radius: 6px; "
-      "  font-weight: bold; "
-      "  font-size: 13px; "
-      "  padding: 8px 16px; "
-      "  margin: 4px; "
-      "} "
-      "QPushButton:hover { "
-      "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #5bc0de, stop:1 #2f96b4); "
-      "} "
-      "QPushButton:menu-indicator { image: none; } "
-  );
   
   QMenu *plotMenu = new QMenu(this);
-  plotMenu->setStyleSheet(
-      "QMenu { background-color: #2c3e50; color: white; border: 1px solid #1a252f; padding: 5px; } "
-      "QMenu::item { padding: 5px 25px 5px 20px; border-radius: 3px; } "
-      "QMenu::item:selected { background-color: #3498db; color: white; } "
-      "QMenu::separator { height: 1px; background: #555; margin: 5px 10px; } "
-  );
   
   // Section: View Controls
   QAction *actScale = plotMenu->addAction("Toggle Log/Linear");
@@ -232,6 +208,7 @@ void EosExplorerWidget::setupUi() {
   btnPlotSettings->setMenu(plotMenu);
 
   QHBoxLayout *toolsLayout = new QHBoxLayout();
+  toolsLayout->setContentsMargins(0, 0, 0, 15);
   toolsLayout->addStretch();
   toolsLayout->addWidget(btnPlotSettings);
   toolsLayout->addStretch();

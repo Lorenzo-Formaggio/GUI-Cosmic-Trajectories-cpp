@@ -93,32 +93,10 @@ void MainWindow::setupUi() {
 
 
 
-  // ── Plot Settings Menu (Sleek Dark Styling) ───────────────────────────
+  // ── Plot Settings Menu (Inherits Global Style) ───────────────────────────
   QPushButton *btnPlotSettings = new QPushButton("Plot Settings", rightPanel);
-  btnPlotSettings->setStyleSheet(
-      "QPushButton { "
-      "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4e5d6c, stop:1 #2b3e50); "
-      "  color: white; "
-      "  border: 1px solid #1a252f; "
-      "  border-radius: 6px; "
-      "  font-weight: bold; "
-      "  font-size: 13px; "
-      "  padding: 8px 16px; "
-      "  margin: 4px; "
-      "} "
-      "QPushButton:hover { "
-      "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #5bc0de, stop:1 #2f96b4); "
-      "} "
-      "QPushButton:menu-indicator { image: none; } "
-  );
   
   QMenu *plotMenu = new QMenu(this);
-  plotMenu->setStyleSheet(
-      "QMenu { background-color: #2c3e50; color: white; border: 1px solid #1a252f; padding: 5px; } "
-      "QMenu::item { padding: 5px 25px 5px 20px; border-radius: 3px; } "
-      "QMenu::item:selected { background-color: #3498db; color: white; } "
-      "QMenu::separator { height: 1px; background: #555; margin: 5px 10px; } "
-  );
   
   // Section: Visibility
   QAction *actShowHide = plotMenu->addAction("Show/Hide Quantities...");
@@ -230,6 +208,7 @@ void MainWindow::setupUi() {
   btnPlotSettings->setMenu(plotMenu);
 
   QHBoxLayout *bottomRightLayout = new QHBoxLayout();
+  bottomRightLayout->setContentsMargins(0, 0, 0, 15);
   bottomRightLayout->addStretch();
   bottomRightLayout->addWidget(btnPlotSettings);
   bottomRightLayout->addStretch();
@@ -258,9 +237,89 @@ void MainWindow::setupUi() {
 }
 
 void MainWindow::setupStyle() {
-  setStyleSheet("QToolTip { color: #ffffff; background-color: #2a82da; border: 1px solid white; } "
-                "QGroupBox { border: 1px solid gray; border-radius: 5px; margin-top: 1ex; font-weight: bold; } "
-                "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 3px 0 3px; }");
+  setStyleSheet(
+    "/* Global Background */ "
+    "QMainWindow, QWidget#centralWidget { background-color: #2b2b2b; color: #e0e0e0; } "
+
+    "/* ToolTips */ "
+    "QToolTip { color: #ffffff; background-color: #444444; border: 1px solid #666666; padding: 2px; } "
+
+    "/* Group Boxes */ "
+    "QGroupBox { border: 1px solid #1a1a1a; border-radius: 6px; margin-top: 1.5ex; background-color: #333333; color: #ffffff; font-weight: bold; } "
+    "QGroupBox::title { subcontrol-origin: margin; left: 15px; padding: 0 5px; color: #aaaaaa; } "
+
+    "/* Labels */ "
+    "QLabel { color: #e0e0e0; } "
+
+    "/* Buttons (Premium Dark Gradient) */ "
+    "QPushButton { "
+    "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4e5d6c, stop:1 #2b3e50); "
+    "  color: white; "
+    "  border: 1px solid #1a252f; "
+    "  border-radius: 6px; "
+    "  font-weight: bold; "
+    "  padding: 6px 16px; "
+    "} "
+    "QPushButton::menu-indicator { image: none; } "
+    "QPushButton:hover { "
+    "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #5bc0de, stop:1 #2f96b4); "
+    "} "
+    "QPushButton:pressed { "
+    "  background: #1a252f; "
+    "} "
+    "QPushButton:disabled { "
+    "  background: #7f8c8d; "
+    "  color: #bdc3c7; "
+    "  border: 1px solid #1a252f; "
+    "} "
+
+    "/* Input Widgets */ "
+    "QLineEdit, QComboBox, QDoubleSpinBox, QSpinBox { "
+    "  border: 1px solid #1a1a1a; "
+    "  border-radius: 3px; "
+    "  padding: 4px; "
+    "  background-color: #3c3c3c; "
+    "  color: white; "
+    "  selection-background-color: #555555; "
+    "} "
+    "QLineEdit:focus, QComboBox:focus, QDoubleSpinBox:focus { "
+    "  border: 1px solid #555555; "
+    "} "
+
+    "/* Tabs */ "
+    "QTabWidget::pane { border: 1px solid #1a1a1a; top: -1px; background: #333333; } "
+    "QTabBar::tab { "
+    "  background: #2b2b2b; "
+    "  color: #999999; "
+    "  border: 1px solid #1a1a1a; "
+    "  padding: 8px 20px; "
+    "  border-bottom-color: none; "
+    "  border-top-left-radius: 4px; "
+    "  border-top-right-radius: 4px; "
+    "} "
+    "QTabBar::tab:selected { "
+    "  background: #333333; "
+    "  color: white; "
+    "  border-bottom-color: #333333; "
+    "  font-weight: bold; "
+    "} "
+
+    "/* Console */ "
+    "QTextEdit { "
+    "  background-color: #1a1a1a; "
+    "  color: #d4d4d4; "
+    "  border: 1px solid #111111; "
+    "  border-radius: 4px; "
+    "  font-family: 'Courier New', Courier, monospace; "
+    "  font-size: 11px; "
+    "} "
+
+    "/* Menu */ "
+    "QMenu { background-color: #2b2b2b; color: white; border: 1px solid #1a1a1a; padding: 5px; } "
+    "QMenu::item { padding: 5px 25px 5px 20px; border-radius: 3px; } "
+    "QMenu::item:selected { background-color: #444444; color: white; } "
+    "QMenu::separator { height: 1px; background: #444444; margin: 5px 10px; } "
+  );
 }
 
 void MainWindow::createParameterPanel(QWidget *parent) {
@@ -268,9 +327,8 @@ void MainWindow::createParameterPanel(QWidget *parent) {
   group->setObjectName("GroupParams");
   QVBoxLayout *layout = new QVBoxLayout(group);
 
-  m_btnSolverSettings = new QPushButton("⚙ Solver Settings...");
-  m_btnSolverSettings->setStyleSheet("QPushButton { background-color: #e83e8c; color: white; border-radius: 4px; font-weight: bold; padding: 4px; margin: 2px 4px 2px 4px; } "
-                                    "QPushButton:hover { background-color: #d63384; }");
+  m_btnSolverSettings = new QPushButton("Solver Settings...");
+  m_btnSolverSettings->setObjectName("BtnSolver");
   connect(m_btnSolverSettings, &QPushButton::clicked, this, &MainWindow::onSolverSettingsButtonClicked);
   layout->addWidget(m_btnSolverSettings);
 
@@ -315,7 +373,7 @@ void MainWindow::createParameterPanel(QWidget *parent) {
   eosPathLayout->setContentsMargins(0, 0, 0, 0);
   m_lineEditEosPath = new QLineEdit();
   m_lineEditEosPath->setPlaceholderText("Path to EoS table...");
-  m_btnBrowseEos = new QPushButton("Browse");
+  m_btnBrowseEos = new QPushButton("Browse...");
   eosPathLayout->addWidget(m_lineEditEosPath);
   eosPathLayout->addWidget(m_btnBrowseEos);
   
@@ -341,30 +399,23 @@ void MainWindow::createParameterPanel(QWidget *parent) {
   layout->addLayout(grid);
 
   QHBoxLayout *actionLayout = new QHBoxLayout();
-  m_btnRun = new QPushButton("▶ Run Simulation");
+  m_btnRun = new QPushButton("Run Simulation");
+  m_btnRun->setObjectName("BtnRun");
   m_btnRun->setMinimumHeight(32);
-  m_btnRun->setStyleSheet("QPushButton { background-color: #007bff; color: white; border-radius: 4px; font-weight: bold; } "
-                          "QPushButton:hover { background-color: #0056b3; } "
-                          "QPushButton:disabled { background-color: #aaa; }");
   connect(m_btnRun, &QPushButton::clicked, this, &MainWindow::onRunClicked);
 
-  m_btnStop = new QPushButton("⏹ Stop");
+  m_btnStop = new QPushButton("Stop");
+  m_btnStop->setObjectName("BtnStop");
   m_btnStop->setMinimumHeight(32);
-  m_btnStop->setEnabled(false);
-  m_btnStop->setStyleSheet("QPushButton { background-color: #dc3545; color: white; border-radius: 4px; font-weight: bold; } "
-                           "QPushButton:hover { background-color: #c82333; } "
-                           "QPushButton:disabled { background-color: #aaa; }");
   connect(m_btnStop, &QPushButton::clicked, this, &MainWindow::onStopClicked);
 
   actionLayout->addWidget(m_btnRun);
   actionLayout->addWidget(m_btnStop);
   layout->addLayout(actionLayout);
 
-  m_btnExportFullData = new QPushButton("💾 Export Full Trajectory (TXT)");
+  m_btnExportFullData = new QPushButton("Export Full Data (TXT)");
+  m_btnExportFullData->setObjectName("BtnExport");
   m_btnExportFullData->setMinimumHeight(24);
-  m_btnExportFullData->setStyleSheet("QPushButton { background-color: #17a2b8; color: white; border-radius: 4px; font-weight: bold; margin-top: 5px; } "
-                                     "QPushButton:hover { background-color: #138496; } "
-                                     "QPushButton:disabled { background-color: #aaa; }");
   m_btnExportFullData->setEnabled(false);
   connect(m_btnExportFullData, &QPushButton::clicked, this, &MainWindow::onExportFullDataClicked);
   layout->addWidget(m_btnExportFullData);
@@ -386,7 +437,6 @@ void MainWindow::createConsolePanel(QWidget *parent) {
   m_console = new QTextEdit();
   m_console->setReadOnly(true);
   m_console->setFontFamily("Courier");
-  m_console->setStyleSheet("background-color: #1e1e1e; color: #ffffff; border: 1px solid #333;");
   layout->addWidget(m_console);
 }
 
@@ -1303,8 +1353,6 @@ void MainWindow::onSolverSettingsButtonClicked() {
 
     // ── Save button ───────────────────────────────────────────────────
     QPushButton *btnSave = new QPushButton("Save and Close", m_solverSettingsDialog);
-    btnSave->setStyleSheet("QPushButton { background-color: #007bff; color: white; border-radius: 4px; font-weight: bold; padding: 6px; } "
-                           "QPushButton:hover { background-color: #0056b3; }");
     connect(btnSave, &QPushButton::clicked, [=]() {
       m_tolerance       = spinTol->value();
       m_maxIter         = spinMaxIter->value();

@@ -90,9 +90,8 @@ void CompareWidget::setupUi() {
   QVBoxLayout *leftPanelLayout = new QVBoxLayout(leftPanel);
   leftPanelLayout->setContentsMargins(0, 0, 0, 0);
   
-  m_btnSolverSettings = new QPushButton("⚙ Solver Settings...");
-  m_btnSolverSettings->setStyleSheet("QPushButton { background-color: #e83e8c; color: white; border-radius: 4px; font-weight: bold; padding: 4px; margin: 2px 4px 2px 4px; } "
-                                      "QPushButton:hover { background-color: #d63384; }");
+  m_btnSolverSettings = new QPushButton("Solver Settings...");
+  m_btnSolverSettings->setObjectName("BtnSolver");
   connect(m_btnSolverSettings, &QPushButton::clicked, this, &CompareWidget::onSolverSettingsButtonClicked);
   leftPanelLayout->addWidget(m_btnSolverSettings);
   
@@ -109,7 +108,6 @@ void CompareWidget::setupUi() {
   m_console = new QTextEdit();
   m_console->setReadOnly(true);
   m_console->setFontFamily("Courier");
-  m_console->setStyleSheet("background-color: #1e1e1e; color: #ffffff; border: 1px solid #333;");
   m_console->setMinimumHeight(150);
   consoleLayout->addWidget(m_console);
   leftPanelLayout->addWidget(groupConsole);
@@ -121,32 +119,10 @@ void CompareWidget::setupUi() {
   createChartPanel(chartsWidget);
   chartsLayout->addWidget(m_chartTabs);
   
-  // ── Plot Settings Menu (Sleek Dark Styling) ───────────────────────────
+  // ── Plot Settings Menu (Inherits Global Style) ───────────────────────────
   QPushButton *btnPlotSettings = new QPushButton("Plot Settings", chartsWidget);
-  btnPlotSettings->setStyleSheet(
-      "QPushButton { "
-      "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4e5d6c, stop:1 #2b3e50); "
-      "  color: white; "
-      "  border: 1px solid #1a252f; "
-      "  border-radius: 6px; "
-      "  font-weight: bold; "
-      "  font-size: 13px; "
-      "  padding: 8px 16px; "
-      "  margin: 4px; "
-      "} "
-      "QPushButton:hover { "
-      "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #5bc0de, stop:1 #2f96b4); "
-      "} "
-      "QPushButton:menu-indicator { image: none; } "
-  );
   
   QMenu *plotMenu = new QMenu(this);
-  plotMenu->setStyleSheet(
-      "QMenu { background-color: #2c3e50; color: white; border: 1px solid #1a252f; padding: 5px; } "
-      "QMenu::item { padding: 5px 25px 5px 20px; border-radius: 3px; } "
-      "QMenu::item:selected { background-color: #3498db; color: white; } "
-      "QMenu::separator { height: 1px; background: #555; margin: 5px 10px; } "
-  );
   
   // Section: Visibility
   QAction *actShowHide = plotMenu->addAction("Show/Hide Quantities...");
@@ -226,6 +202,7 @@ void CompareWidget::setupUi() {
   btnPlotSettings->setMenu(plotMenu);
 
   QHBoxLayout *bottomRightLayout = new QHBoxLayout();
+  bottomRightLayout->setContentsMargins(0, 0, 0, 15);
   bottomRightLayout->addStretch();
   bottomRightLayout->addWidget(btnPlotSettings);
   bottomRightLayout->addStretch();
@@ -338,20 +315,16 @@ void CompareWidget::createSlotPanel(QWidget *parent) {
 
     QHBoxLayout *btnLayout = new QHBoxLayout();
     
-    s.btnRun = new QPushButton("▶ Run Slot");
+    s.btnRun = new QPushButton("Run Slot");
     s.btnRun->setStyleSheet(
-        QString("QPushButton { background-color: %1; color: white; border-radius: 4px; font-weight: bold; padding: 4px; }"
-                "QPushButton:disabled { background-color: #aaa; }")
+        QString("QPushButton { background-color: %1; color: white; border-radius: 6px; font-weight: bold; padding: 4px; border: 1px solid rgba(0,0,0,0.2); }")
             .arg(s.color.name()));
     int idx = i;
     connect(s.btnRun, &QPushButton::clicked, [this, idx] { runSlot(idx); });
     btnLayout->addWidget(s.btnRun);
 
-    s.btnStop = new QPushButton("⏹ Stop");
-    s.btnStop->setEnabled(false);
-    s.btnStop->setStyleSheet(
-        "QPushButton { background-color: #dc3545; color: white; border-radius: 4px; font-weight: bold; padding: 4px; } "
-        "QPushButton:disabled { background-color: #aaa; }");
+    s.btnStop = new QPushButton("Stop");
+    s.btnStop->setObjectName("BtnStop");
     connect(s.btnStop, &QPushButton::clicked, [this, idx]() {
         if (m_slots[idx].worker) {
             m_slots[idx].worker->stop();
@@ -360,7 +333,7 @@ void CompareWidget::createSlotPanel(QWidget *parent) {
     });
     btnLayout->addWidget(s.btnStop);
 
-    s.btnClear = new QPushButton("✕ Clear");
+    s.btnClear = new QPushButton("Clear");
     connect(s.btnClear, &QPushButton::clicked, [this, idx] { clearSlot(idx); });
     btnLayout->addWidget(s.btnClear);
 
@@ -1109,8 +1082,6 @@ void CompareWidget::onSolverSettingsButtonClicked() {
 
     // ── Save ──────────────────────────────────────────────────────────
     QPushButton *btnSave = new QPushButton("Save and Close", m_solverSettingsDialog);
-    btnSave->setStyleSheet("QPushButton { background-color: #007bff; color: white; border-radius: 4px; font-weight: bold; padding: 6px; } "
-                           "QPushButton:hover { background-color: #0056b3; }");
     connect(btnSave, &QPushButton::clicked, [=]() {
       m_tolerance        = spinTol->value();
       m_maxIter          = spinMaxIter->value();

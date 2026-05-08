@@ -142,9 +142,8 @@ void RunFromFileWidget::setupUi() {
   m_comboGuess->setCurrentIndex(1);
   gridCommon->addWidget(m_comboGuess, row++, 1);
 
-  m_btnSolverSettings = new QPushButton("⚙ Solver Settings...");
-  m_btnSolverSettings->setStyleSheet("QPushButton { background-color: #e83e8c; color: white; border-radius: 4px; font-weight: bold; padding: 4px; } "
-                                     "QPushButton:hover { background-color: #d63384; }");
+  m_btnSolverSettings = new QPushButton("Solver Settings...");
+  m_btnSolverSettings->setObjectName("BtnSolver");
   connect(m_btnSolverSettings, &QPushButton::clicked, this, &RunFromFileWidget::onSolverSettingsClicked);
   gridCommon->addWidget(m_btnSolverSettings, row++, 0, 1, 2);
 
@@ -178,31 +177,27 @@ void RunFromFileWidget::setupUi() {
   srcLayout->addWidget(m_table);
 
   QHBoxLayout *tblBtnLayout = new QHBoxLayout();
-  m_btnAdd = new QPushButton("➕ Add Source");
+  m_btnAdd = new QPushButton("Add Source");
   connect(m_btnAdd, &QPushButton::clicked, this, &RunFromFileWidget::onAddSource);
   tblBtnLayout->addWidget(m_btnAdd);
 
-  m_btnRemove = new QPushButton("➖ Remove Selected");
+  m_btnRemove = new QPushButton("Remove Selected");
   connect(m_btnRemove, &QPushButton::clicked, this, &RunFromFileWidget::onRemoveSource);
   tblBtnLayout->addWidget(m_btnRemove);
 
   tblBtnLayout->addStretch();
 
-  m_btnRun = new QPushButton("▶ Run All");
-  m_btnRun->setStyleSheet("QPushButton { background-color: #007bff; color: white; border-radius: 4px; font-weight: bold; padding: 4px; } "
-                          "QPushButton:hover { background-color: #0056b3; } "
-                          "QPushButton:disabled { background-color: #aaa; }");
+  m_btnRun = new QPushButton("Run All");
+  m_btnRun->setObjectName("BtnRun");
   connect(m_btnRun, &QPushButton::clicked, this, &RunFromFileWidget::onRunAll);
   tblBtnLayout->addWidget(m_btnRun);
 
-  m_btnStop = new QPushButton("⏹ Stop");
-  m_btnStop->setEnabled(false);
-  m_btnStop->setStyleSheet("QPushButton { background-color: #dc3545; color: white; border-radius: 4px; font-weight: bold; padding: 4px; } "
-                           "QPushButton:disabled { background-color: #aaa; }");
+  m_btnStop = new QPushButton("Stop");
+  m_btnStop->setObjectName("BtnStop");
   connect(m_btnStop, &QPushButton::clicked, this, &RunFromFileWidget::onStopAll);
   tblBtnLayout->addWidget(m_btnStop);
 
-  m_btnClear = new QPushButton("🗑 Clear Plots");
+  m_btnClear = new QPushButton("Clear Plots");
   connect(m_btnClear, &QPushButton::clicked, this, &RunFromFileWidget::onClearAll);
   tblBtnLayout->addWidget(m_btnClear);
 
@@ -242,32 +237,10 @@ void RunFromFileWidget::setupUi() {
   rightLayout->addWidget(m_chartTabs);
 
 
-  // ── Plot Settings Menu (Sleek Dark Styling) ───────────────────────────
+  // ── Plot Settings Menu (Inherits Global Style) ───────────────────────────
   QPushButton *btnPlotSettings = new QPushButton("Plot Settings", rightPanel);
-  btnPlotSettings->setStyleSheet(
-      "QPushButton { "
-      "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4e5d6c, stop:1 #2b3e50); "
-      "  color: white; "
-      "  border: 1px solid #1a252f; "
-      "  border-radius: 6px; "
-      "  font-weight: bold; "
-      "  font-size: 13px; "
-      "  padding: 8px 16px; "
-      "  margin: 4px; "
-      "} "
-      "QPushButton:hover { "
-      "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #5bc0de, stop:1 #2f96b4); "
-      "} "
-      "QPushButton:menu-indicator { image: none; } "
-  );
   
   QMenu *plotMenu = new QMenu(this);
-  plotMenu->setStyleSheet(
-      "QMenu { background-color: #2c3e50; color: white; border: 1px solid #1a252f; padding: 5px; } "
-      "QMenu::item { padding: 5px 25px 5px 20px; border-radius: 3px; } "
-      "QMenu::item:selected { background-color: #3498db; color: white; } "
-      "QMenu::separator { height: 1px; background: #555; margin: 5px 10px; } "
-  );
   
   // Section: Visibility
   QAction *actShowHide = plotMenu->addAction("Show/Hide Quantities...");
@@ -351,6 +324,7 @@ void RunFromFileWidget::setupUi() {
   btnPlotSettings->setMenu(plotMenu);
 
   QHBoxLayout *toolsLayout = new QHBoxLayout();
+  toolsLayout->setContentsMargins(0, 0, 0, 15);
   toolsLayout->addStretch();
   toolsLayout->addWidget(btnPlotSettings);
   toolsLayout->addStretch();
@@ -1651,8 +1625,6 @@ void RunFromFileWidget::onSolverSettingsClicked() {
     vbox->addWidget(groupMetro);
 
     QPushButton *btnSave = new QPushButton("Save and Close", m_solverDialog);
-    btnSave->setStyleSheet("QPushButton { background-color: #007bff; color: white; border-radius: 4px; font-weight: bold; padding: 6px; } "
-                           "QPushButton:hover { background-color: #0056b3; }");
     connect(btnSave, &QPushButton::clicked, [=]() {
       m_tolerance = spinTol->value();
       m_maxIter   = spinMaxIter->value();
