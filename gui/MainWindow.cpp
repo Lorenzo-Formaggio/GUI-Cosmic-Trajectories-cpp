@@ -29,6 +29,8 @@
 #include <QTextStream>
 #include <QColor>
 #include <QScrollArea>
+#include <QMenu>
+#include <QAction>
 
 #include <QtCharts/QChart>
 #include <QtCharts/QChartView>
@@ -89,12 +91,40 @@ void MainWindow::setupUi() {
   createChartPanel(rightPanel);
   rightLayout->addWidget(m_chartTabs);
 
-  // ── Series visibility button → opens popup dialog ────────────────────
-  m_btnShowHide = new QPushButton("Hide/Show Quantities", rightPanel);
-  m_btnShowHide->setStyleSheet("QPushButton { background-color: #6c757d; color: white; border-radius: 4px; font-weight: bold; padding: 6px 12px; } "
-                               "QPushButton:hover { background-color: #5a6268; }");
-  connect(m_btnShowHide, &QPushButton::clicked, this, [this]() {
+
+
+  // ── Plot Settings Menu (Sleek Dark Styling) ───────────────────────────
+  QPushButton *btnPlotSettings = new QPushButton("Plot Settings", rightPanel);
+  btnPlotSettings->setStyleSheet(
+      "QPushButton { "
+      "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4e5d6c, stop:1 #2b3e50); "
+      "  color: white; "
+      "  border: 1px solid #1a252f; "
+      "  border-radius: 6px; "
+      "  font-weight: bold; "
+      "  font-size: 13px; "
+      "  padding: 8px 16px; "
+      "  margin: 4px; "
+      "} "
+      "QPushButton:hover { "
+      "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #5bc0de, stop:1 #2f96b4); "
+      "} "
+      "QPushButton:menu-indicator { image: none; } "
+  );
+  
+  QMenu *plotMenu = new QMenu(this);
+  plotMenu->setStyleSheet(
+      "QMenu { background-color: #2c3e50; color: white; border: 1px solid #1a252f; padding: 5px; } "
+      "QMenu::item { padding: 5px 25px 5px 20px; border-radius: 3px; } "
+      "QMenu::item:selected { background-color: #3498db; color: white; } "
+      "QMenu::separator { height: 1px; background: #555; margin: 5px 10px; } "
+  );
+  
+  // Section: Visibility
+  QAction *actShowHide = plotMenu->addAction("Show/Hide Quantities...");
+  connect(actShowHide, &QAction::triggered, this, [this]() {
     if (!m_visDialog) {
+      // ... (dialog logic kept as is)
       m_visDialog = new QDialog(this);
       m_visDialog->setWindowTitle("Show/Hide Series");
       m_visDialog->setMinimumWidth(380);
@@ -176,34 +206,33 @@ void MainWindow::setupUi() {
     m_visDialog->activateWindow();
   });
 
-  QPushButton *btnExport = new QPushButton("📤 Export Active Plot", rightPanel);
-  connect(btnExport, &QPushButton::clicked, this, &MainWindow::onExportClicked);
+  plotMenu->addSeparator();
 
-  QPushButton *btnAxisToggle = new QPushButton("Toggle Axes", rightPanel);
-  connect(btnAxisToggle, &QPushButton::clicked, this, &MainWindow::onAxisToggleClicked);
+  // Section: View Controls
+  QAction *actAxis = plotMenu->addAction("Toggle Axes");
+  connect(actAxis, &QAction::triggered, this, &MainWindow::onAxisToggleClicked);
 
-  m_btnThemeToggle = new QPushButton("Toggle Plot Theme", rightPanel);
-  connect(m_btnThemeToggle, &QPushButton::clicked, this, &MainWindow::onThemeToggleClicked);
+  QAction *actScale = plotMenu->addAction("Toggle Log/Linear");
+  connect(actScale, &QAction::triggered, this, &MainWindow::onScaleToggleClicked);
 
-  m_btnScaleToggle = new QPushButton("Toggle Log/Linear", rightPanel);
-  connect(m_btnScaleToggle, &QPushButton::clicked, this, &MainWindow::onScaleToggleClicked);
-  
-  m_btnCriticalPoint = new QPushButton("📍 Configure Critical Point...", rightPanel);
-  m_btnCriticalPoint->setStyleSheet("QPushButton { background-color: #6f42c1; color: white; border-radius: 4px; font-weight: bold; padding: 4px; margin: 2px 4px 2px 4px; } "
-                                     "QPushButton:hover { background-color: #5a32a3; }");
-  connect(m_btnCriticalPoint, &QPushButton::clicked, this, &MainWindow::onCriticalPointButtonClicked);
+  QAction *actTheme = plotMenu->addAction("Toggle Plot Theme");
+  connect(actTheme, &QAction::triggered, this, &MainWindow::onThemeToggleClicked);
 
-  QGridLayout *bottomRightLayout = new QGridLayout();
-  
-  // Row 0: Plot-specific toggles
-  bottomRightLayout->addWidget(btnAxisToggle,      0, 0);
-  bottomRightLayout->addWidget(m_btnScaleToggle,   0, 1);
-  bottomRightLayout->addWidget(m_btnThemeToggle,   0, 2);
-  
-  // Row 1: Actions and Config
-  bottomRightLayout->addWidget(m_btnShowHide,      1, 0);
-  bottomRightLayout->addWidget(btnExport,          1, 1);
-  bottomRightLayout->addWidget(m_btnCriticalPoint, 1, 2);
+  plotMenu->addSeparator();
+
+  // Section: Tools & Export
+  QAction *actCP = plotMenu->addAction("Configure Critical Point...");
+  connect(actCP, &QAction::triggered, this, &MainWindow::onCriticalPointButtonClicked);
+
+  QAction *actExport = plotMenu->addAction("Export Active Plot...");
+  connect(actExport, &QAction::triggered, this, &MainWindow::onExportClicked);
+
+  btnPlotSettings->setMenu(plotMenu);
+
+  QHBoxLayout *bottomRightLayout = new QHBoxLayout();
+  bottomRightLayout->addStretch();
+  bottomRightLayout->addWidget(btnPlotSettings);
+  bottomRightLayout->addStretch();
   
   rightLayout->addLayout(bottomRightLayout);
 

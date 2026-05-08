@@ -23,6 +23,8 @@
 #include <QTextEdit>
 #include <QCheckBox>
 #include <QTabWidget>
+#include <QMenu>
+#include <QAction>
 
 // Required for Qt < 5.17 / C++17 compatibility if taking address, though QString takes by value/pointer.
 constexpr const char* EosExplorerWidget::CHART_TITLES[NUM_CHARTS];
@@ -187,22 +189,52 @@ void EosExplorerWidget::setupUi() {
 
   rebuildAllAxes();
 
-  // Tool buttons layout
+  // ── Plot Settings Menu (Sleek Dark Styling) ───────────────────────────
+  QPushButton *btnPlotSettings = new QPushButton("Plot Settings", rightPanel);
+  btnPlotSettings->setStyleSheet(
+      "QPushButton { "
+      "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4e5d6c, stop:1 #2b3e50); "
+      "  color: white; "
+      "  border: 1px solid #1a252f; "
+      "  border-radius: 6px; "
+      "  font-weight: bold; "
+      "  font-size: 13px; "
+      "  padding: 8px 16px; "
+      "  margin: 4px; "
+      "} "
+      "QPushButton:hover { "
+      "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #5bc0de, stop:1 #2f96b4); "
+      "} "
+      "QPushButton:menu-indicator { image: none; } "
+  );
+  
+  QMenu *plotMenu = new QMenu(this);
+  plotMenu->setStyleSheet(
+      "QMenu { background-color: #2c3e50; color: white; border: 1px solid #1a252f; padding: 5px; } "
+      "QMenu::item { padding: 5px 25px 5px 20px; border-radius: 3px; } "
+      "QMenu::item:selected { background-color: #3498db; color: white; } "
+      "QMenu::separator { height: 1px; background: #555; margin: 5px 10px; } "
+  );
+  
+  // Section: View Controls
+  QAction *actScale = plotMenu->addAction("Toggle Log/Linear");
+  connect(actScale, &QAction::triggered, this, &EosExplorerWidget::onScaleToggleClicked);
+
+  QAction *actTheme = plotMenu->addAction("Toggle Plot Theme");
+  connect(actTheme, &QAction::triggered, this, &EosExplorerWidget::onThemeToggleClicked);
+
+  plotMenu->addSeparator();
+
+  // Section: Export
+  QAction *actExport = plotMenu->addAction("Export Active Plot...");
+  connect(actExport, &QAction::triggered, this, &EosExplorerWidget::onExportClicked);
+
+  btnPlotSettings->setMenu(plotMenu);
+
   QHBoxLayout *toolsLayout = new QHBoxLayout();
   toolsLayout->addStretch();
-  
-  QPushButton *btnExport = new QPushButton("📤 Export Active Plot");
-  connect(btnExport, &QPushButton::clicked, this, &EosExplorerWidget::onExportClicked);
-  toolsLayout->addWidget(btnExport);
-
-  m_btnThemeToggle = new QPushButton("Toggle Plot Theme");
-  connect(m_btnThemeToggle, &QPushButton::clicked, this, &EosExplorerWidget::onThemeToggleClicked);
-  toolsLayout->addWidget(m_btnThemeToggle);
-
-  m_btnScaleToggle = new QPushButton("Toggle Log/Linear");
-  connect(m_btnScaleToggle, &QPushButton::clicked, this, &EosExplorerWidget::onScaleToggleClicked);
-  toolsLayout->addWidget(m_btnScaleToggle);
-
+  toolsLayout->addWidget(btnPlotSettings);
+  toolsLayout->addStretch();
   rightLayout->addLayout(toolsLayout);
 
   splitter->addWidget(leftPanel);

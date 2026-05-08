@@ -35,6 +35,8 @@
 #include <QPdfWriter>
 #include <QPageSize>
 #include <QPageLayout>
+#include <QMenu>
+#include <QAction>
 
 #include <QtCharts/QChart>
 #include <QtCharts/QChartView>
@@ -239,11 +241,37 @@ void RunFromFileWidget::setupUi() {
   createChartPanel(rightPanel);
   rightLayout->addWidget(m_chartTabs);
 
-  // Show/Hide quantities button -> opens popup dialog
-  m_btnShowHide = new QPushButton("Hide/Show Quantities", rightPanel);
-  m_btnShowHide->setStyleSheet("QPushButton { background-color: #6c757d; color: white; border-radius: 4px; font-weight: bold; padding: 6px 12px; } "
-                               "QPushButton:hover { background-color: #5a6268; }");
-  connect(m_btnShowHide, &QPushButton::clicked, this, [this]() {
+
+  // ── Plot Settings Menu (Sleek Dark Styling) ───────────────────────────
+  QPushButton *btnPlotSettings = new QPushButton("Plot Settings", rightPanel);
+  btnPlotSettings->setStyleSheet(
+      "QPushButton { "
+      "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4e5d6c, stop:1 #2b3e50); "
+      "  color: white; "
+      "  border: 1px solid #1a252f; "
+      "  border-radius: 6px; "
+      "  font-weight: bold; "
+      "  font-size: 13px; "
+      "  padding: 8px 16px; "
+      "  margin: 4px; "
+      "} "
+      "QPushButton:hover { "
+      "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #5bc0de, stop:1 #2f96b4); "
+      "} "
+      "QPushButton:menu-indicator { image: none; } "
+  );
+  
+  QMenu *plotMenu = new QMenu(this);
+  plotMenu->setStyleSheet(
+      "QMenu { background-color: #2c3e50; color: white; border: 1px solid #1a252f; padding: 5px; } "
+      "QMenu::item { padding: 5px 25px 5px 20px; border-radius: 3px; } "
+      "QMenu::item:selected { background-color: #3498db; color: white; } "
+      "QMenu::separator { height: 1px; background: #555; margin: 5px 10px; } "
+  );
+  
+  // Section: Visibility
+  QAction *actShowHide = plotMenu->addAction("Show/Hide Quantities...");
+  connect(actShowHide, &QAction::triggered, this, [this]() {
     if (!m_visDialog) {
       m_visDialog = new QDialog(this);
       m_visDialog->setWindowTitle("Show/Hide Series Across All Sources");
@@ -296,43 +324,36 @@ void RunFromFileWidget::setupUi() {
     m_visDialog->activateWindow();
   });
 
-  QGridLayout *toolsLayout = new QGridLayout();
-  // Row 1: Actions/Visibility (added later)
+  plotMenu->addSeparator();
 
+  // Section: View Controls
+  QAction *actAxisLimits = plotMenu->addAction("Set Axis Limits...");
+  connect(actAxisLimits, &QAction::triggered, this, &RunFromFileWidget::onAxisLimitsClicked);
 
-  m_btnExportPlot = new QPushButton("📤 Export Active Plot");
-  connect(m_btnExportPlot, &QPushButton::clicked, this, &RunFromFileWidget::onExportActivePlot);
+  QAction *actAxis = plotMenu->addAction("Toggle Axes");
+  connect(actAxis, &QAction::triggered, this, &RunFromFileWidget::onAxisToggle);
 
-  m_btnExportFullData = new QPushButton("💾 Export Full Data");
-  m_btnExportFullData->setStyleSheet("QPushButton { background-color: #17a2b8; color: white; border-radius: 4px; font-weight: bold; padding: 4px; } "
-                                     "QPushButton:hover { background-color: #138496; } "
-                                     "QPushButton:disabled { background-color: #aaa; }");
-  connect(m_btnExportFullData, &QPushButton::clicked, this, &RunFromFileWidget::onExportFullData);
+  QAction *actScale = plotMenu->addAction("Toggle Log/Linear");
+  connect(actScale, &QAction::triggered, this, &RunFromFileWidget::onScaleToggle);
 
+  QAction *actTheme = plotMenu->addAction("Toggle Plot Theme");
+  connect(actTheme, &QAction::triggered, this, &RunFromFileWidget::onThemeToggle);
 
-  m_btnAxisLimits = new QPushButton("Set Axis Limits…");
-  connect(m_btnAxisLimits, &QPushButton::clicked, this, &RunFromFileWidget::onAxisLimitsClicked);
+  plotMenu->addSeparator();
 
-  m_btnAxisToggle = new QPushButton("Toggle Axes");
-  connect(m_btnAxisToggle, &QPushButton::clicked, this, &RunFromFileWidget::onAxisToggle);
+  // Section: Export
+  QAction *actExportPlot = plotMenu->addAction("Export Active Plot...");
+  connect(actExportPlot, &QAction::triggered, this, &RunFromFileWidget::onExportActivePlot);
 
-  m_btnScaleToggle = new QPushButton("Toggle Log/Linear");
-  connect(m_btnScaleToggle, &QPushButton::clicked, this, &RunFromFileWidget::onScaleToggle);
+  QAction *actExportData = plotMenu->addAction("Export Full Data...");
+  connect(actExportData, &QAction::triggered, this, &RunFromFileWidget::onExportFullData);
 
-  m_btnThemeToggle = new QPushButton("Toggle Plot Theme");
-  connect(m_btnThemeToggle, &QPushButton::clicked, this, &RunFromFileWidget::onThemeToggle);
+  btnPlotSettings->setMenu(plotMenu);
 
-  // Row 0: Plot/Axis controls
-  toolsLayout->addWidget(m_btnAxisLimits,   0, 0);
-  toolsLayout->addWidget(m_btnAxisToggle,   0, 1);
-  toolsLayout->addWidget(m_btnScaleToggle,  0, 2);
-  toolsLayout->addWidget(m_btnThemeToggle,  0, 3);
-  
-  // Row 1: Actions/Visibility
-  toolsLayout->addWidget(m_btnShowHide,       1, 0);
-  toolsLayout->addWidget(m_btnExportPlot,     1, 1);
-  toolsLayout->addWidget(m_btnExportFullData, 1, 2);
-
+  QHBoxLayout *toolsLayout = new QHBoxLayout();
+  toolsLayout->addStretch();
+  toolsLayout->addWidget(btnPlotSettings);
+  toolsLayout->addStretch();
   rightLayout->addLayout(toolsLayout);
 
   splitter->addWidget(leftPanel);
