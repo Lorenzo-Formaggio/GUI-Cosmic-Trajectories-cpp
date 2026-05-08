@@ -92,7 +92,8 @@ void SimulationWorker::run() {
               << ", le = " << le << ", lmu = " << lmu << ", ltau = " << ltau
               << std::endl;
       outfile << "T[MeV] muB[MeV] muQ[MeV] munue[MeV] munumu[MeV] mnutau[MeV] "
-                 "nB[MeV^3] nQ[MeV^3] s[MeV^3]"
+                 "nB[MeV^3] nQ[MeV^3] s[MeV^3] "
+                 "nnue[MeV^3] nnumu[MeV^3] nnutau[MeV^3]"
               << std::endl;
     }
     if (errfile.is_open()) {
@@ -228,7 +229,8 @@ void SimulationWorker::run() {
       if (outfile.is_open()) {
         outfile << T << " " << muB_sol << " " << muQ_sol << " "
                 << munue_sol << " " << munumu_sol << " " << mnutau_sol << " "
-                << nB_val << " " << nQ_val << " " << s_val << std::endl;
+                << nB_val << " " << nQ_val << " " << s_val << " "
+                << nnue_val << " " << nnumu_val << " " << nnutau_val << std::endl;
       }
       if (errfile.is_open()) {
         errfile << T << " " << err.err_b << " " << err.err_charge << " "

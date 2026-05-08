@@ -111,10 +111,12 @@ private:
   QPushButton *m_btnScaleToggle = nullptr;
   QPushButton *m_btnCriticalPoint = nullptr;
   QPushButton *m_btnSolverSettings = nullptr;
+  QPushButton *m_btnShowHide = nullptr;
   QTextEdit    *m_console           = nullptr;
 
   QDialog      *m_cpDialog              = nullptr;
   QDialog      *m_solverSettingsDialog  = nullptr;
+  QDialog      *m_visDialog             = nullptr;
 
   // Solver settings state (shared across all slots)
   double m_tolerance   = 1e-6;

@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 #include "CompareWidget.h"
 #include "EosExplorerWidget.h"
+#include "RunFromFileWidget.h"
 
 #include <QApplication>
 #include <QDoubleSpinBox>
@@ -88,81 +89,121 @@ void MainWindow::setupUi() {
   createChartPanel(rightPanel);
   rightLayout->addWidget(m_chartTabs);
 
-  // ── Series visibility bar ────────────────────────────────────────────
-  QGroupBox *visBox = new QGroupBox("Show/Hide Series", rightPanel);
-  QHBoxLayout *visLayout = new QHBoxLayout(visBox);
-  visLayout->setSpacing(12);
+  // ── Series visibility button → opens popup dialog ────────────────────
+  m_btnShowHide = new QPushButton("Hide/Show Quantities", rightPanel);
+  m_btnShowHide->setStyleSheet("QPushButton { background-color: #6c757d; color: white; border-radius: 4px; font-weight: bold; padding: 6px 12px; } "
+                               "QPushButton:hover { background-color: #5a6268; }");
+  connect(m_btnShowHide, &QPushButton::clicked, this, [this]() {
+    if (!m_visDialog) {
+      m_visDialog = new QDialog(this);
+      m_visDialog->setWindowTitle("Show/Hide Series");
+      m_visDialog->setMinimumWidth(380);
+      QVBoxLayout *dlgLayout = new QVBoxLayout(m_visDialog);
 
-  auto makeChk = [&](const QString &label, bool checked) -> QCheckBox* {
-    QCheckBox *chk = new QCheckBox(label);
-    chk->setChecked(checked);
-    visLayout->addWidget(chk);
-    return chk;
-  };
+      auto makeChk = [](const QString &label, bool checked) -> QCheckBox* {
+        QCheckBox *chk = new QCheckBox(label);
+        chk->setChecked(checked);
+        return chk;
+      };
 
-  visLayout->addWidget(new QLabel("Densities:"));
-  m_chknB   = makeChk("nB",      true);
-  m_chkS    = makeChk("s",       true);
-  m_chknQ   = makeChk("|nQ_QCD|", true);
-  visLayout->addSpacing(16);
-  visLayout->addWidget(new QLabel("Chem. Pot.:"));
-  m_chkMuB  = makeChk("|μB|",    true);
-  m_chkMuQ  = makeChk("|μQ|",    true);
-  visLayout->addSpacing(16);
-  visLayout->addWidget(new QLabel("Lepton:"));
-  m_chkMunue  = makeChk("|μνe|",  true);
-  m_chkMunumu = makeChk("|μνμ|",  true);
-  m_chkMnutau = makeChk("|μντ|",  true);
-  visLayout->addSpacing(16);
-  visLayout->addWidget(new QLabel("Errors:"));
-  m_chkErrB    = makeChk("err_b", true);
-  m_chkErrQ    = makeChk("err_q", true);
-  m_chkErrLe   = makeChk("err_le", true);
-  m_chkErrLmu  = makeChk("err_lmu", true);
-  m_chkErrLtau = makeChk("err_ltau", true);
-  visLayout->addStretch();
+      // ── Densities group ────────────────────────────────────
+      QGroupBox *grpDens = new QGroupBox("Densities");
+      QHBoxLayout *layDens = new QHBoxLayout(grpDens);
+      m_chknB      = makeChk("nB",       true); layDens->addWidget(m_chknB);
+      m_chkS       = makeChk("s",        true); layDens->addWidget(m_chkS);
+      m_chknQ      = makeChk("|nQ_QCD|", true); layDens->addWidget(m_chknQ);
+      dlgLayout->addWidget(grpDens);
 
-  // Wire checkboxes to series visibility
-  connect(m_chknB,    &QCheckBox::toggled, [this](bool v){ m_seriesnB->setVisible(v);    });
-  connect(m_chkS,     &QCheckBox::toggled, [this](bool v){ m_seriesS->setVisible(v);     });
-  connect(m_chknQ,    &QCheckBox::toggled, [this](bool v){ m_seriesnQ->setVisible(v);    });
-  connect(m_chkMuB,   &QCheckBox::toggled, [this](bool v){ m_seriesMuB->setVisible(v);   });
-  connect(m_chkMuQ,   &QCheckBox::toggled, [this](bool v){ m_seriesMuQ->setVisible(v);   });
-  connect(m_chkMunue, &QCheckBox::toggled, [this](bool v){ m_seriesMunue->setVisible(v); });
-  connect(m_chkMunumu,&QCheckBox::toggled, [this](bool v){ m_seriesMunumu->setVisible(v);});
-  connect(m_chkMnutau,&QCheckBox::toggled, [this](bool v){ m_seriesMnutau->setVisible(v);});
-  connect(m_chkErrB,   &QCheckBox::toggled, [this](bool v){ m_seriesErrB->setVisible(v);   });
-  connect(m_chkErrQ,   &QCheckBox::toggled, [this](bool v){ m_seriesErrQ->setVisible(v);   });
-  connect(m_chkErrLe,  &QCheckBox::toggled, [this](bool v){ m_seriesErrLe->setVisible(v);  });
-  connect(m_chkErrLmu, &QCheckBox::toggled, [this](bool v){ m_seriesErrLmu->setVisible(v); });
-  connect(m_chkErrLtau,&QCheckBox::toggled, [this](bool v){ m_seriesErrLtau->setVisible(v);});
+      // ── Lepton Densities group ────────────────────────────
+      QGroupBox *grpLepDens = new QGroupBox("Lepton Densities");
+      QHBoxLayout *layLepDens = new QHBoxLayout(grpLepDens);
+      m_chkNe      = makeChk("ne",       true); layLepDens->addWidget(m_chkNe);
+      m_chkNmu     = makeChk("nμ",       true); layLepDens->addWidget(m_chkNmu);
+      m_chkNtau    = makeChk("nτ",       true); layLepDens->addWidget(m_chkNtau);
+      m_chkNnue    = makeChk("nνe",      true); layLepDens->addWidget(m_chkNnue);
+      m_chkNnumu   = makeChk("nνμ",      true); layLepDens->addWidget(m_chkNnumu);
+      m_chkNnutau  = makeChk("nντ",      true); layLepDens->addWidget(m_chkNnutau);
+      dlgLayout->addWidget(grpLepDens);
 
-  rightLayout->addWidget(visBox);
+      // ── Chemical Potentials group ──────────────────────────
+      QGroupBox *grpMu = new QGroupBox("Chemical Potentials");
+      QHBoxLayout *layMu = new QHBoxLayout(grpMu);
+      m_chkMuB     = makeChk("|μB|",     true); layMu->addWidget(m_chkMuB);
+      m_chkMuQ     = makeChk("|μQ|",     true); layMu->addWidget(m_chkMuQ);
+      dlgLayout->addWidget(grpMu);
 
-  QHBoxLayout *bottomRightLayout = new QHBoxLayout();
-  bottomRightLayout->addStretch();
-  
+      // ── Lepton Chem. Pot. group ────────────────────────────
+      QGroupBox *grpLep = new QGroupBox("Lepton Chemical Potentials");
+      QHBoxLayout *layLep = new QHBoxLayout(grpLep);
+      m_chkMunue   = makeChk("|μνe|",    true); layLep->addWidget(m_chkMunue);
+      m_chkMunumu  = makeChk("|μνμ|",    true); layLep->addWidget(m_chkMunumu);
+      m_chkMnutau  = makeChk("|μντ|",    true); layLep->addWidget(m_chkMnutau);
+      dlgLayout->addWidget(grpLep);
+
+      // ── Errors group ───────────────────────────────────────
+      QGroupBox *grpErr = new QGroupBox("Residual Errors");
+      QHBoxLayout *layErr = new QHBoxLayout(grpErr);
+      m_chkErrB    = makeChk("err_b",    true); layErr->addWidget(m_chkErrB);
+      m_chkErrQ    = makeChk("err_q",    true); layErr->addWidget(m_chkErrQ);
+      m_chkErrLe   = makeChk("err_le",   true); layErr->addWidget(m_chkErrLe);
+      m_chkErrLmu  = makeChk("err_lmu",  true); layErr->addWidget(m_chkErrLmu);
+      m_chkErrLtau = makeChk("err_ltau", true); layErr->addWidget(m_chkErrLtau);
+      dlgLayout->addWidget(grpErr);
+
+      // Wire checkboxes to series visibility
+      connect(m_chknB,    &QCheckBox::toggled, [this](bool v){ m_seriesnB->setVisible(v);    });
+      connect(m_chkS,     &QCheckBox::toggled, [this](bool v){ m_seriesS->setVisible(v);     });
+      connect(m_chknQ,    &QCheckBox::toggled, [this](bool v){ m_seriesnQ->setVisible(v);    });
+      connect(m_chkNe,    &QCheckBox::toggled, [this](bool v){ m_seriesNe->setVisible(v);    });
+      connect(m_chkNmu,   &QCheckBox::toggled, [this](bool v){ m_seriesNmu->setVisible(v);   });
+      connect(m_chkNtau,  &QCheckBox::toggled, [this](bool v){ m_seriesNtau->setVisible(v);  });
+      connect(m_chkNnue,  &QCheckBox::toggled, [this](bool v){ m_seriesNnue->setVisible(v);  });
+      connect(m_chkNnumu, &QCheckBox::toggled, [this](bool v){ m_seriesNnumu->setVisible(v); });
+      connect(m_chkNnutau,&QCheckBox::toggled, [this](bool v){ m_seriesNnutau->setVisible(v);});
+      connect(m_chkMuB,   &QCheckBox::toggled, [this](bool v){ m_seriesMuB->setVisible(v);   });
+      connect(m_chkMuQ,   &QCheckBox::toggled, [this](bool v){ m_seriesMuQ->setVisible(v);   });
+      connect(m_chkMunue, &QCheckBox::toggled, [this](bool v){ m_seriesMunue->setVisible(v); });
+      connect(m_chkMunumu,&QCheckBox::toggled, [this](bool v){ m_seriesMunumu->setVisible(v);});
+      connect(m_chkMnutau,&QCheckBox::toggled, [this](bool v){ m_seriesMnutau->setVisible(v);});
+      connect(m_chkErrB,   &QCheckBox::toggled, [this](bool v){ m_seriesErrB->setVisible(v);   });
+      connect(m_chkErrQ,   &QCheckBox::toggled, [this](bool v){ m_seriesErrQ->setVisible(v);   });
+      connect(m_chkErrLe,  &QCheckBox::toggled, [this](bool v){ m_seriesErrLe->setVisible(v);  });
+      connect(m_chkErrLmu, &QCheckBox::toggled, [this](bool v){ m_seriesErrLmu->setVisible(v); });
+      connect(m_chkErrLtau,&QCheckBox::toggled, [this](bool v){ m_seriesErrLtau->setVisible(v);});
+    }
+    m_visDialog->show();
+    m_visDialog->raise();
+    m_visDialog->activateWindow();
+  });
+
   QPushButton *btnExport = new QPushButton("📤 Export Active Plot", rightPanel);
   connect(btnExport, &QPushButton::clicked, this, &MainWindow::onExportClicked);
-  bottomRightLayout->addWidget(btnExport);
 
   QPushButton *btnAxisToggle = new QPushButton("Toggle Axes", rightPanel);
   connect(btnAxisToggle, &QPushButton::clicked, this, &MainWindow::onAxisToggleClicked);
-  bottomRightLayout->addWidget(btnAxisToggle);
 
   m_btnThemeToggle = new QPushButton("Toggle Plot Theme", rightPanel);
   connect(m_btnThemeToggle, &QPushButton::clicked, this, &MainWindow::onThemeToggleClicked);
-  bottomRightLayout->addWidget(m_btnThemeToggle);
 
   m_btnScaleToggle = new QPushButton("Toggle Log/Linear", rightPanel);
   connect(m_btnScaleToggle, &QPushButton::clicked, this, &MainWindow::onScaleToggleClicked);
-  bottomRightLayout->addWidget(m_btnScaleToggle);
   
   m_btnCriticalPoint = new QPushButton("📍 Configure Critical Point...", rightPanel);
   m_btnCriticalPoint->setStyleSheet("QPushButton { background-color: #6f42c1; color: white; border-radius: 4px; font-weight: bold; padding: 4px; margin: 2px 4px 2px 4px; } "
                                      "QPushButton:hover { background-color: #5a32a3; }");
   connect(m_btnCriticalPoint, &QPushButton::clicked, this, &MainWindow::onCriticalPointButtonClicked);
-  bottomRightLayout->addWidget(m_btnCriticalPoint);
+
+  QGridLayout *bottomRightLayout = new QGridLayout();
+  
+  // Row 0: Plot-specific toggles
+  bottomRightLayout->addWidget(btnAxisToggle,      0, 0);
+  bottomRightLayout->addWidget(m_btnScaleToggle,   0, 1);
+  bottomRightLayout->addWidget(m_btnThemeToggle,   0, 2);
+  
+  // Row 1: Actions and Config
+  bottomRightLayout->addWidget(m_btnShowHide,      1, 0);
+  bottomRightLayout->addWidget(btnExport,          1, 1);
+  bottomRightLayout->addWidget(m_btnCriticalPoint, 1, 2);
   
   rightLayout->addLayout(bottomRightLayout);
 
@@ -182,6 +223,9 @@ void MainWindow::setupUi() {
 
   // ─── Tab 3: EoS Explorer ──────────────────────────────────────────
   topTabs->addTab(new EosExplorerWidget(wdir.absolutePath()), "EoS Explorer");
+
+  // ─── Tab 4: Run From File ─────────────────────────────────────────
+  topTabs->addTab(new RunFromFileWidget(wdir.absolutePath()), "Run From File");
 }
 
 void MainWindow::setupStyle() {
@@ -349,7 +393,7 @@ void MainWindow::createChartPanel(QWidget *parent) {
     m_chartTabs->addTab(view, title);
   };
 
-  QChart *c1, *c2, *c3, *c4;
+  QChart *c1, *c2, *c3, *c4, *c5;
   
   // Densities tab
   setupChart(m_densityChartView, c1, m_densAxisX, m_densAxisY, "Densities vs Temperature", "Densities [MeV^3]");
@@ -359,6 +403,21 @@ void MainWindow::createChartPanel(QWidget *parent) {
   c1->addSeries(m_seriesnB); m_seriesnB->attachAxis(m_densAxisX); m_seriesnB->attachAxis(m_densAxisY);
   c1->addSeries(m_seriesS);  m_seriesS->attachAxis(m_densAxisX);  m_seriesS->attachAxis(m_densAxisY);
   c1->addSeries(m_seriesnQ); m_seriesnQ->attachAxis(m_densAxisX); m_seriesnQ->attachAxis(m_densAxisY);
+
+  // Lepton Densities tab
+  setupChart(m_leptonDensChartView, c5, m_lepDensAxisX, m_lepDensAxisY, "Lepton Densities", "Densities [MeV^3]");
+  m_seriesNe = new QLineSeries(); m_seriesNe->setName("ne"); m_seriesNe->setColor(QColor(0, 0, 128)); // Navy
+  m_seriesNmu = new QLineSeries(); m_seriesNmu->setName("nμ"); m_seriesNmu->setColor(QColor(139, 0, 0)); // Dark red
+  m_seriesNtau = new QLineSeries(); m_seriesNtau->setName("nτ"); m_seriesNtau->setColor(QColor(85, 107, 47)); // Dark olive green
+  m_seriesNnue   = new QLineSeries(); m_seriesNnue->setName("nνe");   m_seriesNnue->setColor(QColor(0, 128, 128));   // Teal
+  m_seriesNnumu  = new QLineSeries(); m_seriesNnumu->setName("nνμ");  m_seriesNnumu->setColor(QColor(153, 50, 204)); // Dark orchid
+  m_seriesNnutau = new QLineSeries(); m_seriesNnutau->setName("nντ"); m_seriesNnutau->setColor(QColor(255, 140, 0)); // Dark orange
+  c5->addSeries(m_seriesNe);     m_seriesNe->attachAxis(m_lepDensAxisX);     m_seriesNe->attachAxis(m_lepDensAxisY);
+  c5->addSeries(m_seriesNmu);    m_seriesNmu->attachAxis(m_lepDensAxisX);    m_seriesNmu->attachAxis(m_lepDensAxisY);
+  c5->addSeries(m_seriesNtau);   m_seriesNtau->attachAxis(m_lepDensAxisX);   m_seriesNtau->attachAxis(m_lepDensAxisY);
+  c5->addSeries(m_seriesNnue);   m_seriesNnue->attachAxis(m_lepDensAxisX);   m_seriesNnue->attachAxis(m_lepDensAxisY);
+  c5->addSeries(m_seriesNnumu);  m_seriesNnumu->attachAxis(m_lepDensAxisX);  m_seriesNnumu->attachAxis(m_lepDensAxisY);
+  c5->addSeries(m_seriesNnutau); m_seriesNnutau->attachAxis(m_lepDensAxisX); m_seriesNnutau->attachAxis(m_lepDensAxisY);
 
   // Chem pots tab
   setupChart(m_muChartView, c2, m_muAxisX, m_muAxisY, "Baryon & Electric Chem Pot", "Chem Pot [MeV] (abs)");
@@ -416,6 +475,13 @@ void MainWindow::clearCharts(bool keepData) {
   m_seriesnB->clear();
   m_seriesS->clear();
   m_seriesnQ->clear();
+  
+  m_seriesNe->clear();
+  m_seriesNmu->clear();
+  m_seriesNtau->clear();
+  m_seriesNnue->clear();
+  m_seriesNnumu->clear();
+  m_seriesNnutau->clear();
   
   m_seriesMuB->clear();
   m_seriesMuQ->clear();
@@ -529,6 +595,13 @@ void MainWindow::onStepCompleted(TrajectoryPoint pt) {
     m_seriesnB->append(val(pt.nB), pt.T);
     m_seriesS->append(val(pt.s), pt.T);
     m_seriesnQ->append(val(pt.nQ), pt.T);
+    
+    m_seriesNe->append(val(pt.ne), pt.T);
+    m_seriesNmu->append(val(pt.nmu), pt.T);
+    m_seriesNtau->append(val(pt.ntau), pt.T);
+    m_seriesNnue->append(val(pt.nnue), pt.T);
+    m_seriesNnumu->append(val(pt.nnumu), pt.T);
+    m_seriesNnutau->append(val(pt.nnutau), pt.T);
 
     m_seriesMuB->append(val(pt.muB), pt.T);
     m_seriesMuQ->append(val(pt.muQ), pt.T);
@@ -547,6 +620,13 @@ void MainWindow::onStepCompleted(TrajectoryPoint pt) {
     m_seriesnB->append(pt.T, val(pt.nB));
     m_seriesS->append(pt.T, val(pt.s));
     m_seriesnQ->append(pt.T, val(pt.nQ));
+    
+    m_seriesNe->append(pt.T, val(pt.ne));
+    m_seriesNmu->append(pt.T, val(pt.nmu));
+    m_seriesNtau->append(pt.T, val(pt.ntau));
+    m_seriesNnue->append(pt.T, val(pt.nnue));
+    m_seriesNnumu->append(pt.T, val(pt.nnumu));
+    m_seriesNnutau->append(pt.T, val(pt.nnutau));
 
     m_seriesMuB->append(pt.T, val(pt.muB));
     m_seriesMuQ->append(pt.T, val(pt.muQ));
@@ -573,6 +653,7 @@ void MainWindow::updateChartAxes() {
   double maxT = m_trajectoryData.first().T;
   
   double minDens = 1e99, maxDens = -1e99;
+  double minLepDens = 1e99, maxLepDens = -1e99;
   double minMu = 1e99, maxMu = -1e99;
   double minLep = 1e99, maxLep = -1e99;
   double minErr = 1e99, maxErr = -1e99;
@@ -588,6 +669,9 @@ void MainWindow::updateChartAxes() {
 
     minDens = std::min({minDens, val(p.nB), val(p.s), val(p.nQ)});
     maxDens = std::max({maxDens, val(p.nB), val(p.s), val(p.nQ)});
+
+    minLepDens = std::min({minLepDens, val(p.ne), val(p.nmu), val(p.ntau), val(p.nnue), val(p.nnumu), val(p.nnutau)});
+    maxLepDens = std::max({maxLepDens, val(p.ne), val(p.nmu), val(p.ntau), val(p.nnue), val(p.nnumu), val(p.nnutau)});
 
     minMu = std::min({minMu, val(p.muB), val(p.muQ)});
     maxMu = std::max({maxMu, val(p.muB), val(p.muQ)});
@@ -616,10 +700,12 @@ void MainWindow::updateChartAxes() {
 
   if (m_tempIsVertical) {
     setRange(m_densAxisY, minT, maxT, false);
+    setRange(m_lepDensAxisY, minT, maxT, false);
     setRange(m_muAxisY,   minT, maxT, false);
     setRange(m_lepAxisY,  minT, maxT, false);
 
     setRange(m_densAxisX, minDens, maxDens, true);
+    setRange(m_lepDensAxisX, minLepDens, maxLepDens, true);
     setRange(m_muAxisX,   minMu,   maxMu,   true);
     setRange(m_lepAxisX,  minLep,  maxLep,  true);
 
@@ -627,10 +713,12 @@ void MainWindow::updateChartAxes() {
     setRange(m_errAxisY, minErr, maxErr, true);
   } else {
     setRange(m_densAxisX, minT, maxT, false);
+    setRange(m_lepDensAxisX, minT, maxT, false);
     setRange(m_muAxisX,   minT, maxT, false);
     setRange(m_lepAxisX,  minT, maxT, false);
 
     setRange(m_densAxisY, minDens, maxDens, true);
+    setRange(m_lepDensAxisY, minLepDens, maxLepDens, true);
     setRange(m_muAxisY,   minMu,   maxMu,   true);
     setRange(m_lepAxisY,  minLep,  maxLep,  true);
 
@@ -674,6 +762,7 @@ void MainWindow::onThemeToggleClicked() {
   QChart::ChartTheme newTheme = (currentTheme == QChart::ChartThemeLight) ? QChart::ChartThemeDark : QChart::ChartThemeLight;
   
   m_densityChartView->chart()->setTheme(newTheme);
+  m_leptonDensChartView->chart()->setTheme(newTheme);
   m_muChartView->chart()->setTheme(newTheme);
   m_leptonChartView->chart()->setTheme(newTheme);
   m_errorChartView->chart()->setTheme(newTheme);
@@ -682,6 +771,13 @@ void MainWindow::onThemeToggleClicked() {
   m_seriesnB->setColor(Qt::blue);
   m_seriesS->setColor(Qt::green);
   m_seriesnQ->setColor(QColor(255, 165, 0)); // Orange
+  
+  m_seriesNe->setColor(QColor(0, 0, 128)); // Navy
+  m_seriesNmu->setColor(QColor(139, 0, 0)); // Dark red
+  m_seriesNtau->setColor(QColor(85, 107, 47)); // Dark olive green
+  m_seriesNnue->setColor(QColor(0, 128, 128));   // Teal
+  m_seriesNnumu->setColor(QColor(153, 50, 204)); // Dark orchid
+  m_seriesNnutau->setColor(QColor(255, 140, 0)); // Dark orange
 
   m_seriesMuB->setColor(Qt::red);
   m_seriesMuQ->setColor(QColor(128, 0, 128)); // Purple
@@ -710,6 +806,7 @@ void MainWindow::replotData() {
   };
   
   updateTitles(m_densAxisX, m_densAxisY, "Densities [MeV^3]");
+  updateTitles(m_lepDensAxisX, m_lepDensAxisY, "Densities [MeV^3]");
   updateTitles(m_muAxisX, m_muAxisY, "Chem Pot [MeV] (abs)");
   updateTitles(m_lepAxisX, m_lepAxisY, "Chem Pot [MeV] (abs)");
   // Error plot flips opposite to others
@@ -729,6 +826,12 @@ void MainWindow::replotData() {
       m_seriesnB->append(val(pt.nB), pt.T);
       m_seriesS->append(val(pt.s), pt.T);
       m_seriesnQ->append(val(pt.nQ), pt.T);
+      m_seriesNe->append(val(pt.ne), pt.T);
+      m_seriesNmu->append(val(pt.nmu), pt.T);
+      m_seriesNtau->append(val(pt.ntau), pt.T);
+      m_seriesNnue->append(val(pt.nnue), pt.T);
+      m_seriesNnumu->append(val(pt.nnumu), pt.T);
+      m_seriesNnutau->append(val(pt.nnutau), pt.T);
       m_seriesMuB->append(val(pt.muB), pt.T);
       m_seriesMuQ->append(val(pt.muQ), pt.T);
       m_seriesMunue->append(val(pt.munue), pt.T);
@@ -744,6 +847,12 @@ void MainWindow::replotData() {
       m_seriesnB->append(pt.T, val(pt.nB));
       m_seriesS->append(pt.T, val(pt.s));
       m_seriesnQ->append(pt.T, val(pt.nQ));
+      m_seriesNe->append(pt.T, val(pt.ne));
+      m_seriesNmu->append(pt.T, val(pt.nmu));
+      m_seriesNtau->append(pt.T, val(pt.ntau));
+      m_seriesNnue->append(pt.T, val(pt.nnue));
+      m_seriesNnumu->append(pt.T, val(pt.nnumu));
+      m_seriesNnutau->append(pt.T, val(pt.nnutau));
       m_seriesMuB->append(pt.T, val(pt.muB));
       m_seriesMuQ->append(pt.T, val(pt.muQ));
       m_seriesMunue->append(pt.T, val(pt.munue));
@@ -818,6 +927,9 @@ void MainWindow::onScaleToggleClicked() {
     m_seriesnB->attachAxis(m_densAxisX); m_seriesnB->attachAxis(m_densAxisY);
     m_seriesS->attachAxis(m_densAxisX);  m_seriesS->attachAxis(m_densAxisY);
     m_seriesnQ->attachAxis(m_densAxisX); m_seriesnQ->attachAxis(m_densAxisY);
+    m_seriesNnue->attachAxis(m_densAxisX);   m_seriesNnue->attachAxis(m_densAxisY);
+    m_seriesNnumu->attachAxis(m_densAxisX);  m_seriesNnumu->attachAxis(m_densAxisY);
+    m_seriesNnutau->attachAxis(m_densAxisX); m_seriesNnutau->attachAxis(m_densAxisY);
 
     m_seriesMuB->attachAxis(m_muAxisX);  m_seriesMuB->attachAxis(m_muAxisY);
     m_seriesMuQ->attachAxis(m_muAxisX);  m_seriesMuQ->attachAxis(m_muAxisY);
@@ -908,8 +1020,8 @@ void MainWindow::onExportClicked() {
     
     QTextStream out(&file);
     if (currentTab == 0) {
-      out << "T\tnB\ts\t|nQ_QCD|\n";
-      for (const auto &pt : m_trajectoryData) out << pt.T << "\t" << pt.nB << "\t" << pt.s << "\t" << pt.nQ << "\n";
+      out << "T\tnB\ts\t|nQ_QCD|\tnnue\tnnumu\tnnutau\n";
+      for (const auto &pt : m_trajectoryData) out << pt.T << "\t" << pt.nB << "\t" << pt.s << "\t" << pt.nQ << "\t" << pt.nnue << "\t" << pt.nnumu << "\t" << pt.nnutau << "\n";
     } else if (currentTab == 1) {
       out << "T\t|muB|\t|muQ|\n";
       for (const auto &pt : m_trajectoryData) out << pt.T << "\t" << pt.muB << "\t" << pt.muQ << "\n";

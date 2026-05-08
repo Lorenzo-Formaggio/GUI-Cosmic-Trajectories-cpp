@@ -99,8 +99,10 @@ private:
   QPushButton    *m_btnStop;
   QPushButton    *m_btnCriticalPoint;
   QPushButton    *m_btnSolverSettings;
+  QPushButton    *m_btnShowHide = nullptr;
   QDialog        *m_cpDialog = nullptr;
   QDialog        *m_solverSettingsDialog = nullptr;
+  QDialog        *m_visDialog = nullptr;
   QProgressBar *m_progressBar;
   QTextEdit    *m_console;
   QLabel       *m_statusLabel;
@@ -113,6 +115,12 @@ private:
   QCheckBox *m_chknB;
   QCheckBox *m_chkS;
   QCheckBox *m_chknQ;
+  QCheckBox *m_chkNnue;
+  QCheckBox *m_chkNnumu;
+  QCheckBox *m_chkNnutau;
+  QCheckBox *m_chkNe;
+  QCheckBox *m_chkNmu;
+  QCheckBox *m_chkNtau;
   QCheckBox *m_chkMuB;
   QCheckBox *m_chkMuQ;
   QCheckBox *m_chkMunue;
@@ -128,6 +136,15 @@ private:
   QLineSeries *m_seriesnB;
   QLineSeries *m_seriesS;
   QLineSeries *m_seriesnQ;
+  QLineSeries *m_seriesNnue;
+  QLineSeries *m_seriesNnumu;
+  QLineSeries *m_seriesNnutau;
+
+  // Tab 4: Lepton Densities
+  TooltipChartView *m_leptonDensChartView;
+  QLineSeries *m_seriesNe;
+  QLineSeries *m_seriesNmu;
+  QLineSeries *m_seriesNtau;
 
   // Tab 2: Baryon & Charge μ
   TooltipChartView *m_muChartView;
@@ -150,6 +167,7 @@ private:
   QAbstractAxis *m_densAxisX, *m_densAxisY;
   QAbstractAxis *m_muAxisX,   *m_muAxisY;
   QAbstractAxis *m_lepAxisX,  *m_lepAxisY;
+  QAbstractAxis *m_lepDensAxisX, *m_lepDensAxisY;
   QAbstractAxis *m_errAxisX,  *m_errAxisY;
 
   // Linear/Log state

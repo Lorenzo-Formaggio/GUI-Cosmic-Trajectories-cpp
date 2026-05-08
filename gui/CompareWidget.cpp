@@ -119,70 +119,95 @@ void CompareWidget::setupUi() {
   createChartPanel(chartsWidget);
   chartsLayout->addWidget(m_chartTabs);
   
-  QHBoxLayout *bottomRightLayout = new QHBoxLayout();
-  bottomRightLayout->addStretch();
+  QGridLayout *bottomRightLayout = new QGridLayout();
 
   QPushButton *btnExport = new QPushButton("📤 Export Active Plot", chartsWidget);
   connect(btnExport, &QPushButton::clicked, this, &CompareWidget::onExportClicked);
-  bottomRightLayout->addWidget(btnExport);
 
   m_btnAxisToggle = new QPushButton("Toggle Axes", chartsWidget);
   connect(m_btnAxisToggle, &QPushButton::clicked, this, [this]{ onAxisToggleClicked(); });
-  bottomRightLayout->addWidget(m_btnAxisToggle);
 
   m_btnThemeToggle = new QPushButton("Toggle Plot Theme", chartsWidget);
   connect(m_btnThemeToggle, &QPushButton::clicked, this, [this]{ onThemeToggleClicked(); });
-  bottomRightLayout->addWidget(m_btnThemeToggle);
 
   m_btnScaleToggle = new QPushButton("Toggle Log/Linear", chartsWidget);
   connect(m_btnScaleToggle, &QPushButton::clicked, this, [this]{ onScaleToggleClicked(); });
-  bottomRightLayout->addWidget(m_btnScaleToggle);
 
   m_btnCriticalPoint = new QPushButton("📍 Configure Critical Point...", chartsWidget);
   m_btnCriticalPoint->setStyleSheet("QPushButton { background-color: #6f42c1; color: white; border-radius: 4px; font-weight: bold; padding: 4px; margin: 2px 4px 2px 4px; } "
                                      "QPushButton:hover { background-color: #5a32a3; }");
   connect(m_btnCriticalPoint, &QPushButton::clicked, this, &CompareWidget::onCriticalPointButtonClicked);
-  bottomRightLayout->addWidget(m_btnCriticalPoint);
+
+  // Row 0: Plot-specific toggles
+  bottomRightLayout->addWidget(m_btnAxisToggle,    0, 0);
+  bottomRightLayout->addWidget(m_btnScaleToggle,   0, 1);
+  bottomRightLayout->addWidget(m_btnThemeToggle,   0, 2);
+  
+  // Row 1: Actions and Config
+  // m_btnShowHide is inserted later at line 205, but we can move it here if we want.
+  // Actually, line 205 inserts it into bottomRightLayout.
+  bottomRightLayout->addWidget(btnExport,          1, 1);
+  bottomRightLayout->addWidget(m_btnCriticalPoint, 1, 2);
 
   chartsLayout->addLayout(bottomRightLayout);
 
-  // ── Series visibility bar ────────────────────────────────────────────
-  QGroupBox *visBox = new QGroupBox("Show/Hide Quantities Across All Slots", chartsWidget);
-  QHBoxLayout *visLayout = new QHBoxLayout(visBox);
-  visLayout->setSpacing(12);
+  // ── Series visibility button → opens popup dialog ────────────────────
+  m_btnShowHide = new QPushButton("Hide/Show Quantities", chartsWidget);
+  m_btnShowHide->setStyleSheet("QPushButton { background-color: #6c757d; color: white; border-radius: 4px; font-weight: bold; padding: 4px; margin: 2px 4px 2px 4px; } "
+                               "QPushButton:hover { background-color: #5a6268; }");
+  connect(m_btnShowHide, &QPushButton::clicked, this, [this]() {
+    if (!m_visDialog) {
+      m_visDialog = new QDialog(this);
+      m_visDialog->setWindowTitle("Show/Hide Quantities Across All Slots");
+      m_visDialog->setMinimumWidth(380);
+      QVBoxLayout *dlgLayout = new QVBoxLayout(m_visDialog);
 
-  auto makeChk = [&](const QString &label, bool checked) -> QCheckBox* {
-    QCheckBox *chk = new QCheckBox(label);
-    chk->setChecked(checked);
-    visLayout->addWidget(chk);
-    return chk;
-  };
+      auto makeChk = [](const QString &label, bool checked) -> QCheckBox* {
+        QCheckBox *chk = new QCheckBox(label);
+        chk->setChecked(checked);
+        return chk;
+      };
 
-  visLayout->addWidget(new QLabel("Densities:"));
-  m_chknB   = makeChk("nB",      true);
-  m_chkS    = makeChk("s",       true);
-  m_chknQ   = makeChk("|nQ_QCD|", true);
-  visLayout->addSpacing(16);
-  visLayout->addWidget(new QLabel("Chem. Pot.:"));
-  m_chkMuB  = makeChk("|μB|",    true);
-  m_chkMuQ  = makeChk("|μQ|",    true);
-  visLayout->addSpacing(16);
-  visLayout->addWidget(new QLabel("Lepton:"));
-  m_chkMunue  = makeChk("|μνe|",  true);
-  m_chkMunumu = makeChk("|μνμ|",  true);
-  m_chkMnutau = makeChk("|μντ|",  true);
-  visLayout->addStretch();
+      // ── Densities group ────────────────────────────────────
+      QGroupBox *grpDens = new QGroupBox("Densities");
+      QHBoxLayout *layDens = new QHBoxLayout(grpDens);
+      m_chknB      = makeChk("nB",       true); layDens->addWidget(m_chknB);
+      m_chkS       = makeChk("s",        true); layDens->addWidget(m_chkS);
+      m_chknQ      = makeChk("|nQ_QCD|", true); layDens->addWidget(m_chknQ);
+      dlgLayout->addWidget(grpDens);
 
-  connect(m_chknB,    &QCheckBox::toggled, [this]{ for(int i=0;i<NUM_SLOTS;i++) updateSlotSeriesVisibility(i); });
-  connect(m_chkS,     &QCheckBox::toggled, [this]{ for(int i=0;i<NUM_SLOTS;i++) updateSlotSeriesVisibility(i); });
-  connect(m_chknQ,    &QCheckBox::toggled, [this]{ for(int i=0;i<NUM_SLOTS;i++) updateSlotSeriesVisibility(i); });
-  connect(m_chkMuB,   &QCheckBox::toggled, [this]{ for(int i=0;i<NUM_SLOTS;i++) updateSlotSeriesVisibility(i); });
-  connect(m_chkMuQ,   &QCheckBox::toggled, [this]{ for(int i=0;i<NUM_SLOTS;i++) updateSlotSeriesVisibility(i); });
-  connect(m_chkMunue, &QCheckBox::toggled, [this]{ for(int i=0;i<NUM_SLOTS;i++) updateSlotSeriesVisibility(i); });
-  connect(m_chkMunumu,&QCheckBox::toggled, [this]{ for(int i=0;i<NUM_SLOTS;i++) updateSlotSeriesVisibility(i); });
-  connect(m_chkMnutau,&QCheckBox::toggled, [this]{ for(int i=0;i<NUM_SLOTS;i++) updateSlotSeriesVisibility(i); });
+      // ── Chemical Potentials group ──────────────────────────
+      QGroupBox *grpMu = new QGroupBox("Chemical Potentials");
+      QHBoxLayout *layMu = new QHBoxLayout(grpMu);
+      m_chkMuB     = makeChk("|μB|",     true); layMu->addWidget(m_chkMuB);
+      m_chkMuQ     = makeChk("|μQ|",     true); layMu->addWidget(m_chkMuQ);
+      dlgLayout->addWidget(grpMu);
 
-  chartsLayout->addWidget(visBox);
+      // ── Lepton Chem. Pot. group ────────────────────────────
+      QGroupBox *grpLep = new QGroupBox("Lepton Chemical Potentials");
+      QHBoxLayout *layLep = new QHBoxLayout(grpLep);
+      m_chkMunue   = makeChk("|μνe|",    true); layLep->addWidget(m_chkMunue);
+      m_chkMunumu  = makeChk("|μνμ|",    true); layLep->addWidget(m_chkMunumu);
+      m_chkMnutau  = makeChk("|μντ|",    true); layLep->addWidget(m_chkMnutau);
+      dlgLayout->addWidget(grpLep);
+
+      // Wire checkboxes to series visibility updates
+      auto updateAll = [this]{ for(int i=0;i<NUM_SLOTS;i++) updateSlotSeriesVisibility(i); };
+      connect(m_chknB,    &QCheckBox::toggled, updateAll);
+      connect(m_chkS,     &QCheckBox::toggled, updateAll);
+      connect(m_chknQ,    &QCheckBox::toggled, updateAll);
+      connect(m_chkMuB,   &QCheckBox::toggled, updateAll);
+      connect(m_chkMuQ,   &QCheckBox::toggled, updateAll);
+      connect(m_chkMunue, &QCheckBox::toggled, updateAll);
+      connect(m_chkMunumu,&QCheckBox::toggled, updateAll);
+      connect(m_chkMnutau,&QCheckBox::toggled, updateAll);
+    }
+    m_visDialog->show();
+    m_visDialog->raise();
+    m_visDialog->activateWindow();
+  });
+
+  bottomRightLayout->addWidget(m_btnShowHide, 1, 0);
 
   splitter->addWidget(leftPanel);
   splitter->addWidget(chartsWidget);
