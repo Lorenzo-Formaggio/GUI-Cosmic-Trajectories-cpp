@@ -30,6 +30,8 @@ std::vector<double> H_JEL_TABLE;
 
 // Initialize interpolation tables
 void initializeJELTables() {
+  if (!PSI_JEL_TABLE.empty()) return;
+
   // Fermion tables
   PSI_JEL_TABLE.clear();
   F_JEL_TABLE.clear();

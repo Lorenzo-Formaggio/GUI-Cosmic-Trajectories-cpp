@@ -502,6 +502,8 @@ void MainWindow::createChartPanel(QWidget *parent) {
   setupChart(m_muChartView, c2, m_muAxisX, m_muAxisY, "Baryon & Electric Chem Pot", "Chem Pot [MeV] (abs)");
   m_seriesMuB = new QLineSeries(); m_seriesMuB->setName("|μB|"); m_seriesMuB->setColor(Qt::red);
   m_seriesMuQ = new QLineSeries(); m_seriesMuQ->setName("|μQ|"); m_seriesMuQ->setColor(QColor(128, 0, 128));
+  QPen penMuQ(QColor(128, 0, 128)); penMuQ.setStyle(Qt::DashLine); penMuQ.setWidthF(2.0);
+  m_seriesMuQ->setPen(penMuQ);
   c2->addSeries(m_seriesMuB); m_seriesMuB->attachAxis(m_muAxisX); m_seriesMuB->attachAxis(m_muAxisY);
   c2->addSeries(m_seriesMuQ); m_seriesMuQ->attachAxis(m_muAxisX); m_seriesMuQ->attachAxis(m_muAxisY);
 

@@ -67,14 +67,17 @@ CompareWidget::~CompareWidget() {
 void CompareWidget::updateSlotSeriesVisibility(int idx) {
   auto &s = m_slots[idx];
   bool hasData = !s.data.isEmpty();
-  if (s.sernB)     s.sernB->setVisible(hasData && m_chknB->isChecked());
-  if (s.serS)      s.serS->setVisible(hasData && m_chkS->isChecked());
-  if (s.sernQ)     s.sernQ->setVisible(hasData && m_chknQ->isChecked());
-  if (s.serMuB)    s.serMuB->setVisible(hasData && m_chkMuB->isChecked());
-  if (s.serMuQ)    s.serMuQ->setVisible(hasData && m_chkMuQ->isChecked());
-  if (s.serMunue)  s.serMunue->setVisible(hasData && m_chkMunue->isChecked());
-  if (s.serMunumu) s.serMunumu->setVisible(hasData && m_chkMunumu->isChecked());
-  if (s.serMnutau) s.serMnutau->setVisible(hasData && m_chkMnutau->isChecked());
+  
+  auto isChecked = [](QCheckBox *chk) { return chk && chk->isChecked(); };
+
+  if (s.sernB)     s.sernB->setVisible(hasData && isChecked(m_chknB));
+  if (s.serS)      s.serS->setVisible(hasData && isChecked(m_chkS));
+  if (s.sernQ)     s.sernQ->setVisible(hasData && isChecked(m_chknQ));
+  if (s.serMuB)    s.serMuB->setVisible(hasData && isChecked(m_chkMuB));
+  if (s.serMuQ)    s.serMuQ->setVisible(hasData && isChecked(m_chkMuQ));
+  if (s.serMunue)  s.serMunue->setVisible(hasData && isChecked(m_chkMunue));
+  if (s.serMunumu) s.serMunumu->setVisible(hasData && isChecked(m_chkMunumu));
+  if (s.serMnutau) s.serMnutau->setVisible(hasData && isChecked(m_chkMnutau));
 }
 
 // ── UI setup ───────────────────────────────────────────────────────────────
@@ -123,6 +126,32 @@ void CompareWidget::setupUi() {
   QPushButton *btnPlotSettings = new QPushButton("Plot Settings", chartsWidget);
   
   QMenu *plotMenu = new QMenu(this);
+
+  // Initialize visibility checkboxes early to avoid null pointer issues
+  auto makeChk = [this](const QString &label, bool checked) -> QCheckBox* {
+    QCheckBox *chk = new QCheckBox(label, this);
+    chk->setChecked(checked);
+    return chk;
+  };
+  m_chknB      = makeChk("nB",       true);
+  m_chkS       = makeChk("s",        true);
+  m_chknQ      = makeChk("|nQ_QCD|", true);
+  m_chkMuB     = makeChk("|μB|",     true);
+  m_chkMuQ     = makeChk("|μQ|",     true);
+  m_chkMunue   = makeChk("|μνe|",    true);
+  m_chkMunumu  = makeChk("|μνμ|",    true);
+  m_chkMnutau  = makeChk("|μντ|",    true);
+
+  // Wire checkboxes to series visibility updates
+  auto updateAll = [this]{ for(int i=0;i<NUM_SLOTS;i++) updateSlotSeriesVisibility(i); };
+  connect(m_chknB,    &QCheckBox::toggled, this, updateAll);
+  connect(m_chkS,     &QCheckBox::toggled, this, updateAll);
+  connect(m_chknQ,    &QCheckBox::toggled, this, updateAll);
+  connect(m_chkMuB,   &QCheckBox::toggled, this, updateAll);
+  connect(m_chkMuQ,   &QCheckBox::toggled, this, updateAll);
+  connect(m_chkMunue, &QCheckBox::toggled, this, updateAll);
+  connect(m_chkMunumu,&QCheckBox::toggled, this, updateAll);
+  connect(m_chkMnutau,&QCheckBox::toggled, this, updateAll);
   
   // Section: Visibility
   QAction *actShowHide = plotMenu->addAction("Show/Hide Quantities...");
@@ -133,45 +162,28 @@ void CompareWidget::setupUi() {
       m_visDialog->setMinimumWidth(380);
       QVBoxLayout *dlgLayout = new QVBoxLayout(m_visDialog);
 
-      auto makeChk = [](const QString &label, bool checked) -> QCheckBox* {
-        QCheckBox *chk = new QCheckBox(label);
-        chk->setChecked(checked);
-        return chk;
-      };
-
       // ── Densities group ────────────────────────────────────
       QGroupBox *grpDens = new QGroupBox("Densities");
       QHBoxLayout *layDens = new QHBoxLayout(grpDens);
-      m_chknB      = makeChk("nB",       true); layDens->addWidget(m_chknB);
-      m_chkS       = makeChk("s",        true); layDens->addWidget(m_chkS);
-      m_chknQ      = makeChk("|nQ_QCD|", true); layDens->addWidget(m_chknQ);
+      layDens->addWidget(m_chknB);
+      layDens->addWidget(m_chkS);
+      layDens->addWidget(m_chknQ);
       dlgLayout->addWidget(grpDens);
 
       // ── Chemical Potentials group ──────────────────────────
       QGroupBox *grpMu = new QGroupBox("Chemical Potentials");
       QHBoxLayout *layMu = new QHBoxLayout(grpMu);
-      m_chkMuB     = makeChk("|μB|",     true); layMu->addWidget(m_chkMuB);
-      m_chkMuQ     = makeChk("|μQ|",     true); layMu->addWidget(m_chkMuQ);
+      layMu->addWidget(m_chkMuB);
+      layMu->addWidget(m_chkMuQ);
       dlgLayout->addWidget(grpMu);
 
       // ── Lepton Chem. Pot. group ────────────────────────────
       QGroupBox *grpLep = new QGroupBox("Lepton Chemical Potentials");
       QHBoxLayout *layLep = new QHBoxLayout(grpLep);
-      m_chkMunue   = makeChk("|μνe|",    true); layLep->addWidget(m_chkMunue);
-      m_chkMunumu  = makeChk("|μνμ|",    true); layLep->addWidget(m_chkMunumu);
-      m_chkMnutau  = makeChk("|μντ|",    true); layLep->addWidget(m_chkMnutau);
+      layLep->addWidget(m_chkMunue);
+      layLep->addWidget(m_chkMunumu);
+      layLep->addWidget(m_chkMnutau);
       dlgLayout->addWidget(grpLep);
-
-      // Wire checkboxes to series visibility updates
-      auto updateAll = [this]{ for(int i=0;i<NUM_SLOTS;i++) updateSlotSeriesVisibility(i); };
-      connect(m_chknB,    &QCheckBox::toggled, updateAll);
-      connect(m_chkS,     &QCheckBox::toggled, updateAll);
-      connect(m_chknQ,    &QCheckBox::toggled, updateAll);
-      connect(m_chkMuB,   &QCheckBox::toggled, updateAll);
-      connect(m_chkMuQ,   &QCheckBox::toggled, updateAll);
-      connect(m_chkMunue, &QCheckBox::toggled, updateAll);
-      connect(m_chkMunumu,&QCheckBox::toggled, updateAll);
-      connect(m_chkMnutau,&QCheckBox::toggled, updateAll);
     }
     m_visDialog->show();
     m_visDialog->raise();
@@ -320,12 +332,12 @@ void CompareWidget::createSlotPanel(QWidget *parent) {
         QString("QPushButton { background-color: %1; color: white; border-radius: 6px; font-weight: bold; padding: 4px; border: 1px solid rgba(0,0,0,0.2); }")
             .arg(s.color.name()));
     int idx = i;
-    connect(s.btnRun, &QPushButton::clicked, [this, idx] { runSlot(idx); });
+    connect(s.btnRun, &QPushButton::clicked, this, [this, idx] { runSlot(idx); });
     btnLayout->addWidget(s.btnRun);
 
     s.btnStop = new QPushButton("Stop");
     s.btnStop->setObjectName("BtnStop");
-    connect(s.btnStop, &QPushButton::clicked, [this, idx]() {
+    connect(s.btnStop, &QPushButton::clicked, this, [this, idx]() {
         if (m_slots[idx].worker) {
             m_slots[idx].worker->stop();
             m_slots[idx].btnStop->setEnabled(false);
@@ -334,7 +346,7 @@ void CompareWidget::createSlotPanel(QWidget *parent) {
     btnLayout->addWidget(s.btnStop);
 
     s.btnClear = new QPushButton("Clear");
-    connect(s.btnClear, &QPushButton::clicked, [this, idx] { clearSlot(idx); });
+    connect(s.btnClear, &QPushButton::clicked, this, [this, idx] { clearSlot(idx); });
     btnLayout->addWidget(s.btnClear);
 
     grid->addLayout(btnLayout, row++, 0, 1, 2);
@@ -439,6 +451,7 @@ void CompareWidget::runSlot(int idx) {
   auto &s = m_slots[idx];
 
   if (s.thread) {
+    disconnect(s.worker, nullptr, nullptr, nullptr); // Prevent pending signals
     s.thread->quit();
     s.thread->wait();
     delete s.worker;
@@ -487,9 +500,10 @@ void CompareWidget::runSlot(int idx) {
       onLogMessage(msg, idx);
   });
 
-  connect(s.worker, &SimulationWorker::stepCompleted,
+  connect(s.worker, &SimulationWorker::stepCompleted, this,
           [this, idx](TrajectoryPoint pt) {
     auto &sl = m_slots[idx];
+    if (!sl.worker) return; // Slot was cleared/stopped
     sl.data.append(pt);
     auto val = [this](double x) { 
         if (m_isLogScale) return std::max(std::abs(x), 1e-15);
@@ -499,40 +513,44 @@ void CompareWidget::runSlot(int idx) {
     updateSlotSeriesVisibility(idx);
 
     if (m_tempIsVertical) {
-      sl.sernB->append(val(pt.nB), pt.T);
-      sl.serS->append(val(pt.s),   pt.T);
-      sl.sernQ->append(val(pt.nQ), pt.T);
-      sl.serMuB->append(val(pt.muB), pt.T);
-      sl.serMuQ->append(val(pt.muQ), pt.T);
-      sl.serMunue->append(val(pt.munue),   pt.T);
-      sl.serMunumu->append(val(pt.munumu), pt.T);
-      sl.serMnutau->append(val(pt.mnutau), pt.T);
+      if (sl.sernB) sl.sernB->append(val(pt.nB), pt.T);
+      if (sl.serS)  sl.serS->append(val(pt.s),   pt.T);
+      if (sl.sernQ) sl.sernQ->append(val(pt.nQ), pt.T);
+      if (sl.serMuB) sl.serMuB->append(val(pt.muB), pt.T);
+      if (sl.serMuQ) sl.serMuQ->append(val(pt.muQ), pt.T);
+      if (sl.serMunue) sl.serMunue->append(val(pt.munue), pt.T);
+      if (sl.serMunumu) sl.serMunumu->append(val(pt.munumu), pt.T);
+      if (sl.serMnutau) sl.serMnutau->append(val(pt.mnutau), pt.T);
     } else {
-      sl.sernB->append(pt.T, val(pt.nB));
-      sl.serS->append(pt.T, val(pt.s));
-      sl.sernQ->append(pt.T, val(pt.nQ));
-      sl.serMuB->append(pt.T, val(pt.muB));
-      sl.serMuQ->append(pt.T, val(pt.muQ));
-      sl.serMunue->append(pt.T, val(pt.munue));
-      sl.serMunumu->append(pt.T, val(pt.munumu));
-      sl.serMnutau->append(pt.T, val(pt.mnutau));
+      if (sl.sernB) sl.sernB->append(pt.T, val(pt.nB));
+      if (sl.serS)  sl.serS->append(pt.T, val(pt.s));
+      if (sl.sernQ) sl.sernQ->append(pt.T, val(pt.nQ));
+      if (sl.serMuB) sl.serMuB->append(pt.T, val(pt.muB));
+      if (sl.serMuQ) sl.serMuQ->append(pt.T, val(pt.muQ));
+      if (sl.serMunue) sl.serMunue->append(pt.T, val(pt.munue));
+      if (sl.serMunumu) sl.serMunumu->append(pt.T, val(pt.munumu));
+      if (sl.serMnutau) sl.serMnutau->append(pt.T, val(pt.mnutau));
     }
     updateChartAxes();
   });
 
-  connect(s.worker, &SimulationWorker::simulationFinished, [this, idx]() {
-    m_slots[idx].btnRun->setEnabled(true);
-    m_slots[idx].btnStop->setEnabled(false);
-    m_slots[idx].statusLabel->setText("✓ Done");
+  connect(s.worker, &SimulationWorker::simulationFinished, this, [this, idx]() {
+    auto &sl = m_slots[idx];
+    if (!sl.worker) return;
+    sl.btnRun->setEnabled(true);
+    sl.btnStop->setEnabled(false);
+    sl.statusLabel->setText("✓ Done");
   });
 
-  connect(s.worker, &SimulationWorker::simulationError,
+  connect(s.worker, &SimulationWorker::simulationError, this,
           [this, idx](const QString &msg) {
-    m_slots[idx].btnRun->setEnabled(true);
-    m_slots[idx].btnStop->setEnabled(false);
-    m_slots[idx].statusLabel->setText("✗ Error");
-    m_slots[idx].statusLabel->setStyleSheet("color: red; font-weight: bold;");
-    m_slots[idx].statusLabel->setToolTip(msg);
+    auto &sl = m_slots[idx];
+    if (!sl.worker) return;
+    sl.btnRun->setEnabled(true);
+    sl.btnStop->setEnabled(false);
+    sl.statusLabel->setText("✗ Error");
+    sl.statusLabel->setStyleSheet("color: red; font-weight: bold;");
+    sl.statusLabel->setToolTip(msg);
   });
 
   s.thread->start();
@@ -542,6 +560,7 @@ void CompareWidget::runSlot(int idx) {
 void CompareWidget::clearSlot(int idx) {
   auto &s = m_slots[idx];
   if (s.thread) {
+    disconnect(s.worker, nullptr, nullptr, nullptr); // Prevent pending signals
     s.thread->quit();
     s.thread->wait();
     delete s.worker;
@@ -614,21 +633,19 @@ void CompareWidget::updateChartAxes() {
   };
 
   if (m_tempIsVertical) {
-    setRange(m_densAxisY, minT, maxT, false);
-    setRange(m_muAxisY,   minT, maxT, false);
-    setRange(m_lepAxisY,  minT, maxT, false);
-
-    setRange(m_densAxisX, minDens, maxDens, true);
-    setRange(m_muAxisX,   minMu,   maxMu,   true);
-    setRange(m_lepAxisX,  minLep,  maxLep,  true);
+    if (m_densAxisY) setRange(m_densAxisY, minT, maxT, false);
+    if (m_muAxisY)   setRange(m_muAxisY,   minT, maxT, false);
+    if (m_lepAxisY)  setRange(m_lepAxisY,  minT, maxT, false);
+    if (m_densAxisX) setRange(m_densAxisX, minDens, maxDens, true);
+    if (m_muAxisX)   setRange(m_muAxisX,   minMu,   maxMu,   true);
+    if (m_lepAxisX)  setRange(m_lepAxisX,  minLep,  maxLep,  true);
   } else {
-    setRange(m_densAxisX, minT, maxT, false);
-    setRange(m_muAxisX,   minT, maxT, false);
-    setRange(m_lepAxisX,  minT, maxT, false);
-
-    setRange(m_densAxisY, minDens, maxDens, true);
-    setRange(m_muAxisY,   minMu,   maxMu,   true);
-    setRange(m_lepAxisY,  minLep,  maxLep,  true);
+    if (m_densAxisX) setRange(m_densAxisX, minT, maxT, false);
+    if (m_muAxisX)   setRange(m_muAxisX,   minT, maxT, false);
+    if (m_lepAxisX)  setRange(m_lepAxisX,  minT, maxT, false);
+    if (m_densAxisY) setRange(m_densAxisY, minDens, maxDens, true);
+    if (m_muAxisY)   setRange(m_muAxisY,   minMu,   maxMu,   true);
+    if (m_lepAxisY)  setRange(m_lepAxisY,  minLep,  maxLep,  true);
   }
 }
 

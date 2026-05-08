@@ -3,6 +3,7 @@
 #include <fstream>
 #include <gsl/gsl_interp.h>
 #include <gsl/gsl_spline.h>
+#include <gsl/gsl_errno.h>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -250,6 +251,10 @@ void initialize(const std::string &dataPath, bool includeCharm) {
   if (initialized) {
     return;
   }
+  
+  gsl_set_error_handler_off();
+  
+  gsl_set_error_handler_off();
 
   // Build temperature array (30 to 2000 MeV, step 1)
   for (double T = 30.0; T <= 2000.0; T += 1.0) {

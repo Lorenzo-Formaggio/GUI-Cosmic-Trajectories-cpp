@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QMutex>
 #include <vector>
 #include <atomic>
 
@@ -68,6 +69,8 @@ public:
 
   // Working directory (for finding LatticeEoS/, EoS_Table.txt)
   QString workingDir;
+
+  static QMutex physicsMutex;
 
 public slots:
   /**

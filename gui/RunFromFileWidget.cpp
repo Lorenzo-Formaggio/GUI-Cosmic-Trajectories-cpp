@@ -241,6 +241,28 @@ void RunFromFileWidget::setupUi() {
   QPushButton *btnPlotSettings = new QPushButton("Plot Settings", rightPanel);
   
   QMenu *plotMenu = new QMenu(this);
+
+  // Initialize visibility checkboxes early to avoid null pointer issues
+  auto makeChk = [this](const QString &label, bool checked) -> QCheckBox* {
+    QCheckBox *chk = new QCheckBox(label, this);
+    chk->setChecked(checked);
+    connect(chk, &QCheckBox::toggled, this, [this]{ updateSeriesVisibility(); });
+    return chk;
+  };
+  m_chknB      = makeChk("nB",       true);
+  m_chkS       = makeChk("s",        true);
+  m_chknQ      = makeChk("|nQ_QCD|", true);
+  m_chkNe      = makeChk("ne",       true);
+  m_chkNmu     = makeChk("nμ",       true);
+  m_chkNtau    = makeChk("nτ",       true);
+  m_chkNnue    = makeChk("nνe",      true);
+  m_chkNnumu   = makeChk("nνμ",      true);
+  m_chkNnutau  = makeChk("nντ",      true);
+  m_chkMuB     = makeChk("|μB|",     true);
+  m_chkMuQ     = makeChk("|μQ|",     true);
+  m_chkMunue   = makeChk("|μνe|",    true);
+  m_chkMunumu  = makeChk("|μνμ|",    true);
+  m_chkMnutau  = makeChk("|μντ|",    true);
   
   // Section: Visibility
   QAction *actShowHide = plotMenu->addAction("Show/Hide Quantities...");
@@ -251,45 +273,38 @@ void RunFromFileWidget::setupUi() {
       m_visDialog->setMinimumWidth(380);
       QVBoxLayout *dlgLayout = new QVBoxLayout(m_visDialog);
 
-      auto makeChk = [this](const QString &label, bool checked) -> QCheckBox* {
-        QCheckBox *chk = new QCheckBox(label);
-        chk->setChecked(checked);
-        connect(chk, &QCheckBox::toggled, this, [this]{ updateSeriesVisibility(); });
-        return chk;
-      };
-
       // ── Densities group ────────────────────────────────────
       QGroupBox *grpDens = new QGroupBox("Densities");
       QHBoxLayout *layDens = new QHBoxLayout(grpDens);
-      m_chknB      = makeChk("nB",       true); layDens->addWidget(m_chknB);
-      m_chkS       = makeChk("s",        true); layDens->addWidget(m_chkS);
-      m_chknQ      = makeChk("|nQ_QCD|", true); layDens->addWidget(m_chknQ);
+      layDens->addWidget(m_chknB);
+      layDens->addWidget(m_chkS);
+      layDens->addWidget(m_chknQ);
       dlgLayout->addWidget(grpDens);
 
       // ── Lepton Densities group ────────────────────────────
       QGroupBox *grpLepDens = new QGroupBox("Lepton Densities");
       QHBoxLayout *layLepDens = new QHBoxLayout(grpLepDens);
-      m_chkNe      = makeChk("ne",       true); layLepDens->addWidget(m_chkNe);
-      m_chkNmu     = makeChk("nμ",       true); layLepDens->addWidget(m_chkNmu);
-      m_chkNtau    = makeChk("nτ",       true); layLepDens->addWidget(m_chkNtau);
-      m_chkNnue    = makeChk("nνe",      true); layLepDens->addWidget(m_chkNnue);
-      m_chkNnumu   = makeChk("nνμ",      true); layLepDens->addWidget(m_chkNnumu);
-      m_chkNnutau  = makeChk("nντ",      true); layLepDens->addWidget(m_chkNnutau);
+      layLepDens->addWidget(m_chkNe);
+      layLepDens->addWidget(m_chkNmu);
+      layLepDens->addWidget(m_chkNtau);
+      layLepDens->addWidget(m_chkNnue);
+      layLepDens->addWidget(m_chkNnumu);
+      layLepDens->addWidget(m_chkNnutau);
       dlgLayout->addWidget(grpLepDens);
 
       // ── Chemical Potentials group ──────────────────────────
       QGroupBox *grpMu = new QGroupBox("Chemical Potentials");
       QHBoxLayout *layMu = new QHBoxLayout(grpMu);
-      m_chkMuB     = makeChk("|μB|",     true); layMu->addWidget(m_chkMuB);
-      m_chkMuQ     = makeChk("|μQ|",     true); layMu->addWidget(m_chkMuQ);
+      layMu->addWidget(m_chkMuB);
+      layMu->addWidget(m_chkMuQ);
       dlgLayout->addWidget(grpMu);
 
       // ── Lepton Chem. Pot. group ────────────────────────────
       QGroupBox *grpLep = new QGroupBox("Lepton Chemical Potentials");
       QHBoxLayout *layLep = new QHBoxLayout(grpLep);
-      m_chkMunue   = makeChk("|μνe|",    true); layLep->addWidget(m_chkMunue);
-      m_chkMunumu  = makeChk("|μνμ|",    true); layLep->addWidget(m_chkMunumu);
-      m_chkMnutau  = makeChk("|μντ|",    true); layLep->addWidget(m_chkMnutau);
+      layLep->addWidget(m_chkMunue);
+      layLep->addWidget(m_chkMunumu);
+      layLep->addWidget(m_chkMnutau);
       dlgLayout->addWidget(grpLep);
     }
     m_visDialog->show();
@@ -646,29 +661,33 @@ void RunFromFileWidget::refreshSourceSeriesColors(int sourceIdx) {
   int total = src.rows.size();
   if (total == 0) return;  // no series built yet
 
-  auto applyToVec = [&](QVector<QLineSeries*> &vec) {
+  auto applyToVec = [&](QVector<QLineSeries*> &vec, Qt::PenStyle style) {
     for (int j = 0; j < vec.size(); ++j) {
       if (!vec[j]) continue;
       QPen pen(interpolatedColor(src, j, total));
-      pen.setStyle(src.penStyle);
+      pen.setStyle(style);
       pen.setWidthF(2.0);
       vec[j]->setPen(pen);
     }
   };
-  applyToVec(src.series_nB);
-  applyToVec(src.series_s);
-  applyToVec(src.series_nQ);
-  applyToVec(src.series_ne);
-  applyToVec(src.series_nmu);
-  applyToVec(src.series_ntau);
-  applyToVec(src.series_nnue);
-  applyToVec(src.series_nnumu);
-  applyToVec(src.series_nnutau);
-  applyToVec(src.series_muB);
-  applyToVec(src.series_muQ);
-  applyToVec(src.series_munue);
-  applyToVec(src.series_munumu);
-  applyToVec(src.series_mnutau);
+  // Distinguish quantities by line style within the same source color
+  applyToVec(src.series_nB,      Qt::SolidLine);
+  applyToVec(src.series_s,       Qt::DashLine);
+  applyToVec(src.series_nQ,      Qt::DotLine);
+  
+  applyToVec(src.series_ne,      Qt::SolidLine);
+  applyToVec(src.series_nmu,     Qt::DashLine);
+  applyToVec(src.series_ntau,    Qt::DotLine);
+  applyToVec(src.series_nnue,    Qt::DashDotLine);
+  applyToVec(src.series_nnumu,   Qt::DashDotDotLine);
+  applyToVec(src.series_nnutau,  Qt::SolidLine);
+  
+  applyToVec(src.series_muB,     Qt::SolidLine);
+  applyToVec(src.series_muQ,     Qt::DashLine); // As requested: muQ dashed
+  
+  applyToVec(src.series_munue,   Qt::SolidLine);
+  applyToVec(src.series_munumu,  Qt::DashLine);
+  applyToVec(src.series_mnutau,  Qt::DotLine);
 }
 
 // Read all settings from the current table widgets back into m_sources.

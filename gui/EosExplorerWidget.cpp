@@ -1,4 +1,5 @@
 #include "EosExplorerWidget.h"
+#include "SimulationWorker.h"
 #include "include/QCDTherm.hpp"
 #include "include/JEL.hpp"
 #include "include/InterpolatedEoS.hpp"
@@ -322,6 +323,7 @@ void EosExplorerWidget::logMessage(const QString &msg, bool isError) {
 }
 
 void EosExplorerWidget::onComputeClicked() {
+  QMutexLocker locker(&SimulationWorker::physicsMutex);
   m_btnCompute->setEnabled(false);
   m_statusLabel->setText("Computing...");
   m_statusLabel->setStyleSheet("color: #ffc107; font-weight: bold;");

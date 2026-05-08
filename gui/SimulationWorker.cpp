@@ -9,12 +9,16 @@
 #include "include/TRangeManager.hpp"
 #include "include/leptonTherm.hpp"
 
+#include <QMutexLocker>
 #include <QDir>
 #include <cmath>
 #include <sstream>
 #include <fstream>
 
+QMutex SimulationWorker::physicsMutex;
+
 void SimulationWorker::run() {
+  QMutexLocker locker(&physicsMutex);
   m_stopRequested = false;
   try {
     // ── Initialization ────────────────────────────────────────────────────
