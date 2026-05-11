@@ -112,8 +112,8 @@ void EosExplorerWidget::setupUi() {
 
   grid->addWidget(new QLabel("── Scan Range ──"), row++, 0, 1, 2, Qt::AlignCenter);
 
-  m_spinTmin = addSpin("T min [MeV]:", 30.0, 0.1, 10000.0, 1);
-  m_spinTmax = addSpin("T max [MeV]:", 500.0, 0.1, 10000.0, 1);
+  m_spinTmin = addSpin("T min [MeV]:", 80.0, 0.1, 10000.0, 1);
+  m_spinTmax = addSpin("T max [MeV]:", 250.0, 0.1, 10000.0, 1);
   m_spinDT   = addSpin("T step [MeV]:", 2.0, 0.01, 100.0, 2);
 
   m_chkNormalizeT3 = new QCheckBox("Normalize density by T³");
@@ -362,7 +362,7 @@ void EosExplorerWidget::rebuildAxes(int chartIdx) {
       m_axesY[chartIdx]->setRange(1e-3, 1e3);
     } else {
       const double tMin = m_spinTmin ? m_spinTmin->value() : 80.0;
-      const double tMax = m_spinTmax ? m_spinTmax->value() : 200.0;
+      const double tMax = m_spinTmax ? m_spinTmax->value() : 250.0;
       m_axesX[chartIdx]->setRange(tMin, tMax);
       m_axesY[chartIdx]->setRange(0.0, 1.0);
     }

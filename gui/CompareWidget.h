@@ -17,6 +17,8 @@ class QLabel;
 class QTabWidget;
 class QThread;
 class QLineEdit;
+class QGroupBox;
+class QVBoxLayout;
 
 #include <QtCharts/QChartView>
 #include <QtCharts/QLineSeries>
@@ -26,12 +28,13 @@ class QLineEdit;
 #include <QtCharts/QScatterSeries>
 #include "TooltipChartView.h"
 
-static constexpr int NUM_SLOTS = 5;
-
 /**
  * @brief Per-slot data: UI widgets, chart series, thread, and trajectory data.
  */
 struct SlotConfig {
+  // Container groupbox so the whole slot can be added/removed dynamically.
+  QGroupBox *box = nullptr;
+
   // Parameter widgets
   QDoubleSpinBox *spinB    = nullptr;
   QDoubleSpinBox *spinLe   = nullptr;
@@ -50,9 +53,10 @@ struct SlotConfig {
   QPushButton *btnBrowseEos   = nullptr;
   QLabel      *labelEosPath   = nullptr;
 
-  QPushButton *btnRun   = nullptr;
-  QPushButton *btnStop  = nullptr;
-  QPushButton *btnClear = nullptr;
+  QPushButton *btnRun    = nullptr;
+  QPushButton *btnStop   = nullptr;
+  QPushButton *btnClear  = nullptr;
+  QPushButton *btnRemove = nullptr;
   QLabel      *statusLabel = nullptr;
 
   // Trajectory data
@@ -94,13 +98,21 @@ private:
   void setupUi();
   void createSlotPanel(QWidget *parent);
   void createChartPanel(QWidget *parent);
-  void runSlot(int idx);
-  void clearSlot(int idx);
-  void clearSlotSeries(int idx);
+  void runSlot(SlotConfig *s);
+  void clearSlot(SlotConfig *s);
+  void clearSlotSeries(SlotConfig *s);
   void replotData();
   void updateChartAxes();
-  void updateSlotSeriesVisibility(int idx);
-  void onLogMessage(const QString &msg, int slotIdx);
+  void updateSlotSeriesVisibility(SlotConfig *s);
+  void onLogMessage(const QString &msg, SlotConfig *s);
+
+  // Dynamic slot management
+  void addSlot();
+  void removeSlot(SlotConfig *s);
+  void buildSlotUi(SlotConfig *s);
+  void buildSlotSeries(SlotConfig *s);
+  int  slotIndex(const SlotConfig *s) const;
+  QColor pickSlotColor(int i) const;
 
   // Per-quantity abs/legend helpers
   double absVal(double v, bool useAbs) const;
@@ -117,7 +129,9 @@ private:
   void onSolverSettingsButtonClicked();
 
   QString m_workingDir;
-  SlotConfig m_slots[NUM_SLOTS];
+  QVector<SlotConfig*> m_slots;
+  QVBoxLayout *m_slotsLayout = nullptr;   // hosts the per-slot groupboxes
+  QPushButton *m_btnAddSlot  = nullptr;
 
   QPushButton  *m_btnThemeToggle = nullptr;
   QPushButton  *m_btnAxisToggle  = nullptr;

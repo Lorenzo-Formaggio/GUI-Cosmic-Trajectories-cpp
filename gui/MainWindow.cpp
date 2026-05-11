@@ -419,8 +419,8 @@ void MainWindow::createParameterPanel(QWidget *parent) {
   m_spinLtau = addSpin("ltau", -0.01, -1.0, 1.0, 12);
   
   m_spinDT   = addSpin("dT (MeV)", 1.0, 0.01, 100.0, 2);
-  m_spinTmin = addSpin("Tmin (MeV)", 30.0, 0.1, 10000.0, 1);
-  m_spinTmax = addSpin("Tmax (MeV)", 2000.0, 0.1, 10000.0, 1);
+  m_spinTmin = addSpin("Tmin (MeV)", 80.0, 0.1, 10000.0, 1);
+  m_spinTmax = addSpin("Tmax (MeV)", 250.0, 0.1, 10000.0, 1);
 
   m_comboNf = new QComboBox();
   m_comboNf->addItems({"2", "3", "4"});

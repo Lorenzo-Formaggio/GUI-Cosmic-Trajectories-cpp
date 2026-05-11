@@ -35,49 +35,56 @@
 #include <cmath>
 #include <algorithm>
 
-// ── 5 distinct colors ──────────────────────────────────────────────────────
-static const QColor SLOT_COLORS[NUM_SLOTS] = {
-  QColor(31,  119, 180),   // Blue
-  QColor(214,  39,  40),   // Red
-  QColor( 44, 160,  44),   // Green
-  QColor(255, 127,  14),   // Orange
-  QColor(148, 103, 189),   // Purple
-};
+// ── Slot color palette (cycles for slots beyond the 10th) ─────────────────
+QColor CompareWidget::pickSlotColor(int i) const {
+  static const QList<QColor> palette = {
+    QColor( 31, 119, 180), QColor(214,  39,  40), QColor( 44, 160,  44),
+    QColor(255, 127,  14), QColor(148, 103, 189), QColor(140,  86,  75),
+    QColor(227, 119, 194), QColor(127, 127, 127), QColor(188, 189,  34),
+    QColor( 23, 190, 207),
+  };
+  return palette[((i % palette.size()) + palette.size()) % palette.size()];
+}
+
+int CompareWidget::slotIndex(const SlotConfig *s) const {
+  for (int i = 0; i < m_slots.size(); ++i) if (m_slots[i] == s) return i;
+  return -1;
+}
 
 // ── Construction ───────────────────────────────────────────────────────────
 CompareWidget::CompareWidget(const QString &workingDir, QWidget *parent)
     : QWidget(parent), m_workingDir(workingDir)
 {
-  for (int i = 0; i < NUM_SLOTS; i++)
-    m_slots[i].color = SLOT_COLORS[i];
   setupUi();
 }
 
 CompareWidget::~CompareWidget() {
-  for (int i = 0; i < NUM_SLOTS; i++) {
-    if (m_slots[i].thread) {
-      m_slots[i].thread->quit();
-      m_slots[i].thread->wait();
-      delete m_slots[i].worker;
-      delete m_slots[i].thread;
+  for (auto *s : m_slots) {
+    if (s && s->thread) {
+      s->thread->quit();
+      s->thread->wait();
+      delete s->worker;
+      delete s->thread;
     }
+    delete s;
   }
+  m_slots.clear();
 }
 
-void CompareWidget::updateSlotSeriesVisibility(int idx) {
-  auto &s = m_slots[idx];
-  bool hasData = !s.data.isEmpty();
-  
+void CompareWidget::updateSlotSeriesVisibility(SlotConfig *s) {
+  if (!s) return;
+  bool hasData = !s->data.isEmpty();
+
   auto isChecked = [](QCheckBox *chk) { return chk && chk->isChecked(); };
 
-  if (s.sernB)     s.sernB->setVisible(hasData && isChecked(m_chknB));
-  if (s.serS)      s.serS->setVisible(hasData && isChecked(m_chkS));
-  if (s.sernQ)     s.sernQ->setVisible(hasData && isChecked(m_chknQ));
-  if (s.serMuB)    s.serMuB->setVisible(hasData && isChecked(m_chkMuB));
-  if (s.serMuQ)    s.serMuQ->setVisible(hasData && isChecked(m_chkMuQ));
-  if (s.serMunue)  s.serMunue->setVisible(hasData && isChecked(m_chkMunue));
-  if (s.serMunumu) s.serMunumu->setVisible(hasData && isChecked(m_chkMunumu));
-  if (s.serMnutau) s.serMnutau->setVisible(hasData && isChecked(m_chkMnutau));
+  if (s->sernB)     s->sernB->setVisible(hasData && isChecked(m_chknB));
+  if (s->serS)      s->serS->setVisible(hasData && isChecked(m_chkS));
+  if (s->sernQ)     s->sernQ->setVisible(hasData && isChecked(m_chknQ));
+  if (s->serMuB)    s->serMuB->setVisible(hasData && isChecked(m_chkMuB));
+  if (s->serMuQ)    s->serMuQ->setVisible(hasData && isChecked(m_chkMuQ));
+  if (s->serMunue)  s->serMunue->setVisible(hasData && isChecked(m_chkMunue));
+  if (s->serMunumu) s->serMunumu->setVisible(hasData && isChecked(m_chkMunumu));
+  if (s->serMnutau) s->serMnutau->setVisible(hasData && isChecked(m_chkMnutau));
 }
 
 // ── UI setup ───────────────────────────────────────────────────────────────
@@ -164,7 +171,7 @@ void CompareWidget::setupUi() {
   m_absMnutau  = makeAbs(m_useAbsMnutau);
 
   // Wire checkboxes to series visibility updates
-  auto updateAll = [this]{ for(int i=0;i<NUM_SLOTS;i++) updateSlotSeriesVisibility(i); };
+  auto updateAll = [this]{ for (auto *s : m_slots) updateSlotSeriesVisibility(s); };
   connect(m_chknB,    &QCheckBox::toggled, this, updateAll);
   connect(m_chkS,     &QCheckBox::toggled, this, updateAll);
   connect(m_chknQ,    &QCheckBox::toggled, this, updateAll);
@@ -322,133 +329,249 @@ void CompareWidget::createSlotPanel(QWidget *parent) {
   outerLayout->setContentsMargins(4, 4, 4, 4);
   outerLayout->setSpacing(8);
 
-  for (int i = 0; i < NUM_SLOTS; i++) {
-    auto &s = m_slots[i];
+  // Toolbar with the "Add Slot" button.
+  m_btnAddSlot = new QPushButton("+ Add Slot", parent);
+  connect(m_btnAddSlot, &QPushButton::clicked, this, [this]() { addSlot(); });
+  outerLayout->addWidget(m_btnAddSlot);
 
-    QGroupBox *box = new QGroupBox(QString("Slot %1").arg(i + 1), parent);
-    box->setCheckable(true);
-    box->setChecked(i == 0); 
-    box->setStyleSheet(
-        QString("QGroupBox { border: 2px solid %1; border-radius: 4px; margin-top: 2ex; }"
-                "QGroupBox::title { color: %1; font-weight: bold; subcontrol-origin: margin; left: 8px; }")
-            .arg(s.color.name()));
-
-    QVBoxLayout *boxLayout = new QVBoxLayout(box);
-    QWidget *container = new QWidget(box); 
-    QGridLayout *grid = new QGridLayout(container);
-    grid->setContentsMargins(0, 0, 0, 0);
-
-    connect(box, &QGroupBox::toggled, container, &QWidget::setVisible);
-    container->setVisible(box->isChecked());
-
-    int row = 0;
-    auto addSpin = [&](const QString &lbl, double val, double lo, double hi, int dec) -> QDoubleSpinBox* {
-      grid->addWidget(new QLabel(lbl), row, 0);
-      QDoubleSpinBox *sp = new QDoubleSpinBox();
-      sp->setDecimals(dec);
-      sp->setRange(lo, hi);
-      sp->setValue(val);
-      grid->addWidget(sp, row, 1);
-      row++;
-      return sp;
-    };
-
-    s.spinB    = addSpin("b",          8.6e-11, 1e-15, 1.0,    12);
-    s.spinLe   = addSpin("le",         -0.01,  -1.0,  1.0,    12);
-    s.spinLmu  = addSpin("lmu",        -0.01,  -1.0,  1.0,    12);
-    s.spinLtau = addSpin("ltau",       -0.01,  -1.0,  1.0,    12);
-    s.spinDT   = addSpin("dT (MeV)",   1.0,     0.01, 100.0,  2);
-    s.spinTmin = addSpin("Tmin (MeV)", 30.0,    0.1,  10000.0, 1);
-    s.spinTmax = addSpin("Tmax (MeV)", 2000.0,  0.1,  10000.0, 1);
-
-    grid->addWidget(new QLabel("Flavors (nf)"), row, 0);
-    s.comboNf = new QComboBox();
-    s.comboNf->addItems({"2", "3", "4"});
-    s.comboNf->setCurrentIndex(1); 
-    grid->addWidget(s.comboNf, row++, 1);
-
-    grid->addWidget(new QLabel("EoS"), row, 0);
-    s.comboEos = new QComboBox();
-    s.comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)"});
-    s.comboEos->setCurrentIndex(1); 
-    grid->addWidget(s.comboEos, row++, 1);
-
-    s.eosPathWidget = new QWidget();
-    QHBoxLayout *eosPathLayout = new QHBoxLayout(s.eosPathWidget);
-    eosPathLayout->setContentsMargins(0, 0, 0, 0);
-    s.lineEditEosPath = new QLineEdit();
-    s.lineEditEosPath->setPlaceholderText("Path to EoS table...");
-    s.btnBrowseEos = new QPushButton("Browse");
-    eosPathLayout->addWidget(s.lineEditEosPath);
-    eosPathLayout->addWidget(s.btnBrowseEos);
-
-    s.labelEosPath = new QLabel("Table Path");
-    grid->addWidget(s.labelEosPath, row, 0);
-    grid->addWidget(s.eosPathWidget, row++, 1);
-
-    s.labelEosPath->setVisible(false);
-    s.eosPathWidget->setVisible(false);
-
-    int currentIdx = i;
-    connect(s.btnBrowseEos, &QPushButton::clicked, this, [this, currentIdx]() {
-        QString file = QFileDialog::getOpenFileName(this, "Select EoS Table File", QDir::currentPath(), "Text Files (*.txt);;All Files (*)");
-        if (!file.isEmpty()) {
-            m_slots[currentIdx].lineEditEosPath->setText(file);
-        }
-    });
-
-    connect(s.comboEos, &QComboBox::currentIndexChanged, this, [this, currentIdx](int index) {
-        bool showEosPath = (index == 2);
-        m_slots[currentIdx].labelEosPath->setVisible(showEosPath);
-        m_slots[currentIdx].eosPathWidget->setVisible(showEosPath);
-    });
-
-    grid->addWidget(new QLabel("Guess Method"), row, 0);
-    s.comboGuess = new QComboBox();
-    s.comboGuess->addItems({"Constant (0)", "Linear Extrap (1)"});
-    s.comboGuess->setCurrentIndex(1);
-    grid->addWidget(s.comboGuess, row++, 1);
-
-    grid->addWidget(new QLabel("Scan Direction"), row, 0);
-    s.comboScan = new QComboBox();
-    s.comboScan->addItems({"Low -> High (0)", "High -> Low (1)"});
-    grid->addWidget(s.comboScan, row++, 1);
-
-    QHBoxLayout *btnLayout = new QHBoxLayout();
-    
-    s.btnRun = new QPushButton("Run Slot");
-    s.btnRun->setStyleSheet(
-        QString("QPushButton { background-color: %1; color: white; border-radius: 6px; font-weight: bold; padding: 4px; border: 1px solid rgba(0,0,0,0.2); }")
-            .arg(s.color.name()));
-    int idx = i;
-    connect(s.btnRun, &QPushButton::clicked, this, [this, idx] { runSlot(idx); });
-    btnLayout->addWidget(s.btnRun);
-
-    s.btnStop = new QPushButton("Stop");
-    s.btnStop->setObjectName("BtnStop");
-    connect(s.btnStop, &QPushButton::clicked, this, [this, idx]() {
-        if (m_slots[idx].worker) {
-            m_slots[idx].worker->stop();
-            m_slots[idx].btnStop->setEnabled(false);
-        }
-    });
-    btnLayout->addWidget(s.btnStop);
-
-    s.btnClear = new QPushButton("Clear");
-    connect(s.btnClear, &QPushButton::clicked, this, [this, idx] { clearSlot(idx); });
-    btnLayout->addWidget(s.btnClear);
-
-    grid->addLayout(btnLayout, row++, 0, 1, 2);
-
-    s.statusLabel = new QLabel("Ready");
-    s.statusLabel->setAlignment(Qt::AlignCenter);
-    s.statusLabel->setStyleSheet("color: gray;");
-    grid->addWidget(s.statusLabel, row++, 0, 1, 2);
-
-    boxLayout->addWidget(container);
-    outerLayout->addWidget(box);
-  }
+  // Slots stack: groupboxes append here, with a stretch at the bottom so
+  // they pile from the top.
+  m_slotsLayout = new QVBoxLayout();
+  m_slotsLayout->setContentsMargins(0, 0, 0, 0);
+  m_slotsLayout->setSpacing(8);
+  outerLayout->addLayout(m_slotsLayout);
   outerLayout->addStretch();
+
+  // Default to two slots (compare needs at least two to be meaningful).
+  addSlot();
+  addSlot();
+}
+
+void CompareWidget::addSlot() {
+  auto *s = new SlotConfig;
+  s->color = pickSlotColor(m_slots.size());
+  m_slots.append(s);
+  buildSlotUi(s);
+  if (m_densAxisX) buildSlotSeries(s);
+  refreshSeriesNames();
+  refreshLegendVisibility();
+}
+
+void CompareWidget::removeSlot(SlotConfig *s) {
+  if (!s) return;
+  // Stop any in-flight worker first.
+  if (s->thread) {
+    if (s->worker) {
+      disconnect(s->worker, nullptr, nullptr, nullptr);
+      s->worker->stop();
+    }
+    s->thread->quit();
+    s->thread->wait();
+    delete s->worker;
+    delete s->thread;
+    s->worker = nullptr;
+    s->thread = nullptr;
+  }
+  // Detach + remove the per-slot chart series.
+  auto detach = [](QChart *chart, QLineSeries *ls) {
+    if (chart && ls) chart->removeSeries(ls);
+    delete ls;
+  };
+  if (m_densChartView) {
+    detach(m_densChartView->chart(), s->sernB);
+    detach(m_densChartView->chart(), s->serS);
+    detach(m_densChartView->chart(), s->sernQ);
+  }
+  if (m_muChartView) {
+    detach(m_muChartView->chart(), s->serMuB);
+    detach(m_muChartView->chart(), s->serMuQ);
+  }
+  if (m_lepChartView) {
+    detach(m_lepChartView->chart(), s->serMunue);
+    detach(m_lepChartView->chart(), s->serMunumu);
+    detach(m_lepChartView->chart(), s->serMnutau);
+  }
+  // Remove the groupbox from the panel and the slot from the vector.
+  if (s->box) {
+    if (m_slotsLayout) m_slotsLayout->removeWidget(s->box);
+    s->box->deleteLater();
+  }
+  m_slots.removeAll(s);
+  delete s;
+  refreshSeriesNames();
+  updateChartAxes();
+}
+
+void CompareWidget::buildSlotUi(SlotConfig *s) {
+  const int slotNum = m_slots.size();   // 1-based number for title
+  s->box = new QGroupBox(QString("Slot %1").arg(slotNum));
+  s->box->setCheckable(true);
+  s->box->setChecked(slotNum <= 2);   // first couple expanded by default
+  s->box->setStyleSheet(
+      QString("QGroupBox { border: 2px solid %1; border-radius: 4px; margin-top: 2ex; }"
+              "QGroupBox::title { color: %1; font-weight: bold; subcontrol-origin: margin; left: 8px; }")
+          .arg(s->color.name()));
+
+  QVBoxLayout *boxLayout = new QVBoxLayout(s->box);
+  QWidget *container = new QWidget(s->box);
+  QGridLayout *grid = new QGridLayout(container);
+  grid->setContentsMargins(0, 0, 0, 0);
+
+  connect(s->box, &QGroupBox::toggled, container, &QWidget::setVisible);
+  container->setVisible(s->box->isChecked());
+
+  int row = 0;
+  auto addSpin = [&](const QString &lbl, double val, double lo, double hi, int dec) -> QDoubleSpinBox* {
+    grid->addWidget(new QLabel(lbl), row, 0);
+    QDoubleSpinBox *sp = new QDoubleSpinBox();
+    sp->setDecimals(dec);
+    sp->setRange(lo, hi);
+    sp->setValue(val);
+    grid->addWidget(sp, row, 1);
+    row++;
+    return sp;
+  };
+
+  s->spinB    = addSpin("b",          8.6e-11, 1e-15, 1.0,    12);
+  s->spinLe   = addSpin("le",         -0.01,  -1.0,  1.0,    12);
+  s->spinLmu  = addSpin("lmu",        -0.01,  -1.0,  1.0,    12);
+  s->spinLtau = addSpin("ltau",       -0.01,  -1.0,  1.0,    12);
+  s->spinDT   = addSpin("dT (MeV)",   1.0,     0.01, 100.0,  2);
+  s->spinTmin = addSpin("Tmin (MeV)", 80.0,    0.1,  10000.0, 1);
+  s->spinTmax = addSpin("Tmax (MeV)", 250.0,   0.1,  10000.0, 1);
+
+  grid->addWidget(new QLabel("Flavors (nf)"), row, 0);
+  s->comboNf = new QComboBox();
+  s->comboNf->addItems({"2", "3", "4"});
+  s->comboNf->setCurrentIndex(1);
+  grid->addWidget(s->comboNf, row++, 1);
+
+  grid->addWidget(new QLabel("EoS"), row, 0);
+  s->comboEos = new QComboBox();
+  s->comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)"});
+  s->comboEos->setCurrentIndex(1);
+  grid->addWidget(s->comboEos, row++, 1);
+
+  s->eosPathWidget = new QWidget();
+  QHBoxLayout *eosPathLayout = new QHBoxLayout(s->eosPathWidget);
+  eosPathLayout->setContentsMargins(0, 0, 0, 0);
+  s->lineEditEosPath = new QLineEdit();
+  s->lineEditEosPath->setPlaceholderText("Path to EoS table...");
+  s->btnBrowseEos = new QPushButton("Browse");
+  eosPathLayout->addWidget(s->lineEditEosPath);
+  eosPathLayout->addWidget(s->btnBrowseEos);
+
+  s->labelEosPath = new QLabel("Table Path");
+  grid->addWidget(s->labelEosPath, row, 0);
+  grid->addWidget(s->eosPathWidget, row++, 1);
+
+  s->labelEosPath->setVisible(false);
+  s->eosPathWidget->setVisible(false);
+
+  connect(s->btnBrowseEos, &QPushButton::clicked, this, [this, s]() {
+    QString file = QFileDialog::getOpenFileName(this, "Select EoS Table File",
+        QDir::currentPath(), "Text Files (*.txt);;All Files (*)");
+    if (!file.isEmpty()) s->lineEditEosPath->setText(file);
+  });
+
+  connect(s->comboEos, &QComboBox::currentIndexChanged, this, [s](int index) {
+    bool showEosPath = (index == 2);
+    s->labelEosPath->setVisible(showEosPath);
+    s->eosPathWidget->setVisible(showEosPath);
+  });
+
+  grid->addWidget(new QLabel("Guess Method"), row, 0);
+  s->comboGuess = new QComboBox();
+  s->comboGuess->addItems({"Constant (0)", "Linear Extrap (1)"});
+  s->comboGuess->setCurrentIndex(1);
+  grid->addWidget(s->comboGuess, row++, 1);
+
+  grid->addWidget(new QLabel("Scan Direction"), row, 0);
+  s->comboScan = new QComboBox();
+  s->comboScan->addItems({"Low -> High (0)", "High -> Low (1)"});
+  grid->addWidget(s->comboScan, row++, 1);
+
+  QHBoxLayout *btnLayout = new QHBoxLayout();
+
+  s->btnRun = new QPushButton("Run Slot");
+  s->btnRun->setStyleSheet(
+      QString("QPushButton { background-color: %1; color: white; border-radius: 6px; font-weight: bold; padding: 4px; border: 1px solid rgba(0,0,0,0.2); }")
+          .arg(s->color.name()));
+  connect(s->btnRun, &QPushButton::clicked, this, [this, s] { runSlot(s); });
+  btnLayout->addWidget(s->btnRun);
+
+  s->btnStop = new QPushButton("Stop");
+  s->btnStop->setObjectName("BtnStop");
+  connect(s->btnStop, &QPushButton::clicked, this, [s]() {
+    if (s->worker) {
+      s->worker->stop();
+      s->btnStop->setEnabled(false);
+    }
+  });
+  btnLayout->addWidget(s->btnStop);
+
+  s->btnClear = new QPushButton("Clear");
+  connect(s->btnClear, &QPushButton::clicked, this, [this, s] { clearSlot(s); });
+  btnLayout->addWidget(s->btnClear);
+
+  s->btnRemove = new QPushButton("Remove");
+  s->btnRemove->setToolTip("Remove this slot");
+  s->btnRemove->setStyleSheet(
+      "QPushButton { background-color: #b03030; color: white; "
+      "border-radius: 6px; font-weight: bold; padding: 4px 10px; }");
+  connect(s->btnRemove, &QPushButton::clicked, this, [this, s] {
+    if (m_slots.size() <= 1) {
+      QMessageBox::information(this, "Cannot Remove",
+          "At least one slot is required.");
+      return;
+    }
+    removeSlot(s);
+  });
+  btnLayout->addWidget(s->btnRemove);
+
+  grid->addLayout(btnLayout, row++, 0, 1, 2);
+
+  s->statusLabel = new QLabel("Ready");
+  s->statusLabel->setAlignment(Qt::AlignCenter);
+  s->statusLabel->setStyleSheet("color: gray;");
+  grid->addWidget(s->statusLabel, row++, 0, 1, 2);
+
+  boxLayout->addWidget(container);
+  if (m_slotsLayout) m_slotsLayout->addWidget(s->box);
+}
+
+void CompareWidget::buildSlotSeries(SlotConfig *s) {
+  static const Qt::PenStyle QTY_STYLES[3] = {Qt::SolidLine, Qt::DashLine, Qt::DotLine};
+  QChart *c1 = m_densChartView->chart();
+  QChart *c2 = m_muChartView->chart();
+  QChart *c3 = m_lepChartView->chart();
+
+  auto makeSeries = [&](const QString &suffix, QChart *ch,
+                         QAbstractAxis *ax, QAbstractAxis *ay,
+                         Qt::PenStyle ps) -> QLineSeries * {
+    auto *ser = new QLineSeries();
+    ser->setName(suffix);
+    QPen pen(s->color);
+    pen.setStyle(ps);
+    pen.setWidthF(2.0);
+    ser->setPen(pen);
+    ser->setVisible(false);
+    ch->addSeries(ser);
+    ser->attachAxis(ax);
+    ser->attachAxis(ay);
+    return ser;
+  };
+
+  s->sernB    = makeSeries("nB",    c1, m_densAxisX, m_densAxisY, QTY_STYLES[0]);
+  s->serS     = makeSeries("s",     c1, m_densAxisX, m_densAxisY, QTY_STYLES[1]);
+  s->sernQ    = makeSeries("|nQ|",  c1, m_densAxisX, m_densAxisY, QTY_STYLES[2]);
+
+  s->serMuB   = makeSeries("|μB|",  c2, m_muAxisX,  m_muAxisY,  QTY_STYLES[0]);
+  s->serMuQ   = makeSeries("|μQ|",  c2, m_muAxisX,  m_muAxisY,  QTY_STYLES[1]);
+
+  s->serMunue  = makeSeries("|μνe|", c3, m_lepAxisX, m_lepAxisY, QTY_STYLES[0]);
+  s->serMunumu = makeSeries("|μνμ|", c3, m_lepAxisX, m_lepAxisY, QTY_STYLES[1]);
+  s->serMnutau = makeSeries("|μντ|", c3, m_lepAxisX, m_lepAxisY, QTY_STYLES[2]);
 }
 
 // ── Chart Panel ────────────────────────────────────────────────────────────
@@ -494,40 +617,9 @@ void CompareWidget::createChartPanel(QWidget *parent) {
   makeChart(m_lepChartView,  c3, m_lepAxisX,  m_lepAxisY,
             "Lepton μ",           "Chem. Pot. [MeV]");
 
-  static const Qt::PenStyle QTY_STYLES[3] = {Qt::SolidLine, Qt::DashLine, Qt::DotLine};
-
-  for (int i = 0; i < NUM_SLOTS; i++) {
-    auto &s   = m_slots[i];
-    QColor c  = s.color;
-    QString n = QString("S%1").arg(i + 1);
-
-    auto makeSeries = [&](const QString &suffix, QChart *ch,
-                           QAbstractAxis *ax, QAbstractAxis *ay,
-                           Qt::PenStyle ps) -> QLineSeries * {
-      auto *ser = new QLineSeries();
-      ser->setName(QString("%1: %2").arg(n).arg(suffix));
-      QPen pen(c);
-      pen.setStyle(ps);
-      pen.setWidthF(2.0);
-      ser->setPen(pen);
-      ser->setVisible(false); 
-      ch->addSeries(ser);
-      ser->attachAxis(ax);
-      ser->attachAxis(ay);
-      return ser;
-    };
-
-    s.sernB    = makeSeries("nB",  c1, m_densAxisX, m_densAxisY, QTY_STYLES[0]);
-    s.serS     = makeSeries("s",   c1, m_densAxisX, m_densAxisY, QTY_STYLES[1]);
-    s.sernQ    = makeSeries("|nQ|", c1, m_densAxisX, m_densAxisY, QTY_STYLES[2]);
-
-    s.serMuB   = makeSeries("|μB|", c2, m_muAxisX, m_muAxisY, QTY_STYLES[0]);
-    s.serMuQ   = makeSeries("|μQ|", c2, m_muAxisX, m_muAxisY, QTY_STYLES[1]);
-
-    s.serMunue  = makeSeries("|μνe|", c3, m_lepAxisX, m_lepAxisY, QTY_STYLES[0]);
-    s.serMunumu = makeSeries("|μνμ|", c3, m_lepAxisX, m_lepAxisY, QTY_STYLES[1]);
-    s.serMnutau = makeSeries("|μντ|", c3, m_lepAxisX, m_lepAxisY, QTY_STYLES[2]);
-  }
+  // Per-slot series are created on demand by buildSlotSeries() — slots can
+  // be added/removed dynamically. Walk any pre-existing slots and attach.
+  for (auto *s : m_slots) buildSlotSeries(s);
 
   m_seriesCpB = new QScatterSeries(); m_seriesCpB->setName("CP |μB|"); m_seriesCpB->setMarkerShape(QScatterSeries::MarkerShapeStar); m_seriesCpB->setMarkerSize(12.0); m_seriesCpB->setColor(Qt::red); m_seriesCpB->setBorderColor(Qt::black);
   m_seriesCpQ = new QScatterSeries(); m_seriesCpQ->setName("CP |μQ|"); m_seriesCpQ->setMarkerShape(QScatterSeries::MarkerShapeStar); m_seriesCpQ->setMarkerSize(12.0); m_seriesCpQ->setColor(QColor(128, 0, 128)); m_seriesCpQ->setBorderColor(Qt::black);
@@ -536,151 +628,148 @@ void CompareWidget::createChartPanel(QWidget *parent) {
 }
 
 // ── Run a slot ─────────────────────────────────────────────────────────────
-void CompareWidget::runSlot(int idx) {
-  auto &s = m_slots[idx];
+void CompareWidget::runSlot(SlotConfig *s) {
+  if (!s) return;
 
-  if (s.thread) {
-    disconnect(s.worker, nullptr, nullptr, nullptr); // Prevent pending signals
-    s.thread->quit();
-    s.thread->wait();
-    delete s.worker;
-    delete s.thread;
-    s.worker = nullptr;
-    s.thread = nullptr;
+  if (s->thread) {
+    disconnect(s->worker, nullptr, nullptr, nullptr); // Prevent pending signals
+    s->thread->quit();
+    s->thread->wait();
+    delete s->worker;
+    delete s->thread;
+    s->worker = nullptr;
+    s->thread = nullptr;
   }
 
-  clearSlotSeries(idx);
-  s.data.clear();
+  clearSlotSeries(s);
+  s->data.clear();
 
-  s.statusLabel->setText("Running…");
-  s.statusLabel->setStyleSheet("color: #17a2b8; font-weight: bold;");
-  s.btnRun->setEnabled(false);
-  s.btnStop->setEnabled(true);
+  s->statusLabel->setText("Running…");
+  s->statusLabel->setStyleSheet("color: #17a2b8; font-weight: bold;");
+  s->btnRun->setEnabled(false);
+  s->btnStop->setEnabled(true);
 
-  s.thread = new QThread();
-  s.worker = new SimulationWorker();
+  s->thread = new QThread();
+  s->worker = new SimulationWorker();
 
-  s.worker->b             = s.spinB->value();
-  s.worker->le            = s.spinLe->value();
-  s.worker->lmu           = s.spinLmu->value();
-  s.worker->ltau          = s.spinLtau->value();
+  s->worker->b             = s->spinB->value();
+  s->worker->le            = s->spinLe->value();
+  s->worker->lmu           = s->spinLmu->value();
+  s->worker->ltau          = s->spinLtau->value();
 
   // Snapshot run params for legend display
-  s.B    = s.spinB->value();
-  s.Le   = s.spinLe->value();
-  s.Lmu  = s.spinLmu->value();
-  s.Ltau = s.spinLtau->value();
-  s.runParamsValid = true;
+  s->B    = s->spinB->value();
+  s->Le   = s->spinLe->value();
+  s->Lmu  = s->spinLmu->value();
+  s->Ltau = s->spinLtau->value();
+  s->runParamsValid = true;
   refreshSeriesNames();
   refreshLegendVisibility();
-  s.worker->dT            = s.spinDT->value();
-  s.worker->Tmin          = s.spinTmin->value();
-  s.worker->Tmax          = s.spinTmax->value();
-  s.worker->nf            = s.comboNf->currentText().toInt();
-  s.worker->eos           = s.comboEos->currentIndex();
-  s.worker->scanDirection = s.comboScan->currentIndex();
-  s.worker->workingDir    = m_workingDir;
-  s.worker->eosTableFilePath = s.lineEditEosPath->text();
+  s->worker->dT            = s->spinDT->value();
+  s->worker->Tmin          = s->spinTmin->value();
+  s->worker->Tmax          = s->spinTmax->value();
+  s->worker->nf            = s->comboNf->currentText().toInt();
+  s->worker->eos           = s->comboEos->currentIndex();
+  s->worker->scanDirection = s->comboScan->currentIndex();
+  s->worker->workingDir    = m_workingDir;
+  s->worker->eosTableFilePath = s->lineEditEosPath->text();
 
-  s.worker->tolerance     = m_tolerance;
-  s.worker->maxIter       = m_maxIter;
-  s.worker->guessMethod   = s.comboGuess->currentIndex();
+  s->worker->tolerance     = m_tolerance;
+  s->worker->maxIter       = m_maxIter;
+  s->worker->guessMethod   = s->comboGuess->currentIndex();
 
-  s.worker->metropolisMode      = m_metropolisMode;
-  s.worker->metropolisSteps     = m_metropolisSteps;
-  s.worker->metropolisStepSigma = m_metropolisStepSigma;
-  s.worker->metropolisT         = m_metropolisT;
+  s->worker->metropolisMode      = m_metropolisMode;
+  s->worker->metropolisSteps     = m_metropolisSteps;
+  s->worker->metropolisStepSigma = m_metropolisStepSigma;
+  s->worker->metropolisT         = m_metropolisT;
 
-  s.worker->moveToThread(s.thread);
-  connect(s.thread, &QThread::started, s.worker, &SimulationWorker::run);
+  s->worker->moveToThread(s->thread);
+  connect(s->thread, &QThread::started, s->worker, &SimulationWorker::run);
 
-  connect(s.worker, &SimulationWorker::logMessage, this, [this, idx](const QString &msg) {
-      onLogMessage(msg, idx);
+  connect(s->worker, &SimulationWorker::logMessage, this, [this, s](const QString &msg) {
+    onLogMessage(msg, s);
   });
 
-  connect(s.worker, &SimulationWorker::stepCompleted, this,
-          [this, idx](TrajectoryPoint pt) {
-    auto &sl = m_slots[idx];
-    if (!sl.worker) return; // Slot was cleared/stopped
-    sl.data.append(pt);
+  connect(s->worker, &SimulationWorker::stepCompleted, this,
+          [this, s](TrajectoryPoint pt) {
+    if (!s->worker) return; // Slot was cleared/stopped
+    s->data.append(pt);
 
-    updateSlotSeriesVisibility(idx);
+    updateSlotSeriesVisibility(s);
 
     if (m_tempIsVertical) {
-      if (sl.sernB) sl.sernB->append(absVal(pt.nB, m_useAbsnB), pt.T);
-      if (sl.serS)  sl.serS->append(absVal(pt.s, m_useAbsS),    pt.T);
-      if (sl.sernQ) sl.sernQ->append(absVal(pt.nQ, m_useAbsnQ), pt.T);
-      if (sl.serMuB) sl.serMuB->append(absVal(pt.muB, m_useAbsMuB), pt.T);
-      if (sl.serMuQ) sl.serMuQ->append(absVal(pt.muQ, m_useAbsMuQ), pt.T);
-      if (sl.serMunue) sl.serMunue->append(absVal(pt.munue, m_useAbsMunue), pt.T);
-      if (sl.serMunumu) sl.serMunumu->append(absVal(pt.munumu, m_useAbsMunumu), pt.T);
-      if (sl.serMnutau) sl.serMnutau->append(absVal(pt.mnutau, m_useAbsMnutau), pt.T);
+      if (s->sernB) s->sernB->append(absVal(pt.nB, m_useAbsnB), pt.T);
+      if (s->serS)  s->serS->append(absVal(pt.s, m_useAbsS),    pt.T);
+      if (s->sernQ) s->sernQ->append(absVal(pt.nQ, m_useAbsnQ), pt.T);
+      if (s->serMuB) s->serMuB->append(absVal(pt.muB, m_useAbsMuB), pt.T);
+      if (s->serMuQ) s->serMuQ->append(absVal(pt.muQ, m_useAbsMuQ), pt.T);
+      if (s->serMunue) s->serMunue->append(absVal(pt.munue, m_useAbsMunue), pt.T);
+      if (s->serMunumu) s->serMunumu->append(absVal(pt.munumu, m_useAbsMunumu), pt.T);
+      if (s->serMnutau) s->serMnutau->append(absVal(pt.mnutau, m_useAbsMnutau), pt.T);
     } else {
-      if (sl.sernB) sl.sernB->append(pt.T, absVal(pt.nB, m_useAbsnB));
-      if (sl.serS)  sl.serS->append(pt.T, absVal(pt.s, m_useAbsS));
-      if (sl.sernQ) sl.sernQ->append(pt.T, absVal(pt.nQ, m_useAbsnQ));
-      if (sl.serMuB) sl.serMuB->append(pt.T, absVal(pt.muB, m_useAbsMuB));
-      if (sl.serMuQ) sl.serMuQ->append(pt.T, absVal(pt.muQ, m_useAbsMuQ));
-      if (sl.serMunue) sl.serMunue->append(pt.T, absVal(pt.munue, m_useAbsMunue));
-      if (sl.serMunumu) sl.serMunumu->append(pt.T, absVal(pt.munumu, m_useAbsMunumu));
-      if (sl.serMnutau) sl.serMnutau->append(pt.T, absVal(pt.mnutau, m_useAbsMnutau));
+      if (s->sernB) s->sernB->append(pt.T, absVal(pt.nB, m_useAbsnB));
+      if (s->serS)  s->serS->append(pt.T, absVal(pt.s, m_useAbsS));
+      if (s->sernQ) s->sernQ->append(pt.T, absVal(pt.nQ, m_useAbsnQ));
+      if (s->serMuB) s->serMuB->append(pt.T, absVal(pt.muB, m_useAbsMuB));
+      if (s->serMuQ) s->serMuQ->append(pt.T, absVal(pt.muQ, m_useAbsMuQ));
+      if (s->serMunue) s->serMunue->append(pt.T, absVal(pt.munue, m_useAbsMunue));
+      if (s->serMunumu) s->serMunumu->append(pt.T, absVal(pt.munumu, m_useAbsMunumu));
+      if (s->serMnutau) s->serMnutau->append(pt.T, absVal(pt.mnutau, m_useAbsMnutau));
     }
     updateChartAxes();
   });
 
-  connect(s.worker, &SimulationWorker::simulationFinished, this, [this, idx]() {
-    auto &sl = m_slots[idx];
-    if (!sl.worker) return;
-    sl.btnRun->setEnabled(true);
-    sl.btnStop->setEnabled(false);
-    sl.statusLabel->setText("✓ Done");
+  connect(s->worker, &SimulationWorker::simulationFinished, this, [s]() {
+    if (!s->worker) return;
+    s->btnRun->setEnabled(true);
+    s->btnStop->setEnabled(false);
+    s->statusLabel->setText("✓ Done");
   });
 
-  connect(s.worker, &SimulationWorker::simulationError, this,
-          [this, idx](const QString &msg) {
-    auto &sl = m_slots[idx];
-    if (!sl.worker) return;
-    sl.btnRun->setEnabled(true);
-    sl.btnStop->setEnabled(false);
-    sl.statusLabel->setText("✗ Error");
-    sl.statusLabel->setStyleSheet("color: red; font-weight: bold;");
-    sl.statusLabel->setToolTip(msg);
+  connect(s->worker, &SimulationWorker::simulationError, this,
+          [s](const QString &msg) {
+    if (!s->worker) return;
+    s->btnRun->setEnabled(true);
+    s->btnStop->setEnabled(false);
+    s->statusLabel->setText("✗ Error");
+    s->statusLabel->setStyleSheet("color: red; font-weight: bold;");
+    s->statusLabel->setToolTip(msg);
   });
 
-  s.thread->start();
+  s->thread->start();
 }
 
 // ── Clear a slot ───────────────────────────────────────────────────────────
-void CompareWidget::clearSlot(int idx) {
-  auto &s = m_slots[idx];
-  if (s.thread) {
-    disconnect(s.worker, nullptr, nullptr, nullptr); // Prevent pending signals
-    s.thread->quit();
-    s.thread->wait();
-    delete s.worker;
-    delete s.thread;
-    s.worker = nullptr;
-    s.thread = nullptr;
+void CompareWidget::clearSlot(SlotConfig *s) {
+  if (!s) return;
+  if (s->thread) {
+    disconnect(s->worker, nullptr, nullptr, nullptr);
+    s->thread->quit();
+    s->thread->wait();
+    delete s->worker;
+    delete s->thread;
+    s->worker = nullptr;
+    s->thread = nullptr;
   }
-  clearSlotSeries(idx);
-  s.data.clear();
-  s.btnRun->setEnabled(true);
-  s.statusLabel->setText("–");
-  s.statusLabel->setStyleSheet("color: gray;");
-  updateSlotSeriesVisibility(idx);
+  clearSlotSeries(s);
+  s->data.clear();
+  s->btnRun->setEnabled(true);
+  s->statusLabel->setText("–");
+  s->statusLabel->setStyleSheet("color: gray;");
+  updateSlotSeriesVisibility(s);
   updateChartAxes();
 }
 
-void CompareWidget::clearSlotSeries(int idx) {
-  auto &s = m_slots[idx];
-  if (s.sernB)    s.sernB->clear();
-  if (s.serS)     s.serS->clear();
-  if (s.sernQ)    s.sernQ->clear();
-  if (s.serMuB)   s.serMuB->clear();
-  if (s.serMuQ)   s.serMuQ->clear();
-  if (s.serMunue)  s.serMunue->clear();
-  if (s.serMunumu) s.serMunumu->clear();
-  if (s.serMnutau) s.serMnutau->clear();
+void CompareWidget::clearSlotSeries(SlotConfig *s) {
+  if (!s) return;
+  if (s->sernB)    s->sernB->clear();
+  if (s->serS)     s->serS->clear();
+  if (s->sernQ)    s->sernQ->clear();
+  if (s->serMuB)   s->serMuB->clear();
+  if (s->serMuQ)   s->serMuQ->clear();
+  if (s->serMunue)  s->serMunue->clear();
+  if (s->serMunumu) s->serMunumu->clear();
+  if (s->serMnutau) s->serMnutau->clear();
 }
 
 // ── Axis range across all slots ────────────────────────────────────────────
@@ -696,8 +785,9 @@ void CompareWidget::updateChartAxes() {
     return x;
   };
 
-  for (int i = 0; i < NUM_SLOTS; i++) {
-    for (const auto &p : m_slots[i].data) {
+  for (auto *slot : m_slots) {
+    if (!slot) continue;
+    for (const auto &p : slot->data) {
       hasData = true;
       minT = std::min(minT, p.T);   maxT = std::max(maxT, p.T);
       minDens = std::min({minDens, val(p.nB), val(p.s), val(p.nQ)});
@@ -743,10 +833,13 @@ void CompareWidget::updateChartAxes() {
   }
 }
 
-void CompareWidget::onLogMessage(const QString &msg, int slotIdx) {
-    QString colorName = m_slots[slotIdx].color.name();
-    QString prefix = QString("<b style=\"color:%1;\">[Slot %2] </b>").arg(colorName).arg(slotIdx + 1);
-    
+void CompareWidget::onLogMessage(const QString &msg, SlotConfig *s) {
+    if (!s) return;
+    const int idx = slotIndex(s);
+    QString colorName = s->color.name();
+    QString prefix = QString("<b style=\"color:%1;\">[Slot %2] </b>")
+                         .arg(colorName).arg(idx + 1);
+
     if (msg.contains("<font ") || msg.contains("<span ")) {
         m_console->append(prefix + msg);
     } else {
@@ -764,23 +857,23 @@ void CompareWidget::onThemeToggleClicked() {
 
   static const Qt::PenStyle QTY_STYLES[3] = {Qt::SolidLine, Qt::DashLine, Qt::DotLine};
   
-  for (int i = 0; i < NUM_SLOTS; i++) {
-    auto &s = m_slots[i];
+  for (auto *s : m_slots) {
+    if (!s) continue;
     auto restore = [&](QLineSeries *ser, Qt::PenStyle ps) {
       if (!ser) return;
-      QPen pen(s.color);
+      QPen pen(s->color);
       pen.setStyle(ps);
       pen.setWidthF(2.0);
       ser->setPen(pen);
     };
-    restore(s.sernB,    QTY_STYLES[0]);
-    restore(s.serS,     QTY_STYLES[1]);
-    restore(s.sernQ,    QTY_STYLES[2]);
-    restore(s.serMuB,   QTY_STYLES[0]);
-    restore(s.serMuQ,   QTY_STYLES[1]);
-    restore(s.serMunue,  QTY_STYLES[0]);
-    restore(s.serMunumu, QTY_STYLES[1]);
-    restore(s.serMnutau, QTY_STYLES[2]);
+    restore(s->sernB,    QTY_STYLES[0]);
+    restore(s->serS,     QTY_STYLES[1]);
+    restore(s->sernQ,    QTY_STYLES[2]);
+    restore(s->serMuB,   QTY_STYLES[0]);
+    restore(s->serMuQ,   QTY_STYLES[1]);
+    restore(s->serMunue,  QTY_STYLES[0]);
+    restore(s->serMunumu, QTY_STYLES[1]);
+    restore(s->serMnutau, QTY_STYLES[2]);
   }
 }
 
@@ -800,32 +893,31 @@ void CompareWidget::replotData() {
   updateTitles(m_muAxisX, m_muAxisY, "Chem. Pot. [MeV]");
   updateTitles(m_lepAxisX, m_lepAxisY, "Chem. Pot. [MeV]");
 
-  for (int i = 0; i < NUM_SLOTS; i++) {
-    auto &sl = m_slots[i];
-    clearSlotSeries(i);
+  for (auto *sl : m_slots) {
+    clearSlotSeries(sl);
 
-    for (const auto &pt : sl.data) {
+    for (const auto &pt : sl->data) {
       if (m_tempIsVertical) {
-        if(sl.sernB) sl.sernB->append(absVal(pt.nB, m_useAbsnB), pt.T);
-        if(sl.serS) sl.serS->append(absVal(pt.s, m_useAbsS),    pt.T);
-        if(sl.sernQ) sl.sernQ->append(absVal(pt.nQ, m_useAbsnQ), pt.T);
-        if(sl.serMuB) sl.serMuB->append(absVal(pt.muB, m_useAbsMuB), pt.T);
-        if(sl.serMuQ) sl.serMuQ->append(absVal(pt.muQ, m_useAbsMuQ), pt.T);
-        if(sl.serMunue) sl.serMunue->append(absVal(pt.munue, m_useAbsMunue), pt.T);
-        if(sl.serMunumu) sl.serMunumu->append(absVal(pt.munumu, m_useAbsMunumu), pt.T);
-        if(sl.serMnutau) sl.serMnutau->append(absVal(pt.mnutau, m_useAbsMnutau), pt.T);
+        if(sl->sernB) sl->sernB->append(absVal(pt.nB, m_useAbsnB), pt.T);
+        if(sl->serS) sl->serS->append(absVal(pt.s, m_useAbsS),    pt.T);
+        if(sl->sernQ) sl->sernQ->append(absVal(pt.nQ, m_useAbsnQ), pt.T);
+        if(sl->serMuB) sl->serMuB->append(absVal(pt.muB, m_useAbsMuB), pt.T);
+        if(sl->serMuQ) sl->serMuQ->append(absVal(pt.muQ, m_useAbsMuQ), pt.T);
+        if(sl->serMunue) sl->serMunue->append(absVal(pt.munue, m_useAbsMunue), pt.T);
+        if(sl->serMunumu) sl->serMunumu->append(absVal(pt.munumu, m_useAbsMunumu), pt.T);
+        if(sl->serMnutau) sl->serMnutau->append(absVal(pt.mnutau, m_useAbsMnutau), pt.T);
       } else {
-        if(sl.sernB) sl.sernB->append(pt.T, absVal(pt.nB, m_useAbsnB));
-        if(sl.serS) sl.serS->append(pt.T, absVal(pt.s, m_useAbsS));
-        if(sl.sernQ) sl.sernQ->append(pt.T, absVal(pt.nQ, m_useAbsnQ));
-        if(sl.serMuB) sl.serMuB->append(pt.T, absVal(pt.muB, m_useAbsMuB));
-        if(sl.serMuQ) sl.serMuQ->append(pt.T, absVal(pt.muQ, m_useAbsMuQ));
-        if(sl.serMunue) sl.serMunue->append(pt.T, absVal(pt.munue, m_useAbsMunue));
-        if(sl.serMunumu) sl.serMunumu->append(pt.T, absVal(pt.munumu, m_useAbsMunumu));
-        if(sl.serMnutau) sl.serMnutau->append(pt.T, absVal(pt.mnutau, m_useAbsMnutau));
+        if(sl->sernB) sl->sernB->append(pt.T, absVal(pt.nB, m_useAbsnB));
+        if(sl->serS) sl->serS->append(pt.T, absVal(pt.s, m_useAbsS));
+        if(sl->sernQ) sl->sernQ->append(pt.T, absVal(pt.nQ, m_useAbsnQ));
+        if(sl->serMuB) sl->serMuB->append(pt.T, absVal(pt.muB, m_useAbsMuB));
+        if(sl->serMuQ) sl->serMuQ->append(pt.T, absVal(pt.muQ, m_useAbsMuQ));
+        if(sl->serMunue) sl->serMunue->append(pt.T, absVal(pt.munue, m_useAbsMunue));
+        if(sl->serMunumu) sl->serMunumu->append(pt.T, absVal(pt.munumu, m_useAbsMunumu));
+        if(sl->serMnutau) sl->serMnutau->append(pt.T, absVal(pt.mnutau, m_useAbsMnutau));
       }
     }
-    updateSlotSeriesVisibility(i);
+    updateSlotSeriesVisibility(sl);
   }
   refreshSeriesNames();
   refreshLegendVisibility();
@@ -864,22 +956,21 @@ void CompareWidget::onScaleToggleClicked() {
     swapAxes(m_muChartView,   m_muAxisX,   m_muAxisY,   "Chem. Pot. [MeV]");
     swapAxes(m_lepChartView,  m_lepAxisX,  m_lepAxisY,  "Chem. Pot. [MeV]");
 
-    for (int i = 0; i < NUM_SLOTS; i++) {
-        auto &s = m_slots[i];
-        if (s.sernB) { s.sernB->attachAxis(m_densAxisX); s.sernB->attachAxis(m_densAxisY); }
-        if (s.serS) { s.serS->attachAxis(m_densAxisX); s.serS->attachAxis(m_densAxisY); }
-        if (s.sernQ) { s.sernQ->attachAxis(m_densAxisX); s.sernQ->attachAxis(m_densAxisY); }
+    for (auto *s : m_slots) {
+        if (s->sernB) { s->sernB->attachAxis(m_densAxisX); s->sernB->attachAxis(m_densAxisY); }
+        if (s->serS) { s->serS->attachAxis(m_densAxisX); s->serS->attachAxis(m_densAxisY); }
+        if (s->sernQ) { s->sernQ->attachAxis(m_densAxisX); s->sernQ->attachAxis(m_densAxisY); }
 
-        if (s.serMuB) { s.serMuB->attachAxis(m_muAxisX); s.serMuB->attachAxis(m_muAxisY); }
-        if (s.serMuQ) { s.serMuQ->attachAxis(m_muAxisX); s.serMuQ->attachAxis(m_muAxisY); }
+        if (s->serMuB) { s->serMuB->attachAxis(m_muAxisX); s->serMuB->attachAxis(m_muAxisY); }
+        if (s->serMuQ) { s->serMuQ->attachAxis(m_muAxisX); s->serMuQ->attachAxis(m_muAxisY); }
 
-        if (s.serMunue) { s.serMunue->attachAxis(m_lepAxisX); s.serMunue->attachAxis(m_lepAxisY); }
-        if (s.serMunumu) { s.serMunumu->attachAxis(m_lepAxisX); s.serMunumu->attachAxis(m_lepAxisY); }
-        if (s.serMnutau) { s.serMnutau->attachAxis(m_lepAxisX); s.serMnutau->attachAxis(m_lepAxisY); }
+        if (s->serMunue) { s->serMunue->attachAxis(m_lepAxisX); s->serMunue->attachAxis(m_lepAxisY); }
+        if (s->serMunumu) { s->serMunumu->attachAxis(m_lepAxisX); s->serMunumu->attachAxis(m_lepAxisY); }
+        if (s->serMnutau) { s->serMnutau->attachAxis(m_lepAxisX); s->serMnutau->attachAxis(m_lepAxisY); }
     }
 
     bool hasAnyData = false;
-    for (int i = 0; i < NUM_SLOTS; i++) if (!m_slots[i].data.isEmpty()) { hasAnyData = true; break; }
+    for (auto *s : m_slots) if (s && !s->data.isEmpty()) { hasAnyData = true; break; }
 
     if (hasAnyData) {
         replotData();
@@ -901,11 +992,8 @@ void CompareWidget::onScaleToggleClicked() {
 
 void CompareWidget::onExportClicked() {
   bool hasAnyData = false;
-  for (int i = 0; i < NUM_SLOTS; i++) {
-    if (!m_slots[i].data.isEmpty()) {
-      hasAnyData = true;
-      break;
-    }
+  for (auto *s : m_slots) {
+    if (s && !s->data.isEmpty()) { hasAnyData = true; break; }
   }
 
   if (!hasAnyData) {
@@ -961,16 +1049,16 @@ void CompareWidget::onExportClicked() {
     out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnB\tnQ\ts_QCD\ts_tot"
            "\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\n";
 
-    for (int i = 0; i < NUM_SLOTS; ++i) {
-      const auto &s = m_slots[i];
-      if (s.data.isEmpty()) continue;
+    for (int i = 0; i < m_slots.size(); ++i) {
+      const auto *s = m_slots[i];
+      if (!s || s->data.isEmpty()) continue;
       out << QString("# Slot S%1").arg(i + 1);
-      if (s.runParamsValid) {
+      if (s->runParamsValid) {
         out << QString(" (B=%1, Le=%2, Lmu=%3, Ltau=%4)")
-                   .arg(s.B).arg(s.Le).arg(s.Lmu).arg(s.Ltau);
+                   .arg(s->B).arg(s->Le).arg(s->Lmu).arg(s->Ltau);
       }
       out << "\n";
-      for (const auto &pt : s.data) {
+      for (const auto &pt : s->data) {
         out << pt.T << "\t" << pt.muB << "\t" << pt.muQ
             << "\t" << pt.munue << "\t" << pt.munumu << "\t" << pt.mnutau
             << "\t" << pt.nB << "\t" << pt.nQ << "\t" << pt.s_QCD << "\t" << pt.s
@@ -1227,10 +1315,11 @@ void CompareWidget::refreshSeriesNames() {
   auto fmtName = [](bool useAbs, const QString &base) {
     return useAbs ? QString("|%1|").arg(base) : base;
   };
-  for (int i = 0; i < NUM_SLOTS; ++i) {
-    auto &s = m_slots[i];
+  for (int i = 0; i < m_slots.size(); ++i) {
+    auto *s = m_slots[i];
+    if (!s) continue;
     const QString prefix = QString("S%1: ").arg(i + 1);
-    const QString sfx = legendSuffix(s);
+    const QString sfx = legendSuffix(*s);
     const bool absForceLog = m_isLogScale; // log forces abs display
     auto absnB     = absForceLog ? true : m_useAbsnB;
     auto absS      = absForceLog ? true : m_useAbsS;
@@ -1240,14 +1329,14 @@ void CompareWidget::refreshSeriesNames() {
     auto absMunue  = absForceLog ? true : m_useAbsMunue;
     auto absMunumu = absForceLog ? true : m_useAbsMunumu;
     auto absMnutau = absForceLog ? true : m_useAbsMnutau;
-    if (s.sernB)    s.sernB->setName(prefix + fmtName(absnB,    "nB")     + sfx);
-    if (s.serS)     s.serS->setName( prefix + fmtName(absS,     "s")      + sfx);
-    if (s.sernQ)    s.sernQ->setName(prefix + fmtName(absnQ,    "nQ") + sfx);
-    if (s.serMuB)   s.serMuB->setName(prefix + fmtName(absMuB,  "μB")     + sfx);
-    if (s.serMuQ)   s.serMuQ->setName(prefix + fmtName(absMuQ,  "μQ")     + sfx);
-    if (s.serMunue) s.serMunue->setName(prefix + fmtName(absMunue,  "μνe") + sfx);
-    if (s.serMunumu)s.serMunumu->setName(prefix + fmtName(absMunumu, "μνμ") + sfx);
-    if (s.serMnutau)s.serMnutau->setName(prefix + fmtName(absMnutau, "μντ") + sfx);
+    if (s->sernB)    s->sernB->setName(prefix + fmtName(absnB,    "nB")     + sfx);
+    if (s->serS)     s->serS->setName( prefix + fmtName(absS,     "s")      + sfx);
+    if (s->sernQ)    s->sernQ->setName(prefix + fmtName(absnQ,    "nQ") + sfx);
+    if (s->serMuB)   s->serMuB->setName(prefix + fmtName(absMuB,  "μB")     + sfx);
+    if (s->serMuQ)   s->serMuQ->setName(prefix + fmtName(absMuQ,  "μQ")     + sfx);
+    if (s->serMunue) s->serMunue->setName(prefix + fmtName(absMunue,  "μνe") + sfx);
+    if (s->serMunumu)s->serMunumu->setName(prefix + fmtName(absMunumu, "μνμ") + sfx);
+    if (s->serMnutau)s->serMnutau->setName(prefix + fmtName(absMnutau, "μντ") + sfx);
   }
 }
 

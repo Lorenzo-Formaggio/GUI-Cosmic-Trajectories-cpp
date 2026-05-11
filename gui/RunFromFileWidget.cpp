@@ -127,8 +127,8 @@ void RunFromFileWidget::setupUi() {
     return sp;
   };
 
-  m_spinTmin = addSpin("Tmin (MeV)", 30.0,    0.1,  10000.0, 1);
-  m_spinTmax = addSpin("Tmax (MeV)", 2000.0,  0.1,  10000.0, 1);
+  m_spinTmin = addSpin("Tmin (MeV)", 80.0,   0.1,  10000.0, 1);
+  m_spinTmax = addSpin("Tmax (MeV)", 250.0,  0.1,  10000.0, 1);
   m_spinDT   = addSpin("dT (MeV)",   1.0,     0.01, 100.0,   2);
 
   gridCommon->addWidget(new QLabel("Scan Direction"), row, 0);
@@ -496,7 +496,7 @@ void RunFromFileWidget::createChartPanel(QWidget *parent) {
     // Default range so the axes render with tick marks before any data is
     // plotted. Once the user runs the batch, updateChartAxes() overrides.
     const double tMin = m_spinTmin ? m_spinTmin->value() : 80.0;
-    const double tMax = m_spinTmax ? m_spinTmax->value() : 200.0;
+    const double tMax = m_spinTmax ? m_spinTmax->value() : 250.0;
     if (m_isLogScale) {
       axX->setRange(m_tempIsVertical ? 1e-3 : tMin,
                     m_tempIsVertical ? 1e3  : tMax);

@@ -21,7 +21,7 @@ static const double NaN = std::numeric_limits<double>::quiet_NaN();
 static constexpr int N_T0 = 1000;
 static constexpr double T0_HEADROOM = 30.0;
 static constexpr double SIGMA = 2.0;
-static constexpr double T_HRG_MATCH = 80.0;
+static constexpr double T_HRG_MATCH = 90.0;
 static constexpr double HBARC_GEVFM = 0.1973269;
 
 // ============================================================================
