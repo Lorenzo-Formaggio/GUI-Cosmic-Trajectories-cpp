@@ -38,6 +38,7 @@
 #include <QtCharts/QScatterSeries>
 #include <QtCharts/QLogValueAxis>
 #include <QtCharts/QValueAxis>
+#include <QtDataVisualization/Q3DInputHandler>
 #include <QtDataVisualization/Q3DTheme>
 #include <QtDataVisualization/Q3DCamera>
 #include <QtDataVisualization/Q3DScene>
@@ -45,7 +46,60 @@
 #include <QtDataVisualization/QAbstract3DGraph>
 #include <QSlider>
 #include <QFile>
+#include <QMouseEvent>
 #include "TooltipChartView.h"
+
+// ── Custom Input Handler for 3D Plot ──────────────────────────────────────
+// Maps LeftButton to RightButton for rotation and vice versa for selection.
+class LeftClick3DInputHandler : public Q3DInputHandler {
+public:
+    explicit LeftClick3DInputHandler(QObject *parent = nullptr) : Q3DInputHandler(parent) {}
+
+    void mousePressEvent(QMouseEvent *event, const QPoint &mousePos) override {
+        if (event->button() == Qt::LeftButton) {
+            QMouseEvent fakeEvent(event->type(), event->position(), event->scenePosition(), event->globalPosition(),
+                                  Qt::RightButton, event->buttons() | Qt::RightButton, event->modifiers());
+            Q3DInputHandler::mousePressEvent(&fakeEvent, mousePos);
+        } else if (event->button() == Qt::RightButton) {
+            QMouseEvent fakeEvent(event->type(), event->position(), event->scenePosition(), event->globalPosition(),
+                                  Qt::LeftButton, event->buttons() | Qt::LeftButton, event->modifiers());
+            Q3DInputHandler::mousePressEvent(&fakeEvent, mousePos);
+        } else {
+            Q3DInputHandler::mousePressEvent(event, mousePos);
+        }
+    }
+
+    void mouseMoveEvent(QMouseEvent *event, const QPoint &mousePos) override {
+        Qt::MouseButtons buttons = event->buttons();
+        if (buttons & Qt::LeftButton) {
+            buttons = (buttons & ~Qt::LeftButton) | Qt::RightButton;
+            QMouseEvent fakeEvent(event->type(), event->position(), event->scenePosition(), event->globalPosition(),
+                                  Qt::NoButton, buttons, event->modifiers());
+            Q3DInputHandler::mouseMoveEvent(&fakeEvent, mousePos);
+        } else if (buttons & Qt::RightButton) {
+            buttons = (buttons & ~Qt::RightButton) | Qt::LeftButton;
+            QMouseEvent fakeEvent(event->type(), event->position(), event->scenePosition(), event->globalPosition(),
+                                  Qt::NoButton, buttons, event->modifiers());
+            Q3DInputHandler::mouseMoveEvent(&fakeEvent, mousePos);
+        } else {
+            Q3DInputHandler::mouseMoveEvent(event, mousePos);
+        }
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event, const QPoint &mousePos) override {
+        if (event->button() == Qt::LeftButton) {
+            QMouseEvent fakeEvent(event->type(), event->position(), event->scenePosition(), event->globalPosition(),
+                                  Qt::RightButton, event->buttons() & ~Qt::RightButton, event->modifiers());
+            Q3DInputHandler::mouseReleaseEvent(&fakeEvent, mousePos);
+        } else if (event->button() == Qt::RightButton) {
+            QMouseEvent fakeEvent(event->type(), event->position(), event->scenePosition(), event->globalPosition(),
+                                  Qt::LeftButton, event->buttons() & ~Qt::LeftButton, event->modifiers());
+            Q3DInputHandler::mouseReleaseEvent(&fakeEvent, mousePos);
+        } else {
+            Q3DInputHandler::mouseReleaseEvent(event, mousePos);
+        }
+    }
+};
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   setupUi();
@@ -642,6 +696,7 @@ void MainWindow::createChartPanel(QWidget *parent) {
   // Q3DScatter is a QWindow; embed it via createWindowContainer so it can
   // live inside QTabWidget alongside the 2D chart views.
   m_scatter3D = new Q3DScatter();
+  m_scatter3D->setActiveInputHandler(new LeftClick3DInputHandler(m_scatter3D));
   m_scatter3D->activeTheme()->setType(Q3DTheme::ThemeQt);
   m_scatter3D->activeTheme()->setBackgroundColor(QColor("#2b2b2b"));
   m_scatter3D->activeTheme()->setWindowColor(QColor("#2b2b2b"));
