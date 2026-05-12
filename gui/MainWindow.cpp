@@ -1110,7 +1110,22 @@ void MainWindow::onThemeToggleClicked() {
   m_seriesErrLe->setColor(Qt::cyan);
   m_seriesErrLmu->setColor(Qt::magenta);
   m_seriesErrLtau->setColor(QColor(200, 200, 0));
+
+  // Also update 3D plot theme
+  if (m_scatter3D) {
+    auto *theme = m_scatter3D->activeTheme();
+    if (newTheme == QChart::ChartThemeLight) {
+      theme->setBackgroundColor(Qt::white);
+      theme->setWindowColor(Qt::white);
+      theme->setLabelTextColor(Qt::black);
+    } else {
+      theme->setBackgroundColor(QColor("#2b2b2b"));
+      theme->setWindowColor(QColor("#2b2b2b"));
+      theme->setLabelTextColor(Qt::white);
+    }
+  }
 }
+
 
 void MainWindow::onAxisToggleClicked() {
   m_tempIsVertical = !m_tempIsVertical;
