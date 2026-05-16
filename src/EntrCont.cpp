@@ -21,7 +21,7 @@ static const double NaN = std::numeric_limits<double>::quiet_NaN();
 static constexpr int N_T0 = 1000;
 static constexpr double T0_HEADROOM = 30.0;
 static constexpr double SIGMA = 2.0;
-static constexpr double T_HRG_MATCH = 90.0;
+static constexpr double T_HRG_MATCH = 80.0;
 static constexpr double HBARC_GEVFM = 0.1973269;
 
 // ============================================================================
@@ -56,8 +56,7 @@ public:
     b_.resize(nm1);
     d_.resize(nm1);
     for (int i = 0; i < nm1; i++) {
-      b_[i] = (y[i + 1] - y[i]) / h[i] -
-              h[i] * (c_[i + 1] + 2.0 * c_[i]) / 3.0;
+      b_[i] = (y[i + 1] - y[i]) / h[i] - h[i] * (c_[i + 1] + 2.0 * c_[i]) / 3.0;
       d_[i] = (c_[i + 1] - c_[i]) / (3.0 * h[i]);
     }
   }
@@ -328,8 +327,7 @@ ContourValues evalContour(double muB, double muQ) {
   double nQh = zero_mu ? 0.0 : (muQ / mu_tot);
   double mu = mu_tot;
 
-  Vec a2(N_T0), c2e(N_T0), c2B_d(N_T0), c2S_d(N_T0), c2Q_d(N_T0),
-      c2B_dp(N_T0);
+  Vec a2(N_T0), c2e(N_T0), c2B_d(N_T0), c2S_d(N_T0), c2Q_d(N_T0), c2B_dp(N_T0);
   for (int i = 0; i < N_T0; i++) {
     double e = nBh * nBh * g_c2B[i] + nSh * nSh * g_c2S[i] +
                nQh * nQh * g_c2Q[i] + 2.0 * nBh * nSh * g_c11BS[i] +
@@ -401,9 +399,8 @@ ContourValues evalContour(double muB, double muQ) {
         if ((c.T_phys[k] - T_HRG_MATCH) * (c.T_phys[k + 1] - T_HRG_MATCH) <=
             0.0) {
           double dT = c.T_phys[k + 1] - c.T_phys[k];
-          f_anc = (std::abs(dT) > 1e-12)
-                      ? (T_HRG_MATCH - c.T_phys[k]) / dT
-                      : 0.0;
+          f_anc =
+              (std::abs(dT) > 1e-12) ? (T_HRG_MATCH - c.T_phys[k]) / dT : 0.0;
           k_anc = k;
           break;
         }
@@ -478,8 +475,7 @@ struct InvBranch {
 };
 } // namespace
 
-static bool invertAtT(const ContourValues &c, double T_target,
-                      InvBranch &out) {
+static bool invertAtT(const ContourValues &c, double T_target, InvBranch &out) {
   std::vector<InvBranch> branches;
   for (int k = 0; k < N_T0 - 1; k++) {
     double d0 = c.T_phys[k] - T_target;
@@ -520,9 +516,7 @@ static bool invertAtT(const ContourValues &c, double T_target,
   return true;
 }
 
-static bool reachableT(double T) {
-  return !(g_useHRG && T < T_HRG_MATCH);
-}
+static bool reachableT(double T) { return !(g_useHRG && T < T_HRG_MATCH); }
 
 double sQCD(double, double, double T, const ContourValues &c) {
   if (!g_initialized)

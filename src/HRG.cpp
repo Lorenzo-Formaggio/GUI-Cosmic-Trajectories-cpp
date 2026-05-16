@@ -141,15 +141,38 @@ namespace {
 // e/T^4. Bosons whose |mu_eff| would push the expansion past convergence get
 // silently clipped to MU_OVER_M_CLIP * m_i — only bites during transient
 // Newton iterations; at convergence the EV shift keeps mu_eff < m_i.
-inline void evalSpecies(const Particle &p, double T, double mu_eff,
+// Symmetric EV-HRG.  In a thermodynamically consistent EV-HRG the
+// excluded-volume shift is applied to *both* particle and antiparticle
+// chemical potentials with the same sign, which factors out as
+// exp(-n*b*P/T) on each cluster term while keeping cosh / sinh of the
+// bare mu_bare/T.  Writing it as
+//   2cosh(n*(mu_bare - b*P)/T)
+// (i.e. shifting the argument of cosh) is *not* equivalent and breaks
+// C-symmetry at mu_bare = 0 — the system would acquire a spurious
+// matter density proportional to sinh(-n*b*P/T).  We keep the cluster-
+// wise factor exp(-n*b*P/T), which is exact and consistent at every
+// cluster order n.  See the discussion above in the EV section.
+//
+// For species WITHOUT antiparticle (genuine self-conjugate states like
+// pi0, eta, omega with B=Q=S=C=0): mu_bare is identically 0 so cosh
+// degenerates to 1, but the EV suppression exp(-n*b*P/T) still applies
+// — the species still occupies volume and its pressure is reduced.
+inline void evalSpecies(const Particle &p, double T,
+                         double mu_bare, double bP,
                          double &P_T4, double &n_T3, double &e_T4) {
   if (p.stat == -1) {
-    if (std::abs(mu_eff) >= MU_OVER_M_CLIP * p.mass_MeV)
-      mu_eff = std::copysign(MU_OVER_M_CLIP * p.mass_MeV, mu_eff);
+    // Boson cluster expansion regularization: keep |mu_bare/m| below 1
+    // so the alternating series stays inside its convergence radius.
+    // (For EV-HRG the original "mu_eff = mu - bP" trick handled this
+    // by reducing |mu|, but with the symmetric form bP no longer
+    // softens the argument of cosh, so we clip mu_bare directly.)
+    if (std::abs(mu_bare) >= MU_OVER_M_CLIP * p.mass_MeV)
+      mu_bare = std::copysign(MU_OVER_M_CLIP * p.mass_MeV, mu_bare);
   }
   const double mT = p.mass_MeV / T;
   const double mT2 = mT * mT;
-  const double mu_T = mu_eff / T;
+  const double mu_T = mu_bare / T;
+  const double bP_T = bP / T;
   const double pref = (double)p.degeneracy / (2.0 * M_PI * M_PI);
   double Pi = 0.0, ni = 0.0, ei = 0.0;
   for (int n = 1; n <= p.n_max; n++) {
@@ -157,14 +180,19 @@ inline void evalSpecies(const Particle &p, double T, double mu_eff,
     const double K2 = p.K2_cache[n - 1];
     const double K1 = p.K1_cache[n - 1];
     const double sign = p.sign_cache[n - 1];
+    const double ev = std::exp(-n * bP_T);   // symmetric EV suppression
     double cf, sf;
     if (p.hasAntiparticle) {
       cf = 2.0 * std::cosh(n * mu_T);
       sf = 2.0 * std::sinh(n * mu_T);
     } else {
+      // mu_bare == 0 by construction (hasAntiparticle is the OR of
+      // B,Q,S,C being nonzero), so cosh -> 1, sinh -> 0.
       cf = 1.0;
       sf = 0.0;
     }
+    cf *= ev;
+    sf *= ev;
     const double inv_n = 1.0 / n;
     const double inv_n2 = inv_n * inv_n;
     Pi += sign * inv_n2 * mT2 * K2 * cf;
@@ -203,19 +231,28 @@ Result eval(double T, double muB, double muQ, double muS) {
     b_arr[i] = (p.B != 0) ? b_B : b_M;
   }
 
-  // Self-consistency: solve  P = sum_i P_i^id(T, mu_i - b_i P)  for P.
-  // Newton step: P -> P - (P - P_id) / (1 + sum_j b_j n_j^id).
-  // Start at P = 0 (ideal HRG limit). For ev_active = false skip iteration
-  // (single pass equivalent to ideal HRG).
+  // Self-consistency: solve  P = sum_i P_i^id(T, mu_i, b_i*P)  for P,
+  // where P_i^id now uses the *symmetric* EV form (cluster-wise
+  // exp(-n*b_i*P/T) multiplying cosh/sinh of mu_bare/T).
+  //
+  // Newton step:  P -> P - (P - P_id) / F'.
+  // Approximate F' = 1 + sum_j b_j n_j^id ; this is exact for the
+  // asymmetric form and a good approximation for the symmetric form
+  // (correction is O((bP/T)^2) and very small for the typical bP/T <~ 0.02
+  // at the seam).  If convergence slows, the loop is capped at
+  // NEWTON_MAX_ITER (50) — well above the ~5 iterations needed in
+  // practice.
+  // Start at P = 0 (ideal HRG limit).  For ev_active = false skip
+  // iteration entirely (single pass at bP = 0).
   double P_dim = 0.0; // dimensional pressure, MeV^4
   if (ev_active) {
     for (int iter = 0; iter < NEWTON_MAX_ITER; iter++) {
       double P_id_T4 = 0.0;
       double bn_sum_T3 = 0.0;
       for (int i = 0; i < N; i++) {
-        double mu_eff = mu_bare[i] - b_arr[i] * P_dim;
         double Pi_T4, ni_T3, ei_T4;
-        evalSpecies(g_particles[i], T, mu_eff, Pi_T4, ni_T3, ei_T4);
+        evalSpecies(g_particles[i], T, mu_bare[i], b_arr[i] * P_dim,
+                    Pi_T4, ni_T3, ei_T4);
         P_id_T4 += Pi_T4;
         bn_sum_T3 += b_arr[i] * ni_T3;
       }
@@ -228,27 +265,28 @@ Result eval(double T, double muB, double muQ, double muS) {
         break;
     }
   } else {
-    // Pure ideal HRG: one pass, P = sum P_i^id at bare mu.
+    // Pure ideal HRG: one pass at bP = 0.
     double P_id_T4 = 0.0;
     for (int i = 0; i < N; i++) {
       double Pi_T4, ni_T3, ei_T4;
-      evalSpecies(g_particles[i], T, mu_bare[i], Pi_T4, ni_T3, ei_T4);
+      evalSpecies(g_particles[i], T, mu_bare[i], 0.0, Pi_T4, ni_T3, ei_T4);
       P_id_T4 += Pi_T4;
     }
     P_dim = P_id_T4 * T4;
   }
 
-  // Final pass: extract n_X, e at the converged P (and shifted mu).
-  // EV correction divides by (1 + sum_j b_j n_j^id) for both n_i and e_i.
+  // Final pass: extract n_X, e at the converged P.  The EV correction
+  // divides by (1 + sum_j b_j n_j^id) for densities and energy
+  // (Vovchenko's "EV thermodynamics" — see Phys.Rev. C 96, 015206).
   Result r{0.0, 0.0, 0.0, 0.0, 0.0};
   r.P_T4 = P_dim / T4;
   double e_T4_total = 0.0;
   double bn_sum_T3 = 0.0;
   std::vector<double> n_id_T3(N), e_id_T4(N);
   for (int i = 0; i < N; i++) {
-    double mu_eff = mu_bare[i] - b_arr[i] * P_dim;
     double Pi_T4, ni_T3, ei_T4;
-    evalSpecies(g_particles[i], T, mu_eff, Pi_T4, ni_T3, ei_T4);
+    evalSpecies(g_particles[i], T, mu_bare[i], b_arr[i] * P_dim,
+                Pi_T4, ni_T3, ei_T4);
     n_id_T3[i] = ni_T3;
     e_id_T4[i] = ei_T4;
     bn_sum_T3 += b_arr[i] * ni_T3;
