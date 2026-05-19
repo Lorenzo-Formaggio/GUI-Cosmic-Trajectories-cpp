@@ -376,17 +376,23 @@ ContourValues evalContour(double muB, double muQ) {
       c.s_T3[i] = g_s0_vec[i] * rat3 + c2e[i] * mu_hat[i] * mu_hat[i];
     }
 
-    Vec dPdT0(N_T0), P_p(N_T0);
+    Vec dPdT0(N_T0);
     for (int i = 0; i < N_T0; i++) {
       double T0 = g_T0g[i];
       dPdT0[i] = T0 * T0 * T0 * g_s0_vec[i] * c.dTdT0[i];
     }
-    Vec P_base = cumtrapz(dPdT0, g_T0g);
-    for (int i = 0; i < N_T0; i++) {
-      double Tp = c.T_phys[i];
-      double Tp4 = Tp * Tp * Tp * Tp;
-      P_p[i] = P_base[i] + Tp4 * 0.5 * c2e[i] * mu_hat[i] * mu_hat[i];
-    }
+    // P_base already contains the O(mu^2) contour pressure shift: the
+    // dT_phys/dT0 = (1 + alpha_2' mu^2 / 2) factor combined with the
+    // alpha_2 shift of the upper limit produces exactly
+    //   0.5 * T_phys^2 * c_2^e * mu^2
+    // via integration by parts of T_0^3 s_0 alpha_2', using the identity
+    //   alpha_2 = -d(T^2 c_2^e)/dT / d(T^3 s_0)/dT
+    // Earlier versions of this file (and main.cpp) added an explicit
+    //   + T_phys^4 * 0.5 * c_2^e * muhat^2
+    // term on top, double-counting the Taylor coefficient and giving
+    // chi_2^code = 2 * chi_2^lat at fixed T.  We don't add it.  See
+    // main.cpp's solve_slice for the full derivation.
+    Vec P_p = cumtrapz(dPdT0, g_T0g);
 
     // HRG seam anchor: replace the file-based HRGSlice lookup of EntrCont
     // with HRG::eval at T = T_HRG_MATCH (computed on the fly via EV-HRG).
