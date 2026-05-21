@@ -59,7 +59,7 @@ void EosExplorerWidget::setupUi() {
 
   // EoS Selection
   m_comboEos = new QComboBox();
-  m_comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)"});
+  m_comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)", "Entropy Contour Param (4)"});
   connect(m_comboEos, &QComboBox::currentIndexChanged, this, &EosExplorerWidget::onEosChanged);
   grid->addWidget(new QLabel("Equation of State:"), row, 0);
   grid->addWidget(m_comboEos, row++, 1);

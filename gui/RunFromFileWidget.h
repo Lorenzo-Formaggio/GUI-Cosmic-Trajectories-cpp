@@ -160,6 +160,7 @@ private:
   int    m_metropolisSteps     = 500;
   double m_metropolisStepSigma = 1.0;
   double m_metropolisT         = 0.01;
+  int    m_metropolisRetries   = 3;
 
   // ── UI widgets ──────────────────────────────────────────────────────
   QTableWidget *m_table = nullptr;

@@ -483,7 +483,7 @@ void MainWindow::createParameterPanel(QWidget *parent) {
   grid->addWidget(m_comboNf, row++, 1);
 
   m_comboEos = new QComboBox();
-  m_comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)"});
+  m_comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)", "Entropy Contour Param (4)"});
   connect(m_comboEos, &QComboBox::currentIndexChanged, this, &MainWindow::onEosChanged);
   grid->addWidget(new QLabel("EoS"), row, 0);
   grid->addWidget(m_comboEos, row++, 1);
@@ -801,13 +801,25 @@ void MainWindow::onEosChanged(int index) {
   m_labelEosPath->setVisible(showEosPath);
   m_eosPathWidget->setVisible(showEosPath);
 
-  // First-order surface overlay is only meaningful for the Entropy Contour EoS.
-  const bool entrCont = (index == 3);
+  // First-order surface overlay is only meaningful for the Entropy Contour
+  // family of EoS (file-loaded chi tables = 3; analytic parametrization = 4).
+  // Each variant has its own data file, so a cached load from one variant
+  // is invalidated when switching to the other.
+  const bool entrCont = (index == 3 || index == 4);
   if (m_chkSurface) m_chkSurface->setEnabled(entrCont);
   if (m_sliderSurfaceOpacity) m_sliderSurfaceOpacity->setEnabled(entrCont && m_chkSurface && m_chkSurface->isChecked());
   if (!entrCont) {
     if (m_chkSurface) m_chkSurface->setChecked(false);
     if (m_surface3D)  m_surface3D->setVisible(false);
+  } else if (m_surfaceLoaded && m_surfaceLoadedEos != index) {
+    // Switched between the two entrCont variants: invalidate the cached
+    // surface and reload now if the checkbox is currently on.
+    m_surfaceLoaded = false;
+    m_surfaceLoadedEos = -1;
+    if (m_chkSurface && m_chkSurface->isChecked()) {
+      loadFirstOrderSurface();
+      if (m_surface3D) m_surface3D->setVisible(m_surfaceLoaded);
+    }
   }
 }
 
@@ -907,6 +919,7 @@ void MainWindow::onRunClicked() {
   m_worker->metropolisSteps     = m_metropolisSteps;
   m_worker->metropolisStepSigma = m_metropolisStepSigma;
   m_worker->metropolisT         = m_metropolisT;
+  m_worker->metropolisRetries   = m_metropolisRetries;
   
   // Set working directory to project root (parent of build directory typically)
   // The user launches from gui/build/, so up two levels to get to project root
@@ -1670,12 +1683,22 @@ void MainWindow::onSolverSettingsButtonClicked() {
     gridMetro->addWidget(new QLabel("Temperature T_m:"), 3, 0);
     gridMetro->addWidget(spinMetroT, 3, 1);
 
+    QSpinBox *spinMetroRetries = new QSpinBox(m_solverSettingsDialog);
+    spinMetroRetries->setRange(1, 50);
+    spinMetroRetries->setValue(m_metropolisRetries);
+    spinMetroRetries->setToolTip(
+        "Number of independent Metropolis chains run before giving up on a "
+        "failing step. Each retry also gets maxIter × N solver iterations.");
+    gridMetro->addWidget(new QLabel("Retries:"), 4, 0);
+    gridMetro->addWidget(spinMetroRetries, 4, 1);
+
     // Grey out controls when mode is Off
     auto updateMetroEnabled = [=](int idx) {
       bool on = (idx != 0);
       spinMetroSteps->setEnabled(on);
       spinMetroSigma->setEnabled(on);
       spinMetroT->setEnabled(on);
+      spinMetroRetries->setEnabled(on);
     };
     connect(comboMetroMode, &QComboBox::currentIndexChanged, updateMetroEnabled);
     updateMetroEnabled(m_metropolisMode);
@@ -1696,6 +1719,7 @@ void MainWindow::onSolverSettingsButtonClicked() {
       m_metropolisSteps     = spinMetroSteps->value();
       m_metropolisStepSigma = spinMetroSigma->value();
       m_metropolisT         = spinMetroT->value();
+      m_metropolisRetries   = spinMetroRetries->value();
       m_solverSettingsDialog->accept();
     });
     vbox->addWidget(btnSave);
@@ -1756,13 +1780,21 @@ void MainWindow::refreshLegendVisibility() {
 
 // ── First-order surface overlay (Entropy Contour EoS) ────────────────────
 void MainWindow::loadFirstOrderSurface() {
-  if (m_surfaceLoaded || !m_surface3D) return;
+  if (!m_surface3D) return;
+  const int eos = m_comboEos ? m_comboEos->currentIndex() : 3;
+  // Skip if already loaded for this EoS variant.
+  if (m_surfaceLoaded && m_surfaceLoadedEos == eos) return;
 
-  // assets/first_order_surface.dat lives next to the project root. The
-  // application is launched from gui/build/, so go up two levels.
+  // Pick the surface file matching the selected EoS. Both files share the
+  // same column layout (T, muB, muS, muQ, dnB).
+  const QString fileName = (eos == 4) ? "assets/first_order_surface_param.dat"
+                                       : "assets/first_order_surface.dat";
+
+  // Files live next to the project root. The application is launched from
+  // gui/build/, so go up two levels.
   QDir dir(QCoreApplication::applicationDirPath());
   dir.cdUp(); dir.cdUp();
-  const QString path = dir.absoluteFilePath("assets/first_order_surface.dat");
+  const QString path = dir.absoluteFilePath(fileName);
 
   QFile f(path);
   if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -1791,8 +1823,10 @@ void MainWindow::loadFirstOrderSurface() {
   f.close();
   m_surface3D->dataProxy()->resetArray(arr);
   m_surfaceLoaded = true;
+  m_surfaceLoadedEos = eos;
   applySurfaceColor();
-  onLogMessage(QString("Loaded first-order surface: %1 points.").arg(arr->size()));
+  onLogMessage(QString("Loaded first-order surface (%1): %2 points.")
+                   .arg(fileName).arg(arr->size()));
 }
 
 void MainWindow::applySurfaceColor() {

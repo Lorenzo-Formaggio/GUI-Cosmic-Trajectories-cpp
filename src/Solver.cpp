@@ -129,10 +129,49 @@ std::vector<double> solveSystem(const std::vector<SystemFunction> &functions,
           std::to_string(iter) + ": " + e.what());
     }
 
-    // 4. Update solution
-    for (int i = 0; i < n; i++) {
-      x[i] += delta[i];
+    // 4. Update solution with a NaN-only safeguard.
+    //
+    // Pure Newton (x += delta) is the right thing for nonlinear systems:
+    // residuals can grow on a single step and still converge afterward
+    // via quadratic descent. Refusing growing-residual steps (Armijo-style
+    // line search) breaks convergence in many regimes that the unmodified
+    // Newton would solve fine — this regressed several cosmic-trajectory
+    // cases that used to work.
+    //
+    // The only failure mode we MUST guard against is the step launching x
+    // into a region where the EoS throws or returns NaN, because the next
+    // residual computation would then trip the NaN-detect at the top of
+    // the loop and abort. If α = 1 gives NaN, halve α until the residuals
+    // are at least *finite*. Otherwise take the full Newton step.
+    // Few backoffs — this guard is only for NaN regions of the EoS, not
+    // for line-search-style convergence. Keep it cheap: a deep backoff is
+    // ~20× slower per iteration and Metropolis (which calls solveSystem
+    // hundreds of times) noticeably stalls otherwise.
+    constexpr int kMaxBack = 5;
+    constexpr double kBackoff = 0.5;
+    double alpha = 1.0;
+    std::vector<double> xTry(n);
+    bool accepted = false;
+    for (int b = 0; b < kMaxBack; ++b) {
+      for (int i = 0; i < n; ++i) xTry[i] = x[i] + alpha * delta[i];
+      bool tryBad = false;
+      for (int i = 0; i < n; ++i) {
+        double v = 0.0;
+        try { v = functions[i](xTry); }
+        catch (...) { tryBad = true; break; }
+        if (std::isnan(v) || std::isinf(v)) { tryBad = true; break; }
+      }
+      if (!tryBad) { accepted = true; break; }
+      alpha *= kBackoff;
     }
+    if (!accepted) {
+      // Even an arbitrarily small step lands in a NaN region — we genuinely
+      // can't continue from this x.
+      throw std::runtime_error(
+          "Newton step damping failed at iteration " + std::to_string(iter) +
+          " (every backoff produced NaN).");
+    }
+    for (int i = 0; i < n; ++i) x[i] += alpha * delta[i];
   }
 
   throw std::runtime_error("Newton-Raphson failed to converge.");

@@ -550,7 +550,7 @@ void RunFromFileWidget::addSourceRow(const RunSource &src) {
 
   // EoS combo
   QComboBox *comboEos = new QComboBox();
-  comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)"});
+  comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)", "Entropy Contour Param (4)"});
   comboEos->setCurrentIndex(src.eos);
   connect(comboEos, &QComboBox::currentIndexChanged, this, [this, comboEos](int idx) {
     for (int rr = 0; rr < m_table->rowCount(); ++rr) {
@@ -1086,6 +1086,7 @@ void RunFromFileWidget::startNextTrajectory() {
   m_worker->metropolisSteps     = m_metropolisSteps;
   m_worker->metropolisStepSigma = m_metropolisStepSigma;
   m_worker->metropolisT         = m_metropolisT;
+  m_worker->metropolisRetries   = m_metropolisRetries;
 
   m_worker->workingDir = m_workingDir;
 
@@ -1759,11 +1760,20 @@ void RunFromFileWidget::onSolverSettingsClicked() {
     QDoubleSpinBox *spinMetroT = new QDoubleSpinBox(m_solverDialog);
     spinMetroT->setDecimals(6); spinMetroT->setRange(1e-8, 1e6); spinMetroT->setValue(m_metropolisT);
     gridMetro->addWidget(new QLabel("Temperature T_m:"), 3, 0); gridMetro->addWidget(spinMetroT, 3, 1);
+    QSpinBox *spinMetroRetries = new QSpinBox(m_solverDialog);
+    spinMetroRetries->setRange(1, 50);
+    spinMetroRetries->setValue(m_metropolisRetries);
+    spinMetroRetries->setToolTip(
+        "Number of independent Metropolis chains before giving up on a "
+        "failing step. Each retry also gets maxIter × N solver iterations.");
+    gridMetro->addWidget(new QLabel("Retries:"), 4, 0);
+    gridMetro->addWidget(spinMetroRetries, 4, 1);
     auto updMetro = [=](int idx) {
       bool on = (idx != 0);
       spinMetroSteps->setEnabled(on);
       spinMetroSigma->setEnabled(on);
       spinMetroT->setEnabled(on);
+      spinMetroRetries->setEnabled(on);
     };
     connect(comboMetroMode, &QComboBox::currentIndexChanged, updMetro);
     updMetro(m_metropolisMode);
@@ -1781,6 +1791,7 @@ void RunFromFileWidget::onSolverSettingsClicked() {
       m_metropolisSteps     = spinMetroSteps->value();
       m_metropolisStepSigma = spinMetroSigma->value();
       m_metropolisT         = spinMetroT->value();
+      m_metropolisRetries   = spinMetroRetries->value();
       m_solverDialog->accept();
     });
     vbox->addWidget(btnSave);

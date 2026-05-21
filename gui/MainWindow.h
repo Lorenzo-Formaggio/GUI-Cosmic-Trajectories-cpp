@@ -222,6 +222,7 @@ private:
   QSlider         *m_sliderSurfaceOpacity = nullptr;
   QLabel          *m_lblSurfaceOpacity = nullptr;
   bool             m_surfaceLoaded = false;
+  int              m_surfaceLoadedEos = -1;  // EoS index the cached surface belongs to
   void loadFirstOrderSurface();
   void applySurfaceColor();
 
@@ -263,6 +264,7 @@ private:
   int    m_metropolisSteps     = 500;
   double m_metropolisStepSigma = 1.0;
   double m_metropolisT         = 0.01;
+  int    m_metropolisRetries   = 3;
 };
 
 #endif // MAINWINDOW_H

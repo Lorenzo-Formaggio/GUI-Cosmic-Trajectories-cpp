@@ -448,7 +448,7 @@ void CompareWidget::buildSlotUi(SlotConfig *s) {
 
   grid->addWidget(new QLabel("EoS"), row, 0);
   s->comboEos = new QComboBox();
-  s->comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)"});
+  s->comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)", "Entropy Contour Param (4)"});
   s->comboEos->setCurrentIndex(1);
   grid->addWidget(s->comboEos, row++, 1);
 
@@ -682,6 +682,7 @@ void CompareWidget::runSlot(SlotConfig *s) {
   s->worker->metropolisSteps     = m_metropolisSteps;
   s->worker->metropolisStepSigma = m_metropolisStepSigma;
   s->worker->metropolisT         = m_metropolisT;
+  s->worker->metropolisRetries   = m_metropolisRetries;
 
   s->worker->moveToThread(s->thread);
   connect(s->thread, &QThread::started, s->worker, &SimulationWorker::run);
@@ -1257,12 +1258,22 @@ void CompareWidget::onSolverSettingsButtonClicked() {
     gridMetro->addWidget(new QLabel("Temperature T_m:"), 3, 0);
     gridMetro->addWidget(spinMetroT, 3, 1);
 
+    QSpinBox *spinMetroRetries = new QSpinBox(m_solverSettingsDialog);
+    spinMetroRetries->setRange(1, 50);
+    spinMetroRetries->setValue(m_metropolisRetries);
+    spinMetroRetries->setToolTip(
+        "Number of independent Metropolis chains before giving up on a "
+        "failing step. Each retry also gets maxIter × N solver iterations.");
+    gridMetro->addWidget(new QLabel("Retries:"), 4, 0);
+    gridMetro->addWidget(spinMetroRetries, 4, 1);
+
     // Grey out controls when mode is Off
     auto updateMetroEnabled = [=](int idx) {
       bool on = (idx != 0);
       spinMetroSteps->setEnabled(on);
       spinMetroSigma->setEnabled(on);
       spinMetroT->setEnabled(on);
+      spinMetroRetries->setEnabled(on);
     };
     connect(comboMetroMode, &QComboBox::currentIndexChanged, updateMetroEnabled);
     updateMetroEnabled(m_metropolisMode);
@@ -1284,6 +1295,7 @@ void CompareWidget::onSolverSettingsButtonClicked() {
       m_metropolisSteps     = spinMetroSteps->value();
       m_metropolisStepSigma = spinMetroSigma->value();
       m_metropolisT         = spinMetroT->value();
+      m_metropolisRetries   = spinMetroRetries->value();
 
       m_solverSettingsDialog->accept();
     });

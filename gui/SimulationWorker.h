@@ -66,6 +66,10 @@ public:
   int    metropolisSteps     = 500;
   double metropolisStepSigma = 1.0;
   double metropolisT         = 0.01;
+  // How many independent Metropolis attempts to run before giving up on a
+  // failing step. Each retry uses a fresh seed; if any returns a finite
+  // direct residual we keep the lowest-cost guess for the solver retry.
+  int    metropolisRetries   = 3;
 
   // Working directory (for finding LatticeEoS/, EoS_Table.txt)
   QString workingDir;

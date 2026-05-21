@@ -2,9 +2,12 @@
 #include "../include/InterpolatedEoS.hpp"
 #include "../include/LatticeQCD.hpp"
 #include "../include/EntrCont.hpp"
+#include "../include/EntrContParam.hpp"
 namespace QCD {
 
-// Current EoS selection (0 = free QGP, 1 = lattice QCD, 2 = Interpolated Table, 3 = Entropy Contour)
+// Current EoS selection (0 = free QGP, 1 = lattice QCD,
+//                       2 = Interpolated Table, 3 = Entropy Contour,
+//                       4 = Entropy Contour Param)
 static int currentEoS = 0;
 
 void setEoS(int eos, const std::string &dataPath, int nf) {
@@ -19,6 +22,8 @@ void setEoS(int eos, const std::string &dataPath, int nf) {
     }
   } else if (eos == 3) {
     EntropyContours::initialize(dataPath + "/EntroContourEoS/chis", dataPath + "/EntroContourEoS/HRG/list-PDG2020.dat", 1.0, 3.42, true);
+  } else if (eos == 4) {
+    EntropyContoursParam::initialize(dataPath + "/EntroContourEoS/chis", dataPath + "/EntroContourEoS/HRG/list-PDG2020.dat", 1.0, 3.42, true);
   }
 }
 
@@ -31,7 +36,10 @@ void cleanup() {
   if (currentEoS == 3) {
     EntropyContours::cleanup();
   }
-  
+  if (currentEoS == 4) {
+    EntropyContoursParam::cleanup();
+  }
+
   if (currentEoS != 2) {
     // If we are running a simulation that does NOT use the Interpolated EoS,
     // we should free its memory to release RAM.
@@ -48,6 +56,8 @@ double BarDens(double muB, double muQ, double T, int nf) {
     return val.nB;
   } else if (currentEoS == 3) {
     return EntropyContours::BarDens(muB, muQ, T);
+  } else if (currentEoS == 4) {
+    return EntropyContoursParam::BarDens(muB, muQ, T);
   }
 
   // Free QGP
@@ -71,6 +81,8 @@ double QCDcharge(double muB, double muQ, double T, int nf) {
     return val.nQ;
   } else if (currentEoS == 3) {
     return EntropyContours::QCDcharge(muB, muQ, T);
+  } else if (currentEoS == 4) {
+    return EntropyContoursParam::QCDcharge(muB, muQ, T);
   }
 
   // Free QGP
@@ -93,6 +105,8 @@ double sQCD(double muB, double muQ, double T, int nf) {
     return val.s;
   } else if (currentEoS == 3) {
     return EntropyContours::sQCD(muB, muQ, T);
+  } else if (currentEoS == 4) {
+    return EntropyContoursParam::sQCD(muB, muQ, T);
   }
 
   // Free QGP

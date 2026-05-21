@@ -14,6 +14,9 @@
 #include <cmath>
 #include <sstream>
 #include <fstream>
+#include <thread>
+#include <future>
+#include <chrono>
 
 QMutex SimulationWorker::physicsMutex;
 
@@ -42,6 +45,7 @@ void SimulationWorker::run() {
     else if (eos == 1) eosName = "Lattice QCD";
     else if (eos == 2) eosName = "Interpolated Table";
     else if (eos == 3) eosName = "Entropy Contour";
+    else if (eos == 4) eosName = "Entropy Contour (Parametrized)";
     else eosName = "Unknown";
 
     emit logMessage(QString("Setting EoS: %1").arg(QString::fromStdString(eosName)));
@@ -111,6 +115,8 @@ void SimulationWorker::run() {
     }
 
     // ── Main simulation loop ──────────────────────────────────────────────
+    int failedSteps = 0;
+
     bool firstStep = true;
     for (double T = Tstart;
          (scanDirection == 0) ? (T <= Tend) : (T >= Tend);
@@ -124,30 +130,87 @@ void SimulationWorker::run() {
       std::vector<Solver::SystemFunction> functions =
           GetEq::getEquations(T, le, lmu, ltau, b, nf);
 
-      // ── Attempt solve, with optional Metropolis retry ─────────────────
+      // ── Attempt solve, with optional Metropolis fallback ──────────────
       std::vector<double> solution;
       bool solved = false;
 
+      // Metropolis pre-optimizer: random Gaussian Markov chain that
+      // minimises ‖F(x)‖ directly (no nested solver). Returns the
+      // lowest-cost guess found across N independent chains; the
+      // Solver retry uses that as starting point with bumped maxIter.
       auto tryMetropolis = [&](const QString &reason) {
+        const int nRetries = std::max(1, metropolisRetries);
+        // Auto-detect CPU cores; use ~80% (rounded down, min 1) for the
+        // chain pool. Capped at nRetries — no point spawning more workers
+        // than chains we'll actually run.
+        const unsigned int hwCores = std::max(1u, std::thread::hardware_concurrency());
+        const int nWorkers = std::min(nRetries,
+                                      std::max(1, static_cast<int>(hwCores) * 4 / 5));
         emit logMessage(QString("<font color='#ffc107'><b>Solver failed at T=%1 MeV</b> (%2). "
-                                "Running Metropolis optimizer (%3 steps, σ=%4, T_m=%5)...</font>")
+                                "Running Metropolis optimizer (%3 steps, σ=%4, T_m=%5, retries=%6, parallel=%7/%8)...</font>")
                             .arg(T, 0, 'f', 1).arg(reason)
                             .arg(metropolisSteps)
                             .arg(metropolisStepSigma, 0, 'g', 3)
-                            .arg(metropolisT, 0, 'g', 3));
+                            .arg(metropolisT, 0, 'g', 3)
+                            .arg(nRetries)
+                            .arg(nWorkers).arg(hwCores));
 
-        std::vector<double> bestGuess = Metropolis::optimize(
-            functions, targets, guess,
-            metropolisSteps, metropolisStepSigma, metropolisT,
-            tolerance, maxIter);
+        std::vector<double> bestGuess = guess;
+        double bestCost = Metropolis::directResidualCost(functions, targets, guess);
+        // Inside the chain we only need to know whether a proposal is in a
+        // Newton basin, not converge fully — cap the inner solver iterations
+        // so each Metropolis step is cheap. 4× cheaper than `maxIter=100`.
+        const int innerMaxIter = std::min(maxIter, 25);
 
-        double bestCost = Metropolis::computeCost(functions, targets, bestGuess, tolerance, maxIter);
+        // One chain = one task. Each is independent (own RNG seed), so we
+        // run them in parallel batches of nWorkers.
+        auto runChain = [&]() {
+          struct Result { std::vector<double> x; double cost; };
+          Result r{guess, std::numeric_limits<double>::infinity()};
+          try {
+            r.x = Metropolis::optimize(
+                functions, targets, guess,
+                metropolisSteps, metropolisStepSigma, metropolisT,
+                tolerance, innerMaxIter);
+            r.cost = Metropolis::directResidualCost(functions, targets, r.x);
+          } catch (...) {
+            r.x = guess;
+            r.cost = std::numeric_limits<double>::infinity();
+          }
+          return r;
+        };
 
-        emit logMessage(QString("  → Metropolis best cost: <b>%1</b>. Retrying solver...")
-                            .arg(bestCost, 0, 'e', 3));
+        int finished = 0;
+        while (finished < nRetries) {
+          const int batchSize = std::min(nWorkers, nRetries - finished);
+          using Result = decltype(runChain());
+          std::vector<std::future<Result>> futures;
+          futures.reserve(batchSize);
+          for (int b = 0; b < batchSize; ++b) {
+            futures.push_back(std::async(std::launch::async, runChain));
+          }
+          for (int b = 0; b < batchSize; ++b) {
+            Result r = futures[b].get();
+            if (r.cost < bestCost) {
+              bestCost = r.cost;
+              bestGuess = r.x;
+            }
+          }
+          finished += batchSize;
+          if (finished < nRetries) {
+            emit logMessage(QString("  ↻ Metropolis batch %1/%2 done (best residual so far: %3)")
+                                .arg(finished).arg(nRetries)
+                                .arg(bestCost, 0, 'e', 3));
+          }
+        }
+
+        emit logMessage(QString("  → Metropolis best direct residual: <b>%1</b>. Retrying solver with maxIter×%2...")
+                            .arg(bestCost, 0, 'e', 3)
+                            .arg(nRetries));
+        const int boostedMaxIter = std::max(maxIter, maxIter * nRetries);
         try {
-          solution = Solver::solveSystem(functions, targets, bestGuess, tolerance, maxIter);
-          guess = bestGuess; // keep as new starting guess for next step
+          solution = Solver::solveSystem(functions, targets, bestGuess, tolerance, boostedMaxIter);
+          guess = bestGuess;
           solved = true;
           emit logMessage(QString("<font color='#28a745'>  ✓ Solver converged after Metropolis at T=%1 MeV.</font>").arg(T, 0, 'f', 1));
         } catch (const std::exception &e2) {
@@ -160,7 +223,6 @@ void SimulationWorker::run() {
         solution = Solver::solveSystem(functions, targets, guess, tolerance, maxIter);
         solved = true;
       } catch (const std::exception &e) {
-        // Decide whether to run Metropolis based on the mode
         bool runMetro = false;
         if (metropolisMode == 1 && firstStep) runMetro = true;
         else if (metropolisMode == 2)          runMetro = true;
@@ -176,6 +238,7 @@ void SimulationWorker::run() {
       firstStep = false;
 
       if (!solved) {
+        ++failedSteps;
         currentStep++;
         emit progressUpdated(std::min(static_cast<int>(100.0 * currentStep / totalSteps), 100));
         continue;
@@ -274,6 +337,16 @@ void SimulationWorker::run() {
 
     emit logMessage("─────────────────────────────────────────");
     emit logMessage("✓ Simulation complete.");
+    // Per-trajectory failure summary
+    if (failedSteps == 0) {
+      emit logMessage(QString("<font color='#28a745'>  All %1 / %1 points converged.</font>")
+                          .arg(totalSteps));
+    } else {
+      emit logMessage(QString("<font color='#ffc107'>  Failed points: %1 / %2 "
+                              "(%3% lost).</font>")
+                          .arg(failedSteps).arg(totalSteps)
+                          .arg(100.0 * failedSteps / std::max(1, totalSteps), 0, 'f', 1));
+    }
     emit logMessage(QString("  Output saved to: %1").arg(QString::fromStdString(trajPath)));
     emit progressUpdated(100);
     emit simulationFinished();
