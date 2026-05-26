@@ -18,11 +18,13 @@ constexpr double ggluon = 16.0;
 
 /**
  * @brief Set the equation of state type.
- * @param eos 0 = free QGP, 1 = lattice QCD, 2 = Interpolated Table, 3 = Entropy Contour
- * @param dataPath Base path (typically the working directory) for EoS data files
+ * @param eos         0 = free QGP, 1 = lattice QCD, 2 = Interpolated Table, 3 = Entropy Contour
+ * @param dataPath    Base path (typically the working directory) for EoS data files
+ * @param nf          Number of active quark flavors (3 or 4)
+ * @param interpType  Lattice QCD interpolation order (0=Cubic Spline, 1=Linear, 2=Akima, 3=Steffen)
  */
 void setEoS(int eos, const std::string &dataPath = "",
-            int nf = 3);
+            int nf = 3, int interpType = 0);
 
 /**
  * @brief Get current EoS type.

@@ -22,6 +22,7 @@
 #include <QProgressBar>
 #include <QDialog>
 #include <QMessageBox>
+#include <QFontDialog>
 #include <QFileDialog>
 #include <QColorDialog>
 #include <QThread>
@@ -381,6 +382,9 @@ void RunFromFileWidget::setupUi() {
   QAction *actTheme = plotMenu->addAction("Toggle Plot Theme");
   connect(actTheme, &QAction::triggered, this, &RunFromFileWidget::onThemeToggle);
 
+  QAction *actAxisFont = plotMenu->addAction("Configure Axis Fonts...");
+  connect(actAxisFont, &QAction::triggered, this, &RunFromFileWidget::onConfigureAxisFontsClicked);
+
   // Show/hide chart legend
   QAction *actLegend = plotMenu->addAction("Show Legend");
   actLegend->setCheckable(true);
@@ -492,6 +496,13 @@ void RunFromFileWidget::createChartPanel(QWidget *parent) {
     chart->addAxis(axX, Qt::AlignBottom);
     axY->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : valLabel);
     chart->addAxis(axY, Qt::AlignLeft);
+
+    if (m_axisFontValid) {
+      axX->setLabelsFont(m_axisFont);
+      axX->setTitleFont(m_axisFont);
+      axY->setLabelsFont(m_axisFont);
+      axY->setTitleFont(m_axisFont);
+    }
 
     // Default range so the axes render with tick marks before any data is
     // plotted. Once the user runs the batch, updateChartAxes() overrides.
@@ -1087,6 +1098,7 @@ void RunFromFileWidget::startNextTrajectory() {
   m_worker->metropolisStepSigma = m_metropolisStepSigma;
   m_worker->metropolisT         = m_metropolisT;
   m_worker->metropolisRetries   = m_metropolisRetries;
+  m_worker->latticeInterpType   = m_latticeInterpType;
 
   m_worker->workingDir = m_workingDir;
 
@@ -1513,6 +1525,7 @@ void RunFromFileWidget::onScaleToggle() {
   syncAbs(m_absMuB); syncAbs(m_absMuQ);
   syncAbs(m_absMunue); syncAbs(m_absMunumu); syncAbs(m_absMnutau);
 
+  applyAxisFonts();
   replotAll();
 }
 
@@ -1700,6 +1713,14 @@ void RunFromFileWidget::onSolverSettingsClicked() {
     spinMaxIter->setRange(10, 10000);
     spinMaxIter->setValue(m_maxIter);
     gridConv->addWidget(spinMaxIter, 1, 1);
+
+    // Lattice QCD Interp Order
+    gridConv->addWidget(new QLabel("Lattice QCD Interpolation:"), 2, 0);
+    QComboBox *comboLatticeInterp = new QComboBox(m_solverDialog);
+    comboLatticeInterp->addItems({"Cubic Spline (Default)", "Linear", "Akima", "Steffen"});
+    comboLatticeInterp->setCurrentIndex(m_latticeInterpType);
+    gridConv->addWidget(comboLatticeInterp, 2, 1);
+
     colLeft->addWidget(groupConv);
 
     // Initial guess
@@ -1768,6 +1789,7 @@ void RunFromFileWidget::onSolverSettingsClicked() {
         "failing step. Each retry also gets maxIter × N solver iterations.");
     gridMetro->addWidget(new QLabel("Retries:"), 4, 0);
     gridMetro->addWidget(spinMetroRetries, 4, 1);
+
     auto updMetro = [=](int idx) {
       bool on = (idx != 0);
       spinMetroSteps->setEnabled(on);
@@ -1792,6 +1814,7 @@ void RunFromFileWidget::onSolverSettingsClicked() {
       m_metropolisStepSigma = spinMetroSigma->value();
       m_metropolisT         = spinMetroT->value();
       m_metropolisRetries   = spinMetroRetries->value();
+      m_latticeInterpType   = comboLatticeInterp->currentIndex();
       m_solverDialog->accept();
     });
     vbox->addWidget(btnSave);
@@ -1875,4 +1898,34 @@ void RunFromFileWidget::refreshLegendVisibility() {
   for (auto *v : views) {
     if (v && v->chart()) v->chart()->legend()->setVisible(m_legendVisible);
   }
+}
+
+void RunFromFileWidget::onConfigureAxisFontsClicked() {
+    bool ok = false;
+    QFont currentFont = this->font();
+    if (m_densAxisX) {
+        currentFont = m_densAxisX->labelsFont();
+    }
+    QFont font = QFontDialog::getFont(&ok, currentFont, this);
+    if (ok) {
+        m_axisFont = font;
+        m_axisFontValid = true;
+        applyAxisFonts();
+    }
+}
+
+void RunFromFileWidget::applyAxisFonts() {
+    if (!m_axisFontValid) return;
+    QAbstractAxis* axes[] = {
+        m_densAxisX, m_densAxisY,
+        m_lepDensAxisX, m_lepDensAxisY,
+        m_muAxisX, m_muAxisY,
+        m_lepAxisX, m_lepAxisY
+    };
+    for (auto* ax : axes) {
+        if (ax) {
+            ax->setLabelsFont(m_axisFont);
+            ax->setTitleFont(m_axisFont);
+        }
+    }
 }

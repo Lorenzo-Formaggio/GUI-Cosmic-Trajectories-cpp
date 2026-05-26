@@ -16,6 +16,7 @@
 #include <QDir>
 #include <QCheckBox>
 #include <QMessageBox>
+#include <QFontDialog>
 #include <QFileDialog>
 #include <QPdfWriter>
 #include <QPainter>
@@ -251,6 +252,9 @@ void CompareWidget::setupUi() {
 
   QAction *actTheme = plotMenu->addAction("Toggle Plot Theme");
   connect(actTheme, &QAction::triggered, this, [this]{ onThemeToggleClicked(); });
+
+  QAction *actAxisFont = plotMenu->addAction("Configure Axis Fonts...");
+  connect(actAxisFont, &QAction::triggered, this, &CompareWidget::onConfigureAxisFontsClicked);
 
   // Show/hide chart legend
   QAction *actLegend = plotMenu->addAction("Show Legend");
@@ -604,6 +608,13 @@ void CompareWidget::createChartPanel(QWidget *parent) {
     axY->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : valLabel);
     chart->addAxis(axY, Qt::AlignLeft);
 
+    if (m_axisFontValid) {
+        axX->setLabelsFont(m_axisFont);
+        axX->setTitleFont(m_axisFont);
+        axY->setLabelsFont(m_axisFont);
+        axY->setTitleFont(m_axisFont);
+    }
+
     view = new TooltipChartView(chart);
     view->setRenderHint(QPainter::Antialiasing);
     m_chartTabs->addTab(view, title);
@@ -683,6 +694,7 @@ void CompareWidget::runSlot(SlotConfig *s) {
   s->worker->metropolisStepSigma = m_metropolisStepSigma;
   s->worker->metropolisT         = m_metropolisT;
   s->worker->metropolisRetries   = m_metropolisRetries;
+  s->worker->latticeInterpType   = m_latticeInterpType;
 
   s->worker->moveToThread(s->thread);
   connect(s->thread, &QThread::started, s->worker, &SimulationWorker::run);
@@ -989,6 +1001,7 @@ void CompareWidget::onScaleToggleClicked() {
     m_seriesCpB->attachAxis(m_muAxisX); m_seriesCpB->attachAxis(m_muAxisY);
     m_seriesCpQ->attachAxis(m_muAxisX); m_seriesCpQ->attachAxis(m_muAxisY);
     updateCriticalPoint();
+    applyAxisFonts();
 }
 
 void CompareWidget::onExportClicked() {
@@ -1175,14 +1188,18 @@ void CompareWidget::onSolverSettingsButtonClicked() {
     spinMaxIter->setRange(10, 10000);
     spinMaxIter->setValue(m_maxIter);
     gridConv->addWidget(spinMaxIter, 1, 1);
+    
+    gridConv->addWidget(new QLabel("Lattice QCD Interpolation:"), 2, 0);
+    QComboBox *comboLatticeInterp = new QComboBox(m_solverSettingsDialog);
+    comboLatticeInterp->addItems({"Cubic Spline (Default)", "Linear", "Akima", "Steffen"});
+    comboLatticeInterp->setCurrentIndex(m_latticeInterpType);
+    gridConv->addWidget(comboLatticeInterp, 2, 1);
 
     colLeft->addWidget(groupConv);
 
     // ── Guess ─────────────────────────────────────────────────────────
     QGroupBox *groupGuess = new QGroupBox("Initial Guess Strategy", m_solverSettingsDialog);
     QVBoxLayout *vboxGuess = new QVBoxLayout(groupGuess);
-
-
 
     QComboBox *comboType = new QComboBox(m_solverSettingsDialog);
     comboType->addItems({"Standard Guess", "Custom Guess"});
@@ -1296,6 +1313,7 @@ void CompareWidget::onSolverSettingsButtonClicked() {
       m_metropolisStepSigma = spinMetroSigma->value();
       m_metropolisT         = spinMetroT->value();
       m_metropolisRetries   = spinMetroRetries->value();
+      m_latticeInterpType   = comboLatticeInterp->currentIndex();
 
       m_solverSettingsDialog->accept();
     });
@@ -1357,4 +1375,33 @@ void CompareWidget::refreshLegendVisibility() {
   for (auto *v : views) {
     if (v && v->chart()) v->chart()->legend()->setVisible(m_legendVisible);
   }
+}
+
+void CompareWidget::onConfigureAxisFontsClicked() {
+    bool ok = false;
+    QFont currentFont = this->font();
+    if (m_densAxisX) {
+        currentFont = m_densAxisX->labelsFont();
+    }
+    QFont font = QFontDialog::getFont(&ok, currentFont, this);
+    if (ok) {
+        m_axisFont = font;
+        m_axisFontValid = true;
+        applyAxisFonts();
+    }
+}
+
+void CompareWidget::applyAxisFonts() {
+    if (!m_axisFontValid) return;
+    QAbstractAxis* axes[] = {
+        m_densAxisX, m_densAxisY,
+        m_muAxisX, m_muAxisY,
+        m_lepAxisX, m_lepAxisY
+    };
+    for (auto* ax : axes) {
+        if (ax) {
+            ax->setLabelsFont(m_axisFont);
+            ax->setTitleFont(m_axisFont);
+        }
+    }
 }

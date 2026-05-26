@@ -49,7 +49,7 @@ void SimulationWorker::run() {
     else eosName = "Unknown";
 
     emit logMessage(QString("Setting EoS: %1").arg(QString::fromStdString(eosName)));
-    QCD::setEoS(eos, baseDir, nf);
+    QCD::setEoS(eos, baseDir, nf, latticeInterpType);
 
     // ── Prepare scan range ────────────────────────────────────────────────
     if (nf == 4 && eos == 1)

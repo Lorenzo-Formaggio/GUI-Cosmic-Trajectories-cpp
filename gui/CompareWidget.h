@@ -127,7 +127,10 @@ private:
   void onCriticalPointButtonClicked();
   void updateCriticalPoint();
   void onSolverSettingsButtonClicked();
+  void onConfigureAxisFontsClicked();
 
+private:
+  void applyAxisFonts();
   QString m_workingDir;
   QVector<SlotConfig*> m_slots;
   QVBoxLayout *m_slotsLayout = nullptr;   // hosts the per-slot groupboxes
@@ -156,6 +159,7 @@ private:
   double m_metropolisStepSigma = 1.0;
   double m_metropolisT         = 0.01;
   int    m_metropolisRetries   = 3;
+  int    m_latticeInterpType   = 0; // 0=Cubic, 1=Linear, 2=Akima, 3=Steffen
 
   QCheckBox *m_chknB      = nullptr;
   QCheckBox *m_chkS       = nullptr;
@@ -220,6 +224,9 @@ private:
   QAbstractAxis *m_muAxisY        = nullptr;
   QAbstractAxis *m_lepAxisX       = nullptr;
   QAbstractAxis *m_lepAxisY       = nullptr;
+
+  QFont m_axisFont;
+  bool  m_axisFontValid = false;
 };
 
 #endif // COMPAREWIDGET_H

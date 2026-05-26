@@ -16,6 +16,7 @@
 #include <QLineEdit>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QFontDialog>
 #include <QPdfWriter>
 #include <QPainter>
 #include <QTextStream>
@@ -231,6 +232,9 @@ void EosExplorerWidget::setupUi() {
   QAction *actTheme = plotMenu->addAction("Toggle Plot Theme");
   connect(actTheme, &QAction::triggered, this, &EosExplorerWidget::onThemeToggleClicked);
 
+  QAction *actAxisFont = plotMenu->addAction("Configure Axis Fonts...");
+  connect(actAxisFont, &QAction::triggered, this, &EosExplorerWidget::onConfigureAxisFontsClicked);
+
   // Show/hide chart legend (applies to all 3 charts)
   QAction *actLegend = plotMenu->addAction("Show Legend");
   actLegend->setCheckable(true);
@@ -311,6 +315,13 @@ void EosExplorerWidget::rebuildAxes(int chartIdx) {
 
   chart->addAxis(m_axesX[chartIdx], Qt::AlignBottom);
   chart->addAxis(m_axesY[chartIdx], Qt::AlignLeft);
+
+  if (m_axisFontValid) {
+    m_axesX[chartIdx]->setLabelsFont(m_axisFont);
+    m_axesX[chartIdx]->setTitleFont(m_axisFont);
+    m_axesY[chartIdx]->setLabelsFont(m_axisFont);
+    m_axesY[chartIdx]->setTitleFont(m_axisFont);
+  }
 
   // Re-attach existing series
   for (auto *abs : chart->series()) {
@@ -701,4 +712,32 @@ QColor EosExplorerWidget::nextColor(int &idx) {
   QColor c = colors[idx % colors.size()];
   idx++;
   return c;
+}
+
+void EosExplorerWidget::onConfigureAxisFontsClicked() {
+    bool ok = false;
+    QFont currentFont = this->font();
+    if (m_axesX[0]) {
+        currentFont = m_axesX[0]->labelsFont();
+    }
+    QFont font = QFontDialog::getFont(&ok, currentFont, this);
+    if (ok) {
+        m_axisFont = font;
+        m_axisFontValid = true;
+        applyAxisFonts();
+    }
+}
+
+void EosExplorerWidget::applyAxisFonts() {
+    if (!m_axisFontValid) return;
+    for (int i = 0; i < NUM_CHARTS; ++i) {
+        if (m_axesX[i]) {
+            m_axesX[i]->setLabelsFont(m_axisFont);
+            m_axesX[i]->setTitleFont(m_axisFont);
+        }
+        if (m_axesY[i]) {
+            m_axesY[i]->setLabelsFont(m_axisFont);
+            m_axesY[i]->setTitleFont(m_axisFont);
+        }
+    }
 }

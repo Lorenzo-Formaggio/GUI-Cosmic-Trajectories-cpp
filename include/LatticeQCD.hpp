@@ -69,16 +69,35 @@ struct ChiValues {
 };
 
 /**
+ * @brief Interpolation type for the chi susceptibility splines.
+ *
+ * Corresponds to GSL interpolation types:
+ *   0 = Cubic Spline (gsl_interp_cspline)  — default, smooth, C2-continuous
+ *   1 = Linear        (gsl_interp_linear)   — piecewise linear, most stable
+ *   2 = Akima         (gsl_interp_akima)    — cubic, less oscillation than cspline
+ *   3 = Steffen       (gsl_interp_steffen)  — monotone cubic, never overshoots
+ */
+enum InterpType {
+  INTERP_CSPLINE = 0,
+  INTERP_LINEAR  = 1,
+  INTERP_AKIMA   = 2,
+  INTERP_STEFFEN = 3
+};
+
+/**
  * @brief Initialize the lattice QCD equation of state.
  *
  * This function loads susceptibility data from files and sets up GSL spline
  * interpolation. Must be called before using any other LatticeQCD functions.
  *
- * @param dataPath Path to the directory containing susceptibility data files.
- *                 Default: "LatticeEoS/threeflavors/"
+ * @param dataPath   Path to the directory containing susceptibility data files.
+ *                   Default: "LatticeEoS/threeflavors/"
+ * @param includeCharm  Include charm quark contributions (requires charm data files).
+ * @param interpType Interpolation method to use for chi splines (see InterpType enum).
  */
 void initialize(const std::string &dataPath = "LatticeEoS/threeflavors/",
-                bool includeCharm = false);
+                bool includeCharm = false,
+                int interpType = INTERP_CSPLINE);
 
 /**
  * @brief Clean up lattice QCD resources.

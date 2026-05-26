@@ -22,6 +22,7 @@
 #include <QDir>
 #include <QPalette>
 #include <QFont>
+#include <QFontDialog>
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QPdfWriter>
@@ -269,6 +270,9 @@ void MainWindow::setupUi() {
 
   QAction *actTheme = plotMenu->addAction("Toggle Plot Theme");
   connect(actTheme, &QAction::triggered, this, &MainWindow::onThemeToggleClicked);
+
+  QAction *actAxisFont = plotMenu->addAction("Configure Axis Fonts...");
+  connect(actAxisFont, &QAction::triggered, this, &MainWindow::onConfigureAxisFontsClicked);
 
   // Show/hide chart legend
   QAction *actLegend = plotMenu->addAction("Show Legend");
@@ -586,6 +590,13 @@ void MainWindow::createChartPanel(QWidget *parent) {
 
     axisY->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : valLabel);
     chart->addAxis(axisY, Qt::AlignLeft);
+
+    if (m_axisFontValid) {
+        axisX->setLabelsFont(m_axisFont);
+        axisX->setTitleFont(m_axisFont);
+        axisY->setLabelsFont(m_axisFont);
+        axisY->setTitleFont(m_axisFont);
+    }
 
     view = new TooltipChartView(chart);
     view->setRenderHint(QPainter::Antialiasing);
@@ -920,6 +931,7 @@ void MainWindow::onRunClicked() {
   m_worker->metropolisStepSigma = m_metropolisStepSigma;
   m_worker->metropolisT         = m_metropolisT;
   m_worker->metropolisRetries   = m_metropolisRetries;
+  m_worker->latticeInterpType   = m_latticeInterpType;
   
   // Set working directory to project root (parent of build directory typically)
   // The user launches from gui/build/, so up two levels to get to project root
@@ -1370,6 +1382,7 @@ void MainWindow::onScaleToggleClicked() {
     syncAbsEnabled(m_absErrLe); syncAbsEnabled(m_absErrLmu); syncAbsEnabled(m_absErrLtau);
 
     updateCriticalPoint();
+    applyAxisFonts();
 }
 
 void MainWindow::updateAxesTypes() {
@@ -1596,6 +1609,13 @@ void MainWindow::onSolverSettingsButtonClicked() {
     spinMaxIter->setRange(10, 10000);
     spinMaxIter->setValue(m_maxIter);
     gridConv->addWidget(spinMaxIter, 1, 1);
+    
+    // Lattice QCD Interp Order
+    gridConv->addWidget(new QLabel("Lattice QCD Interpolation:"), 2, 0);
+    QComboBox *comboLatticeInterp = new QComboBox(m_solverSettingsDialog);
+    comboLatticeInterp->addItems({"Cubic Spline (Default)", "Linear", "Akima", "Steffen"});
+    comboLatticeInterp->setCurrentIndex(m_latticeInterpType);
+    gridConv->addWidget(comboLatticeInterp, 2, 1);
 
     colLeft->addWidget(groupConv);
 
@@ -1720,6 +1740,7 @@ void MainWindow::onSolverSettingsButtonClicked() {
       m_metropolisStepSigma = spinMetroSigma->value();
       m_metropolisT         = spinMetroT->value();
       m_metropolisRetries   = spinMetroRetries->value();
+      m_latticeInterpType   = comboLatticeInterp->currentIndex();
       m_solverSettingsDialog->accept();
     });
     vbox->addWidget(btnSave);
@@ -1870,3 +1891,35 @@ void MainWindow::rebuild3DSeriesFromTrajectory() {
   }
   m_series3D->dataProxy()->resetArray(arr);
 }
+
+void MainWindow::onConfigureAxisFontsClicked() {
+    bool ok = false;
+    QFont currentFont = this->font();
+    if (m_densAxisX) {
+        currentFont = m_densAxisX->labelsFont();
+    }
+    QFont font = QFontDialog::getFont(&ok, currentFont, this);
+    if (ok) {
+        m_axisFont = font;
+        m_axisFontValid = true;
+        applyAxisFonts();
+    }
+}
+
+void MainWindow::applyAxisFonts() {
+    if (!m_axisFontValid) return;
+    QAbstractAxis* axes[] = {
+        m_densAxisX, m_densAxisY,
+        m_muAxisX, m_muAxisY,
+        m_lepAxisX, m_lepAxisY,
+        m_lepDensAxisX, m_lepDensAxisY,
+        m_errAxisX, m_errAxisY
+    };
+    for (auto* ax : axes) {
+        if (ax) {
+            ax->setLabelsFont(m_axisFont);
+            ax->setTitleFont(m_axisFont);
+        }
+    }
+}
+

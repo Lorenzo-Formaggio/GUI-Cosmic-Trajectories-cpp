@@ -4,6 +4,7 @@
 #include "SimulationWorker.h"
 
 #include <QWidget>
+#include <QFont>
 #include <QVector>
 #include <QColor>
 #include <QString>
@@ -112,8 +113,10 @@ private slots:
   void onExportActivePlot();
   void onAxisLimitsClicked();
   void updateSeriesVisibility();
+  void onConfigureAxisFontsClicked();
 
 private:
+  void applyAxisFonts();
   void setupUi();
   void createChartPanel(QWidget *parent);
   void addSourceRow(const RunSource &src);
@@ -161,6 +164,7 @@ private:
   double m_metropolisStepSigma = 1.0;
   double m_metropolisT         = 0.01;
   int    m_metropolisRetries   = 3;
+  int    m_latticeInterpType   = 0; // 0=Cubic, 1=Linear, 2=Akima, 3=Steffen
 
   // ── UI widgets ──────────────────────────────────────────────────────
   QTableWidget *m_table = nullptr;
@@ -274,6 +278,9 @@ private:
 
   bool m_isLogScale     = true;
   bool m_tempIsVertical = true;
+
+  QFont m_axisFont;
+  bool  m_axisFontValid = false;
 };
 
 #endif // RUNFROMFILEWIDGET_H

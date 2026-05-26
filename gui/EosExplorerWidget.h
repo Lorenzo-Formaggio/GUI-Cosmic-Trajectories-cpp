@@ -2,6 +2,7 @@
 #define EOSEXPLORERWIDGET_H
 
 #include <QWidget>
+#include <QFont>
 #include <QVector>
 #include <QPointF>
 #include <QString>
@@ -45,8 +46,10 @@ private slots:
   void onNormalizeToggleClicked();
   void onEosChanged(int index);
   void logMessage(const QString &msg, bool isError = false);
+  void onConfigureAxisFontsClicked();
 
 private:
+  void applyAxisFonts();
   void setupUi();
   void rebuildAxes(int chartIdx);
   void rebuildAllAxes();
@@ -131,6 +134,9 @@ private:
   // Auto-color palette
   int m_colorIndex = 0;
   static QColor nextColor(int &idx);
+
+  QFont m_axisFont;
+  bool  m_axisFontValid = false;
 };
 
 #endif // EOSEXPLORERWIDGET_H

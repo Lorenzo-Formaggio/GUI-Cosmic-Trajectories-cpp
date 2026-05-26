@@ -167,6 +167,83 @@ static void loadCoefficientsFile(const std::string &filepath) {
   }
 }
 
+// ============================================================================
+// Node Validation and Interpolation Helpers
+// ============================================================================
+
+/**
+ * @brief Map an InterpType integer to the corresponding GSL interpolation type.
+ * Returns gsl_interp_cspline for any unknown value (safe fallback).
+ */
+static const gsl_interp_type *getGslInterpType(int interpType) {
+  switch (interpType) {
+    case 1:  return gsl_interp_linear;
+    case 2:  return gsl_interp_akima;
+    case 3:  return gsl_interp_steffen;
+    case 0:
+    default: return gsl_interp_cspline;
+  }
+}
+
+/**
+ * @brief Validate a column of node temperatures.
+ *
+ * Checks:
+ *  1. Vector is non-empty.
+ *  2. All values are within [T_MIN_VALID, T_MAX_VALID] MeV.
+ *  3. Values are strictly increasing (no duplicates or inversions).
+ *
+ * Throws std::runtime_error if any check fails.
+ */
+static constexpr double T_MIN_VALID =   0.0;   // MeV – hard lower bound
+static constexpr double T_MAX_VALID = 5000.0;  // MeV – hard upper bound
+
+static void validateNodes(const std::vector<double> &T_col,
+                          const std::string &sourceName) {
+  if (T_col.empty()) {
+    throw std::runtime_error("Node validation failed for " + sourceName +
+                             ": temperature array is empty.");
+  }
+
+  for (size_t i = 0; i < T_col.size(); ++i) {
+    double T = T_col[i];
+    if (T < T_MIN_VALID || T > T_MAX_VALID) {
+      throw std::runtime_error(
+          "Node validation failed for " + sourceName +
+          ": node " + std::to_string(i) +
+          " has temperature " + std::to_string(T) +
+          " MeV which is outside valid range [" +
+          std::to_string(T_MIN_VALID) + ", " +
+          std::to_string(T_MAX_VALID) + "] MeV.");
+    }
+    if (i > 0 && T <= T_col[i - 1]) {
+      throw std::runtime_error(
+          "Node validation failed for " + sourceName +
+          ": node " + std::to_string(i) +
+          " (T=" + std::to_string(T) + " MeV) is not strictly greater than" +
+          " the previous node (T=" + std::to_string(T_col[i - 1]) + " MeV)." +
+          " Nodes must be strictly increasing.");
+    }
+  }
+}
+
+/**
+ * @brief Verify that the dataset has enough nodes for the selected
+ *        GSL interpolation type.  Throws if the minimum is not met.
+ */
+static void checkInterpRequirements(const gsl_interp_type *type,
+                                    size_t n,
+                                    const std::string &name) {
+  size_t minN = gsl_interp_type_min_size(type);
+  if (n < minN) {
+    throw std::runtime_error(
+        "Interpolation requirement not met for " + name +
+        ": the requested method needs at least " + std::to_string(minN) +
+        "' needs at least " + std::to_string(minN) +
+        " nodes, but only " + std::to_string(n) + " are available.");
+  }
+}
+
 // CHI000 evaluation using rational function parameterization
 static double evalCHI000(double T) {
   if (chi000_params.size() < 21) {
@@ -246,7 +323,7 @@ static double get_chi4_charm(double T) {
 // Initialization and Cleanup
 // ============================================================================
 
-void initialize(const std::string &dataPath, bool includeCharm) {
+void initialize(const std::string &dataPath, bool includeCharm, int interpType) {
 
   if (initialized) {
     return;
@@ -266,15 +343,22 @@ void initialize(const std::string &dataPath, bool includeCharm) {
   acc = gsl_interp_accel_alloc();
   charm_acc = gsl_interp_accel_alloc();
 
-  // Helper lambda to create and initialize spline
-  auto createSpline = [](const std::string &filepath) -> gsl_spline * {
+  // Resolve GSL interpolation type once; validate node requirements
+  const gsl_interp_type *gsl_type = getGslInterpType(interpType);
+
+  // Validate the shared temperature grid first
+  validateNodes(T_data, "T_data (main grid)");
+  checkInterpRequirements(gsl_type, N_data, "main susceptibility grid");
+
+  // Helper lambda to create and initialize a spline from a susceptibility file
+  auto createSpline = [&gsl_type](const std::string &filepath) -> gsl_spline * {
     std::vector<double> data = readSusceptibilityFile(filepath);
     if (data.size() != N_data) {
       throw std::runtime_error("Data size mismatch in " + filepath +
                                ": expected " + std::to_string(N_data) +
                                ", got " + std::to_string(data.size()));
     }
-    gsl_spline *spline = gsl_spline_alloc(gsl_interp_cspline, N_data);
+    gsl_spline *spline = gsl_spline_alloc(gsl_type, N_data);
     gsl_spline_init(spline, T_data.data(), data.data(), N_data);
     return spline;
   };
@@ -340,12 +424,17 @@ void initialize(const std::string &dataPath, bool includeCharm) {
     T_charm_min = T_charm.front();
     T_charm_max = T_charm.back();
 
+    // Validate the charm temperature grid
+    validateNodes(T_charm, "charm temperature grid (charmqucsc)");
+    checkInterpRequirements(gsl_type, T_charm.size(), "charm splines");
+
     // Helper to create spline from custom T grid
     auto createCharmSpline = [&](const std::vector<double> &T_col,
                                  const std::vector<double> &val_col) {
       if (T_col.size() != val_col.size())
         throw std::runtime_error("Size mismatch in charm columns");
-      gsl_spline *spline = gsl_spline_alloc(gsl_interp_cspline, T_col.size());
+      checkInterpRequirements(gsl_type, T_col.size(), "charm column spline");
+      gsl_spline *spline = gsl_spline_alloc(gsl_type, T_col.size());
       gsl_spline_init(spline, T_col.data(), val_col.data(), T_col.size());
       return spline;
     };

@@ -10,11 +10,11 @@ namespace QCD {
 //                       4 = Entropy Contour Param)
 static int currentEoS = 0;
 
-void setEoS(int eos, const std::string &dataPath, int nf) {
+void setEoS(int eos, const std::string &dataPath, int nf, int interpType) {
   currentEoS = eos;
   if (eos == 1) {
     bool includeCharm = (nf == 4);
-    LatticeQCD::initialize(dataPath + "/LatticeEoS/threeflavors/", includeCharm);
+    LatticeQCD::initialize(dataPath + "/LatticeEoS/threeflavors/", includeCharm, interpType);
   } else if (eos == 2) {
     // For Interpolated EoS, load the standard table file
     if (!InterpolatedEoS::isLoaded()) {

@@ -43,3 +43,6 @@ qrc_*.cpp
 # ── Runtime outputs (regenerated on each run) ─────────────────────
 errors.txt
 trajectory.txt
+
+# Large files
+EoS_Table_Lattice.txt

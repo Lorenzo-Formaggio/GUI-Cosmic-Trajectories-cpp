@@ -60,6 +60,10 @@ public:
   double tolerance = 1e-6;
   int maxIter = 100;
 
+  // Lattice QCD interpolation order
+  // 0 = Cubic Spline, 1 = Linear, 2 = Akima, 3 = Steffen
+  int latticeInterpType = 0;
+
   // Metropolis optimizer settings
   // 0 = off, 1 = first step only (on failure), 2 = retry on every failure
   int    metropolisMode      = 0;

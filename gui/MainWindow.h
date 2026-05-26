@@ -4,6 +4,7 @@
 #include "SimulationWorker.h"
 
 #include <QMainWindow>
+#include <QFont>
 #include <QThread>
 #include <QVector>
 #include <QHash>
@@ -63,8 +64,10 @@ private slots:
   void onCriticalPointButtonClicked();
   void updateCriticalPoint();
   void onSolverSettingsButtonClicked();
+  void onConfigureAxisFontsClicked();
 
 private:
+  void applyAxisFonts();
   void setupUi();
   void setupStyle();
   void createParameterPanel(QWidget *parent);
@@ -265,6 +268,10 @@ private:
   double m_metropolisStepSigma = 1.0;
   double m_metropolisT         = 0.01;
   int    m_metropolisRetries   = 3;
+  int    m_latticeInterpType   = 0; // 0=Cubic, 1=Linear, 2=Akima, 3=Steffen
+
+  QFont m_axisFont;
+  bool  m_axisFontValid = false;
 };
 
 #endif // MAINWINDOW_H
