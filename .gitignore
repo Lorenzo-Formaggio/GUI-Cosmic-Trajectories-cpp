@@ -46,3 +46,7 @@ trajectory.txt
 
 # Large files
 EoS_Table_Lattice.txt
+
+# Generated comparisons and plots
+susceptibilities_comparison.pdf
+*_comparison.png

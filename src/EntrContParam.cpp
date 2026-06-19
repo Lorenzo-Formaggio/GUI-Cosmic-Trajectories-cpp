@@ -64,11 +64,11 @@ static double chi2B_param(double T) {
 
 static double chi2Q_param(double T) {
   constexpr double mpi = 140.0 / 200.0;
-  constexpr double d0 = 0.7164987887980752;
-  constexpr double d1 = 0.7570047606327102;
-  constexpr double d2 = 6.015382470369457;
-  constexpr double d3 = 0.629575552188607;
-  constexpr double d5 = 0.006687997932345464;
+ constexpr double d0 = 0.5600003526;
+  constexpr double d1 = 0.7799273141;
+  constexpr double d2 = 4.726057114;
+  constexpr double d3 = 0.6995862169;
+  constexpr double d5 = 0.0002225410308;
   double x = T / 200.0;
   return michael_term1(x, mpi, d0, d1, d2) + michael_term2(x, d1, d2, d3, d5);
 }

@@ -38,6 +38,7 @@
 #include <QPageLayout>
 #include <QMenu>
 #include <QAction>
+#include <QRadioButton>
 
 #include <QtCharts/QChart>
 #include <QtCharts/QChartView>
@@ -1605,47 +1606,167 @@ void RunFromFileWidget::onExportFullData() {
     return;
   }
 
-  QString fileName = QFileDialog::getSaveFileName(this, "Export Full Data",
-      m_workingDir, "Text Files (*.txt);;CSV Files (*.csv);;All Files (*)");
-  if (fileName.isEmpty()) return;
+  // --- Export Options Dialog ---
+  QDialog dlg(this);
+  dlg.setWindowTitle("Export Data Options");
+  dlg.setMinimumWidth(400);
+  QVBoxLayout *layout = new QVBoxLayout(&dlg);
 
-  QFile file(fileName);
-  if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-    QMessageBox::critical(this, "Error", "Could not open file for writing.");
-    return;
+  QGroupBox *groupMode = new QGroupBox("Export Mode", &dlg);
+  QVBoxLayout *modeLayout = new QVBoxLayout(groupMode);
+  QRadioButton *radioSingle = new QRadioButton("Export all data to a single file", groupMode);
+  QRadioButton *radioMultiple = new QRadioButton("Export each trajectory to a separate file", groupMode);
+  radioSingle->setChecked(true);
+  modeLayout->addWidget(radioSingle);
+  modeLayout->addWidget(radioMultiple);
+  layout->addWidget(groupMode);
+
+  QGroupBox *groupParams = new QGroupBox("Filename Parameters (for multiple files)", &dlg);
+  QVBoxLayout *paramsLayout = new QVBoxLayout(groupParams);
+  QCheckBox *chkParamB = new QCheckBox("b (Baryon asymmetry)", groupParams);
+  QCheckBox *chkParamLe = new QCheckBox("le (Electron lepton asymmetry)", groupParams);
+  QCheckBox *chkParamLmu = new QCheckBox("lmu (Muon lepton asymmetry)", groupParams);
+  QCheckBox *chkParamLtau = new QCheckBox("ltau (Tau lepton asymmetry)", groupParams);
+  QCheckBox *chkParamEos = new QCheckBox("eos (Equation of State)", groupParams);
+  QCheckBox *chkParamNf = new QCheckBox("nf (Number of flavors)", groupParams);
+  
+  chkParamB->setChecked(true);
+  chkParamLe->setChecked(true);
+  chkParamLmu->setChecked(true);
+  chkParamLtau->setChecked(true);
+  chkParamEos->setChecked(false);
+  chkParamNf->setChecked(false);
+
+  paramsLayout->addWidget(chkParamB);
+  paramsLayout->addWidget(chkParamLe);
+  paramsLayout->addWidget(chkParamLmu);
+  paramsLayout->addWidget(chkParamLtau);
+  paramsLayout->addWidget(chkParamEos);
+  paramsLayout->addWidget(chkParamNf);
+  layout->addWidget(groupParams);
+
+  auto updateParamsEnabled = [&]() {
+      groupParams->setEnabled(radioMultiple->isChecked());
+  };
+  QObject::connect(radioSingle, &QRadioButton::toggled, updateParamsEnabled);
+  QObject::connect(radioMultiple, &QRadioButton::toggled, updateParamsEnabled);
+  updateParamsEnabled();
+
+  QHBoxLayout *btnLayout = new QHBoxLayout();
+  QPushButton *btnCancel = new QPushButton("Cancel", &dlg);
+  QPushButton *btnOk = new QPushButton("OK", &dlg);
+  btnLayout->addStretch();
+  btnLayout->addWidget(btnCancel);
+  btnLayout->addWidget(btnOk);
+  layout->addLayout(btnLayout);
+
+  QObject::connect(btnCancel, &QPushButton::clicked, &dlg, &QDialog::reject);
+  QObject::connect(btnOk, &QPushButton::clicked, &dlg, &QDialog::accept);
+
+  if (dlg.exec() != QDialog::Accepted) {
+      return;
   }
-  QTextStream out(&file);
 
-  // Canonical Single-Run format. Trajectories from each (source, row) are
-  // written sequentially, separated by a "# Source N, Row M ..." comment
-  // line that carries the per-row run parameters.
-  out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnB\tnQ\ts_QCD\ts_tot"
-         "\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\n";
+  bool multipleFiles = radioMultiple->isChecked();
 
-  for (int i = 0; i < m_sources.size(); ++i) {
-    const RunSource &src = m_sources[i];
-    const QString srcName = QFileInfo(src.filePath).fileName();
-    for (int j = 0; j < src.data.size(); ++j) {
-      const auto &pts = src.data[j];
-      if (pts.isEmpty()) continue;
-      const TrajParamRow &p = (j < src.rows.size()) ? src.rows[j] : TrajParamRow{0, 0, 0, 0};
-      out << QString("# Source S%1·R%2 [%3] (B=%4, Le=%5, Lmu=%6, Ltau=%7, eos=%8, nf=%9)\n")
-                  .arg(i + 1).arg(j + 1).arg(srcName)
-                  .arg(p.b).arg(p.le).arg(p.lmu).arg(p.ltau)
-                  .arg(src.eos).arg(src.nf);
-      for (const auto &pt : pts) {
-        out << pt.T << "\t" << pt.muB << "\t" << pt.muQ
-            << "\t" << pt.munue << "\t" << pt.munumu << "\t" << pt.mnutau
-            << "\t" << pt.nB << "\t" << pt.nQ << "\t" << pt.s_QCD << "\t" << pt.s
-            << "\t" << pt.ne << "\t" << pt.nmu << "\t" << pt.ntau
-            << "\t" << pt.nnue << "\t" << pt.nnumu << "\t" << pt.nnutau
-            << "\n";
+  if (!multipleFiles) {
+    QString fileName = QFileDialog::getSaveFileName(this, "Export Full Data",
+        m_workingDir, "Text Files (*.txt);;CSV Files (*.csv);;All Files (*)");
+    if (fileName.isEmpty()) return;
+
+    QFile file(fileName);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+      QMessageBox::critical(this, "Error", "Could not open file for writing.");
+      return;
+    }
+    QTextStream out(&file);
+
+    // Canonical Single-Run format. Trajectories from each (source, row) are
+    // written sequentially, separated by a "# Source N, Row M ..." comment
+    // line that carries the per-row run parameters.
+    out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnB\tnQ\ts_QCD\ts_tot"
+           "\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\n";
+
+    for (int i = 0; i < m_sources.size(); ++i) {
+      const RunSource &src = m_sources[i];
+      const QString srcName = QFileInfo(src.filePath).fileName();
+      for (int j = 0; j < src.data.size(); ++j) {
+        const auto &pts = src.data[j];
+        if (pts.isEmpty()) continue;
+        const TrajParamRow &p = (j < src.rows.size()) ? src.rows[j] : TrajParamRow{0, 0, 0, 0};
+        out << QString("# Source S%1·R%2 [%3] (B=%4, Le=%5, Lmu=%6, Ltau=%7, eos=%8, nf=%9)\n")
+                    .arg(i + 1).arg(j + 1).arg(srcName)
+                    .arg(p.b).arg(p.le).arg(p.lmu).arg(p.ltau)
+                    .arg(src.eos).arg(src.nf);
+        for (const auto &pt : pts) {
+          out << pt.T << "\t" << pt.muB << "\t" << pt.muQ
+              << "\t" << pt.munue << "\t" << pt.munumu << "\t" << pt.mnutau
+              << "\t" << pt.nB << "\t" << pt.nQ << "\t" << pt.s_QCD << "\t" << pt.s
+              << "\t" << pt.ne << "\t" << pt.nmu << "\t" << pt.ntau
+              << "\t" << pt.nnue << "\t" << pt.nnumu << "\t" << pt.nnutau
+              << "\n";
+        }
       }
     }
+    file.close();
+    QMessageBox::information(this, "Success",
+        QString("Full dataset exported to:\n%1").arg(fileName));
+  } else {
+    // Multiple files export logic
+    QString dirName = QFileDialog::getExistingDirectory(this, "Select Directory for Export",
+        m_workingDir, QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+    
+    if (dirName.isEmpty()) return;
+
+    int filesSaved = 0;
+    
+    for (int i = 0; i < m_sources.size(); ++i) {
+      const RunSource &src = m_sources[i];
+      for (int j = 0; j < src.data.size(); ++j) {
+        const auto &pts = src.data[j];
+        if (pts.isEmpty()) continue;
+        const TrajParamRow &p = (j < src.rows.size()) ? src.rows[j] : TrajParamRow{0, 0, 0, 0};
+
+        QString baseName = "trajectory";
+        bool paramAdded = false;
+
+        if (chkParamB->isChecked()) { baseName += QString("_b_%1").arg(p.b); paramAdded = true; }
+        if (chkParamLe->isChecked()) { baseName += QString("_le_%1").arg(p.le); paramAdded = true; }
+        if (chkParamLmu->isChecked()) { baseName += QString("_lmu_%1").arg(p.lmu); paramAdded = true; }
+        if (chkParamLtau->isChecked()) { baseName += QString("_ltau_%1").arg(p.ltau); paramAdded = true; }
+        if (chkParamEos->isChecked()) { baseName += QString("_eos_%1").arg(src.eos); paramAdded = true; }
+        if (chkParamNf->isChecked()) { baseName += QString("_nf_%1").arg(src.nf); paramAdded = true; }
+
+        if (!paramAdded) {
+            baseName += QString("_S%1_R%2").arg(i+1).arg(j+1);
+        }
+
+        QString fileName = QDir(dirName).filePath(baseName + ".txt");
+        QFile file(fileName);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            continue; // Skip this file if error
+        }
+        QTextStream out(&file);
+
+        out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnB\tnQ\ts_QCD\ts_tot"
+               "\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\n";
+               
+        for (const auto &pt : pts) {
+          out << pt.T << "\t" << pt.muB << "\t" << pt.muQ
+              << "\t" << pt.munue << "\t" << pt.munumu << "\t" << pt.mnutau
+              << "\t" << pt.nB << "\t" << pt.nQ << "\t" << pt.s_QCD << "\t" << pt.s
+              << "\t" << pt.ne << "\t" << pt.nmu << "\t" << pt.ntau
+              << "\t" << pt.nnue << "\t" << pt.nnumu << "\t" << pt.nnutau
+              << "\n";
+        }
+        file.close();
+        filesSaved++;
+      }
+    }
+    
+    QMessageBox::information(this, "Success",
+        QString("Successfully exported %1 trajectory files to:\n%2").arg(filesSaved).arg(dirName));
   }
-  file.close();
-  QMessageBox::information(this, "Success",
-      QString("Full dataset exported to:\n%1").arg(fileName));
 }
 
 void RunFromFileWidget::onExportActivePlot() {
