@@ -3,12 +3,34 @@
 #include "../include/LatticeQCD.hpp"
 #include "../include/EntrCont.hpp"
 #include "../include/EntrContParam.hpp"
+#include <limits>
 namespace QCD {
 
 // Current EoS selection (0 = free QGP, 1 = lattice QCD,
 //                       2 = Interpolated Table, 3 = Entropy Contour,
 //                       4 = Entropy Contour Param)
 static int currentEoS = 0;
+
+// ── EoS 4 contour cache ───────────────────────────────────────────────────
+// evalContour(muB, muQ) iterates over N_T0 = 1000 grid points. During a
+// single Newton step the solver queries BarDens, QCDcharge, and sQCD for the
+// same (muB, muQ) — once for the residual and once per Jacobian column.
+// Caching the last ContourValues avoids rebuilding the 1000-point contour
+// 3× per (muB, muQ) pair and ensures all three functions use the same
+// internally-consistent contour (prevents NaN mismatches where one call
+// finds an inversion branch and another does not).
+static double s_cache4_muB = std::numeric_limits<double>::quiet_NaN();
+static double s_cache4_muQ = std::numeric_limits<double>::quiet_NaN();
+static EntropyContoursParam::ContourValues s_cache4_cv;
+
+static const EntropyContoursParam::ContourValues &getContour4(double muB, double muQ) {
+  if (muB != s_cache4_muB || muQ != s_cache4_muQ) {
+    s_cache4_cv  = EntropyContoursParam::evalContour(muB, muQ);
+    s_cache4_muB = muB;
+    s_cache4_muQ = muQ;
+  }
+  return s_cache4_cv;
+}
 
 void setEoS(int eos, const std::string &dataPath, int nf, int interpType) {
   currentEoS = eos;
@@ -57,7 +79,7 @@ double BarDens(double muB, double muQ, double T, int nf) {
   } else if (currentEoS == 3) {
     return EntropyContours::BarDens(muB, muQ, T);
   } else if (currentEoS == 4) {
-    return EntropyContoursParam::BarDens(muB, muQ, T);
+    return EntropyContoursParam::BarDens(muB, muQ, T, getContour4(muB, muQ));
   }
 
   // Free QGP
@@ -82,7 +104,7 @@ double QCDcharge(double muB, double muQ, double T, int nf) {
   } else if (currentEoS == 3) {
     return EntropyContours::QCDcharge(muB, muQ, T);
   } else if (currentEoS == 4) {
-    return EntropyContoursParam::QCDcharge(muB, muQ, T);
+    return EntropyContoursParam::QCDcharge(muB, muQ, T, getContour4(muB, muQ));
   }
 
   // Free QGP
@@ -106,7 +128,7 @@ double sQCD(double muB, double muQ, double T, int nf) {
   } else if (currentEoS == 3) {
     return EntropyContours::sQCD(muB, muQ, T);
   } else if (currentEoS == 4) {
-    return EntropyContoursParam::sQCD(muB, muQ, T);
+    return EntropyContoursParam::sQCD(muB, muQ, T, getContour4(muB, muQ));
   }
 
   // Free QGP

@@ -83,6 +83,42 @@ void SimulationWorker::run() {
       } else {
         guess = {1.0, -0.1, -0.1, -0.1, -0.1};
       }
+
+      // ── Analytic warm-start for neutrino chemical potentials ──────────
+      // For large lepton fractions the solution can require |mu_nu| >> 1 MeV,
+      // while the default cold-start values (~1e-5) are many orders of
+      // magnitude away — Newton-Raphson will never converge from there.
+      //
+      // Leading-order massless neutrino approximation:
+      //   nNet_nu(mu_nu, T) ≈ gnu * mu_nu * T^2 / 6    (one flavour)
+      // Total entropy (Stefan–Boltzmann free-streaming, rough but sufficient):
+      //   s_tot ≈ (2π²/45) * g_eff * T^3
+      // where g_eff ~ 43 (standard QGP+leptons, nf=3).
+      // Setting  nnu / s_tot = l  gives:
+      //   mu_nu ≈ 6 * l * s_tot / (gnu * T^2)
+      //
+      // We use Tstart (the first temperature the scan will hit) so the
+      // warm-start is appropriate for the very first Newton step.
+      {
+        constexpr double PI     = 3.14159265358979323846;
+        constexpr double gnu_nu = 1.0;   // one helicity per neutrino flavour
+        // Rough g_eff: 16 gluons + 7/8*(12 quarks nf=3 + 4 e + 4 mu + 6 nu)
+        //              + 2 photons
+        const double geff  = 16.0 + 7.0/8.0*(12.0 + 4.0 + 4.0 + 6.0) + 2.0;
+        const double Tw    = Tstart;
+        const double s_est = (2.0*PI*PI/45.0) * geff * Tw*Tw*Tw;
+        // Estimate mu_nu for each lepton flavour.
+        // Electron sector: use le (may be 0, in which case ~0 is correct).
+        const double munue_est  = (Tw > 0.0) ? 6.0 * le   * s_est / (gnu_nu * Tw*Tw) : 0.0;
+        const double munumu_est = (Tw > 0.0) ? 6.0 * lmu  * s_est / (gnu_nu * Tw*Tw) : 0.0;
+        const double mnutau_est = (Tw > 0.0) ? 6.0 * ltau * s_est / (gnu_nu * Tw*Tw) : 0.0;
+        // Only override the neutrino components if the estimate is
+        // significantly larger than the cold-start value (avoids polluting
+        // configurations that genuinely need tiny chemical potentials).
+        if (std::abs(munue_est)  > std::abs(guess[2])) guess[2] = munue_est;
+        if (std::abs(munumu_est) > std::abs(guess[3])) guess[3] = munumu_est;
+        if (std::abs(mnutau_est) > std::abs(guess[4])) guess[4] = mnutau_est;
+      }
     }
     std::vector<double> targets = {0.0, 0.0, 0.0, 0.0, 0.0};
 
