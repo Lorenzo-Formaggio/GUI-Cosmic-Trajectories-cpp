@@ -19,6 +19,18 @@ double TotalS(double muB, double muQ, double munue, double munumu,
               double mnutau, double T, int nf);
 
 /**
+ * @brief Returns the total pressure (Lepton + QCD).
+ */
+double TotalP(double muB, double muQ, double munue, double munumu,
+              double mnutau, double T, int nf);
+
+/**
+ * @brief Returns the total energy density (Lepton + QCD).
+ */
+double TotalE(double muB, double muQ, double munue, double munumu,
+              double mnutau, double T, int nf);
+
+/**
  * @brief Struct to hold calculated residual errors.
  */
 struct ErrorValues {

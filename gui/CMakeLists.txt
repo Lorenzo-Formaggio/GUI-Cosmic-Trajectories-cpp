@@ -71,3 +71,8 @@ target_link_libraries(CosmicTrajectoryGUI PRIVATE
 target_link_directories(CosmicTrajectoryGUI PRIVATE
     ${GSL_LIBRARY_DIRS}
 )
+
+add_executable(calc_densities calc_densities.cpp ${PHYSICS_SOURCES})
+target_include_directories(calc_densities PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include ${CMAKE_CURRENT_SOURCE_DIR}/.. ${GSL_INCLUDE_DIRS})
+target_link_libraries(calc_densities PRIVATE ${GSL_LIBRARIES})
+target_link_directories(calc_densities PRIVATE ${GSL_LIBRARY_DIRS})

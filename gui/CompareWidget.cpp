@@ -1061,6 +1061,7 @@ void CompareWidget::onExportClicked() {
     // Canonical Single-Run format. Slots are written sequentially, separated
     // by a "# Slot N ..." comment line so the trajectories can be told apart.
     out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnB\tnQ\ts_QCD\ts_tot"
+           "\tp_QCD\tp_tot\te_QCD\te_tot"
            "\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\n";
 
     for (int i = 0; i < m_slots.size(); ++i) {
@@ -1076,6 +1077,7 @@ void CompareWidget::onExportClicked() {
         out << pt.T << "\t" << pt.muB << "\t" << pt.muQ
             << "\t" << pt.munue << "\t" << pt.munumu << "\t" << pt.mnutau
             << "\t" << pt.nB << "\t" << pt.nQ << "\t" << pt.s_QCD << "\t" << pt.s
+            << "\t" << pt.p_QCD << "\t" << pt.p_tot << "\t" << pt.e_QCD << "\t" << pt.e_tot
             << "\t" << pt.ne << "\t" << pt.nmu << "\t" << pt.ntau
             << "\t" << pt.nnue << "\t" << pt.nnumu << "\t" << pt.nnutau
             << "\n";

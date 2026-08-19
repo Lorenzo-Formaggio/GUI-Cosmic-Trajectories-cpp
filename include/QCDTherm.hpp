@@ -46,6 +46,12 @@ double QCDcharge(double muB, double muQ, double T, int nf);
 // Total QCD entropy density
 double sQCD(double muB, double muQ, double T, int nf);
 
+// Total QCD pressure
+double pQCD(double muB, double muQ, double T, int nf);
+
+// Total QCD energy density
+double eQCD(double muB, double muQ, double T, int nf);
+
 } // namespace QCD
 
 #endif // QCDTHERM_HPP

@@ -136,7 +136,7 @@ void SimulationWorker::run() {
               << ", le = " << le << ", lmu = " << lmu << ", ltau = " << ltau
               << std::endl;
       outfile << "T[MeV] muB[MeV] muQ[MeV] munue[MeV] munumu[MeV] mnutau[MeV] "
-                 "nB[MeV^3] nQ[MeV^3] s[MeV^3] "
+                 "nB[MeV^3] nQ[MeV^3] s[MeV^3] p_QCD[MeV^4] p_tot[MeV^4] e_QCD[MeV^4] e_tot[MeV^4] "
                  "nnue[MeV^3] nnumu[MeV^3] nnutau[MeV^3]"
               << std::endl;
     }
@@ -290,6 +290,10 @@ void SimulationWorker::run() {
       double nQ_val  = QCD::QCDcharge(muB_sol, muQ_sol, T, nf);
       double s_val   = GetEq::TotalS(muB_sol, muQ_sol, munue_sol, munumu_sol, mnutau_sol, T, nf);
       double sQCD    = QCD::sQCD(muB_sol, muQ_sol, T, nf);
+      double p_val   = GetEq::TotalP(muB_sol, muQ_sol, munue_sol, munumu_sol, mnutau_sol, T, nf);
+      double pQCD    = QCD::pQCD(muB_sol, muQ_sol, T, nf);
+      double e_val   = GetEq::TotalE(muB_sol, muQ_sol, munue_sol, munumu_sol, mnutau_sol, T, nf);
+      double eQCD    = QCD::eQCD(muB_sol, muQ_sol, T, nf);
 
       double ne_val   = jelf::nNet(munue_sol - muQ_sol, T, lepton::me, lepton::ge);
       double nmu_val  = jelf::nNet(munumu_sol - muQ_sol, T, lepton::mmu, lepton::gmu);
@@ -311,6 +315,10 @@ void SimulationWorker::run() {
       pt.nQ     = nQ_val;
       pt.s      = s_val;
       pt.s_QCD  = sQCD;
+      pt.p_tot  = p_val;
+      pt.p_QCD  = pQCD;
+      pt.e_tot  = e_val;
+      pt.e_QCD  = eQCD;
       pt.ne     = ne_val;
       pt.nmu    = nmu_val;
       pt.ntau   = ntau_val;
@@ -333,6 +341,7 @@ void SimulationWorker::run() {
         outfile << T << " " << muB_sol << " " << muQ_sol << " "
                 << munue_sol << " " << munumu_sol << " " << mnutau_sol << " "
                 << nB_val << " " << nQ_val << " " << s_val << " "
+                << pQCD << " " << p_val << " " << eQCD << " " << e_val << " "
                 << nnue_val << " " << nnumu_val << " " << nnutau_val << std::endl;
       }
       if (errfile.is_open()) {

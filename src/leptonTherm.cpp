@@ -34,4 +34,22 @@ double slep(double muQ, double munue, double munumu, double mnutau, double T) {
          jelf::sTot(mnutau - muQ, T, mtau, gtau) +
          jelf::sTot(mnutau, T, m_nutau, gnu) + jelb::sTot(0, T, 0, gphoton);
 };
+
+// Total lepton+photons pressure
+double plep(double muQ, double munue, double munumu, double mnutau, double T) {
+  return jelf::PTot(munue - muQ, T, me, ge) + jelf::PTot(munue, T, m_nue, gnu) +
+         jelf::PTot(munumu - muQ, T, mmu, gmu) +
+         jelf::PTot(munumu, T, m_numu, gnu) +
+         jelf::PTot(mnutau - muQ, T, mtau, gtau) +
+         jelf::PTot(mnutau, T, m_nutau, gnu) + jelb::PTot(0, T, 0, gphoton);
+};
+
+// Total lepton+photons energy density
+double elep(double muQ, double munue, double munumu, double mnutau, double T) {
+  return jelf::eTot(munue - muQ, T, me, ge) + jelf::eTot(munue, T, m_nue, gnu) +
+         jelf::eTot(munumu - muQ, T, mmu, gmu) +
+         jelf::eTot(munumu, T, m_numu, gnu) +
+         jelf::eTot(mnutau - muQ, T, mtau, gtau) +
+         jelf::eTot(mnutau, T, m_nutau, gnu) + jelb::eTot(0, T, 0, gphoton);
+};
 } // namespace lepton

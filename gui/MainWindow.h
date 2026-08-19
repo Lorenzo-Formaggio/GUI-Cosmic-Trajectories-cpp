@@ -244,6 +244,12 @@ private:
   // Linear/Log state
   bool m_isLogScale = true;
 
+  // Normalization state
+  bool m_normalizeNb = false;
+  QString getDensLabel() const {
+      return m_normalizeNb ? "Densities / nB" : "Densities [MeV^3]";
+  }
+
   // ── Worker thread ───────────────────────────────────────────────────
   QThread           *m_workerThread = nullptr;
   SimulationWorker  *m_worker       = nullptr;

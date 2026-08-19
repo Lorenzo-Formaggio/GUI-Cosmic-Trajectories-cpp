@@ -535,6 +535,12 @@ void EosExplorerWidget::onComputeClicked() {
       newData.nB_points.append(QPointF(T, nB));
       newData.nQ_points.append(QPointF(T, nQ));
       newData.s_points.append(QPointF(T, s));
+
+      // Pressure and energy density (QCD sector only; no leptons in EoS Explorer)
+      double p = QCD::pQCD(muB, muQ, T, nf);
+      double e = QCD::eQCD(muB, muQ, T, nf);
+      newData.p_QCD.append(p);
+      newData.e_QCD.append(e);
       count++;
     }
 
@@ -672,6 +678,7 @@ void EosExplorerWidget::onExportClicked() {
     // lepton chem-pots, so those columns are written as 0; s_QCD and s_tot
     // are identical here (no lepton contribution).
     out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnB\tnQ\ts_QCD\ts_tot"
+           "\tp_QCD\tp_tot\te_QCD\te_tot"
            "\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\n";
 
     for (const auto &series : m_allSeries) {
@@ -683,10 +690,14 @@ void EosExplorerWidget::onExportClicked() {
         const double nB = series.nB_points[i].y();
         const double nQ = (i < series.nQ_points.size()) ? series.nQ_points[i].y() : 0.0;
         const double s  = (i < series.s_points.size())  ? series.s_points[i].y()  : 0.0;
+        const double p  = (i < series.p_QCD.size())     ? series.p_QCD[i]         : 0.0;
+        const double e  = (i < series.e_QCD.size())     ? series.e_QCD[i]         : 0.0;
         out << T
             << "\t" << series.muB << "\t" << series.muQ
             << "\t" << 0.0 << "\t" << 0.0 << "\t" << 0.0           // munue, munumu, mnutau
             << "\t" << nB << "\t" << nQ << "\t" << s << "\t" << s  // s_QCD == s_tot
+            << "\t" << p << "\t" << p                              // p_QCD == p_tot (no leptons)
+            << "\t" << e << "\t" << e                              // e_QCD == e_tot (no leptons)
             << "\t" << 0.0 << "\t" << 0.0 << "\t" << 0.0           // ne, nmu, ntau
             << "\t" << 0.0 << "\t" << 0.0 << "\t" << 0.0           // nnue, nnumu, nnutau
             << "\n";

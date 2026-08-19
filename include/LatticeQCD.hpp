@@ -170,6 +170,20 @@ double sQCD(double muB, double muQ, double T, const ChiValues &chi);
  */
 double StrDens(double muB, double muQ, double T, const ChiValues &chi);
 
+/**
+ * @brief QCD pressure from lattice QCD EoS using pre-computed chi values.
+ *
+ * Uses Taylor expansion up to 4th order in chemical potentials.
+ * Note: muS = 0 is assumed for strangeness neutrality.
+ *
+ * @param muB Baryon chemical potential (MeV)
+ * @param muQ Electric charge chemical potential (MeV)
+ * @param T Temperature (MeV)
+ * @param chi Pre-computed susceptibility values at temperature T
+ * @return Pressure (MeV^4)
+ */
+double pQCD(double muB, double muQ, double T, const ChiValues &chi);
+
 // ============================================================================
 // Convenience overloads (evaluate chis internally - less efficient)
 // ============================================================================
@@ -193,6 +207,11 @@ double sQCD(double muB, double muQ, double T);
  * @brief Strangeness density (convenience overload).
  */
 double StrDens(double muB, double muQ, double T);
+
+/**
+ * @brief QCD pressure (convenience overload).
+ */
+double pQCD(double muB, double muQ, double T);
 
 } // namespace LatticeQCD
 

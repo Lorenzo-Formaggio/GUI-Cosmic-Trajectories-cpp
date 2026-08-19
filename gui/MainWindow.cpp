@@ -271,6 +271,15 @@ void MainWindow::setupUi() {
   QAction *actTheme = plotMenu->addAction("Toggle Plot Theme");
   connect(actTheme, &QAction::triggered, this, &MainWindow::onThemeToggleClicked);
 
+  QAction *actNormalizeNb = plotMenu->addAction("Normalize Densities by nB");
+  actNormalizeNb->setCheckable(true);
+  actNormalizeNb->setChecked(m_normalizeNb);
+  connect(actNormalizeNb, &QAction::toggled, this, [this](bool on) {
+    m_normalizeNb = on;
+    if (!m_trajectoryData.isEmpty()) replotData();
+    updateChartAxes();
+  });
+
   QAction *actAxisFont = plotMenu->addAction("Configure Axis Fonts...");
   connect(actAxisFont, &QAction::triggered, this, &MainWindow::onConfigureAxisFontsClicked);
 
@@ -606,7 +615,7 @@ void MainWindow::createChartPanel(QWidget *parent) {
   QChart *c1, *c2, *c3, *c4, *c5;
   
   // Densities tab
-  setupChart(m_densityChartView, c1, m_densAxisX, m_densAxisY, "Densities vs Temperature", "Densities [MeV^3]");
+  setupChart(m_densityChartView, c1, m_densAxisX, m_densAxisY, "Densities vs Temperature", getDensLabel());
   m_seriesnB = new QLineSeries(); m_seriesnB->setName("nB"); m_seriesnB->setColor(Qt::blue);
   m_seriesS  = new QLineSeries(); m_seriesS->setName("s");   m_seriesS->setColor(Qt::green);
   m_seriesnQ = new QLineSeries(); m_seriesnQ->setName("|nQ|"); m_seriesnQ->setColor(QColor(255, 165, 0)); // Orange
@@ -615,7 +624,7 @@ void MainWindow::createChartPanel(QWidget *parent) {
   c1->addSeries(m_seriesnQ); m_seriesnQ->attachAxis(m_densAxisX); m_seriesnQ->attachAxis(m_densAxisY);
 
   // Lepton Densities tab
-  setupChart(m_leptonDensChartView, c5, m_lepDensAxisX, m_lepDensAxisY, "Lepton Densities", "Densities [MeV^3]");
+  setupChart(m_leptonDensChartView, c5, m_lepDensAxisX, m_lepDensAxisY, "Lepton Densities", getDensLabel());
   m_seriesNe = new QLineSeries(); m_seriesNe->setName("ne"); m_seriesNe->setColor(QColor(0, 0, 128)); // Navy
   m_seriesNmu = new QLineSeries(); m_seriesNmu->setName("nμ"); m_seriesNmu->setColor(QColor(139, 0, 0)); // Dark red
   m_seriesNtau = new QLineSeries(); m_seriesNtau->setName("nτ"); m_seriesNtau->setColor(QColor(85, 107, 47)); // Dark olive green
@@ -964,7 +973,17 @@ void MainWindow::onStepCompleted(TrajectoryPoint pt) {
   // Store data
   m_trajectoryData.append(pt);
 
-  auto V = [this](QXYSeries *s, double v) { return absTransform(s, v); };
+  auto V = [this, &pt](QXYSeries *s, double v) { 
+    double val = v;
+    if (m_normalizeNb && pt.nB != 0.0) {
+      if (s == m_seriesnB || s == m_seriesS || s == m_seriesnQ ||
+          s == m_seriesNe || s == m_seriesNmu || s == m_seriesNtau ||
+          s == m_seriesNnue || s == m_seriesNnumu || s == m_seriesNnutau) {
+        val = v / pt.nB;
+      }
+    }
+    return absTransform(s, val); 
+  };
 
   if (m_tempIsVertical) {
     m_seriesnB->append(V(m_seriesnB, pt.nB), pt.T);
@@ -1062,15 +1081,20 @@ void MainWindow::updateChartAxes() {
     return v;
   };
 
+  auto valDens = [this, &val](double v, double nB) {
+    if (m_normalizeNb && nB != 0.0) return val(v / nB);
+    return val(v);
+  };
+
   for (const auto &p : m_trajectoryData) {
     if (p.T < minT) minT = p.T;
     if (p.T > maxT) maxT = p.T;
 
-    minDens = std::min({minDens, val(p.nB), val(p.s), val(p.nQ)});
-    maxDens = std::max({maxDens, val(p.nB), val(p.s), val(p.nQ)});
+    minDens = std::min({minDens, valDens(p.nB, p.nB), valDens(p.s, p.nB), valDens(p.nQ, p.nB)});
+    maxDens = std::max({maxDens, valDens(p.nB, p.nB), valDens(p.s, p.nB), valDens(p.nQ, p.nB)});
 
-    minLepDens = std::min({minLepDens, val(p.ne), val(p.nmu), val(p.ntau), val(p.nnue), val(p.nnumu), val(p.nnutau)});
-    maxLepDens = std::max({maxLepDens, val(p.ne), val(p.nmu), val(p.ntau), val(p.nnue), val(p.nnumu), val(p.nnutau)});
+    minLepDens = std::min({minLepDens, valDens(p.ne, p.nB), valDens(p.nmu, p.nB), valDens(p.ntau, p.nB), valDens(p.nnue, p.nB), valDens(p.nnumu, p.nB), valDens(p.nnutau, p.nB)});
+    maxLepDens = std::max({maxLepDens, valDens(p.ne, p.nB), valDens(p.nmu, p.nB), valDens(p.ntau, p.nB), valDens(p.nnue, p.nB), valDens(p.nnumu, p.nB), valDens(p.nnutau, p.nB)});
 
     minMu = std::min({minMu, val(p.muB), val(p.muQ)});
     maxMu = std::max({maxMu, val(p.muB), val(p.muQ)});
@@ -1219,8 +1243,8 @@ void MainWindow::replotData() {
      axisY->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : valLabel);
   };
   
-  updateTitles(m_densAxisX, m_densAxisY, "Densities [MeV^3]");
-  updateTitles(m_lepDensAxisX, m_lepDensAxisY, "Densities [MeV^3]");
+  updateTitles(m_densAxisX, m_densAxisY, getDensLabel());
+  updateTitles(m_lepDensAxisX, m_lepDensAxisY, getDensLabel());
   updateTitles(m_muAxisX, m_muAxisY, "Chem Pot [MeV] (abs)");
   updateTitles(m_lepAxisX, m_lepAxisY, "Chem Pot [MeV] (abs)");
   // Error plot flips opposite to others
@@ -1230,51 +1254,61 @@ void MainWindow::replotData() {
   // Re-plot data by rebuilding series and keeping underlying memory
   clearCharts(true);
 
-  auto V = [this](QXYSeries *s, double v) { return absTransform(s, v); };
+  auto V = [this](QXYSeries *s, double v, double nB) {
+    double val = v;
+    if (m_normalizeNb && nB != 0.0) {
+      if (s == m_seriesnB || s == m_seriesS || s == m_seriesnQ ||
+          s == m_seriesNe || s == m_seriesNmu || s == m_seriesNtau ||
+          s == m_seriesNnue || s == m_seriesNnumu || s == m_seriesNnutau) {
+        val = v / nB;
+      }
+    }
+    return absTransform(s, val);
+  };
 
   for (const auto &pt : m_trajectoryData) {
     if (m_tempIsVertical) {
-      m_seriesnB->append(V(m_seriesnB, pt.nB), pt.T);
-      m_seriesS->append(V(m_seriesS, pt.s), pt.T);
-      m_seriesnQ->append(V(m_seriesnQ, pt.nQ), pt.T);
-      m_seriesNe->append(V(m_seriesNe, pt.ne), pt.T);
-      m_seriesNmu->append(V(m_seriesNmu, pt.nmu), pt.T);
-      m_seriesNtau->append(V(m_seriesNtau, pt.ntau), pt.T);
-      m_seriesNnue->append(V(m_seriesNnue, pt.nnue), pt.T);
-      m_seriesNnumu->append(V(m_seriesNnumu, pt.nnumu), pt.T);
-      m_seriesNnutau->append(V(m_seriesNnutau, pt.nnutau), pt.T);
-      m_seriesMuB->append(V(m_seriesMuB, pt.muB), pt.T);
-      m_seriesMuQ->append(V(m_seriesMuQ, pt.muQ), pt.T);
-      m_seriesMunue->append(V(m_seriesMunue, pt.munue), pt.T);
-      m_seriesMunumu->append(V(m_seriesMunumu, pt.munumu), pt.T);
-      m_seriesMnutau->append(V(m_seriesMnutau, pt.mnutau), pt.T);
+      m_seriesnB->append(V(m_seriesnB, pt.nB, pt.nB), pt.T);
+      m_seriesS->append(V(m_seriesS, pt.s, pt.nB), pt.T);
+      m_seriesnQ->append(V(m_seriesnQ, pt.nQ, pt.nB), pt.T);
+      m_seriesNe->append(V(m_seriesNe, pt.ne, pt.nB), pt.T);
+      m_seriesNmu->append(V(m_seriesNmu, pt.nmu, pt.nB), pt.T);
+      m_seriesNtau->append(V(m_seriesNtau, pt.ntau, pt.nB), pt.T);
+      m_seriesNnue->append(V(m_seriesNnue, pt.nnue, pt.nB), pt.T);
+      m_seriesNnumu->append(V(m_seriesNnumu, pt.nnumu, pt.nB), pt.T);
+      m_seriesNnutau->append(V(m_seriesNnutau, pt.nnutau, pt.nB), pt.T);
+      m_seriesMuB->append(V(m_seriesMuB, pt.muB, pt.nB), pt.T);
+      m_seriesMuQ->append(V(m_seriesMuQ, pt.muQ, pt.nB), pt.T);
+      m_seriesMunue->append(V(m_seriesMunue, pt.munue, pt.nB), pt.T);
+      m_seriesMunumu->append(V(m_seriesMunumu, pt.munumu, pt.nB), pt.T);
+      m_seriesMnutau->append(V(m_seriesMnutau, pt.mnutau, pt.nB), pt.T);
       // Errors: Temp on X
-      m_seriesErrB->append(pt.T, V(m_seriesErrB, pt.err_b));
-      m_seriesErrQ->append(pt.T, V(m_seriesErrQ, pt.err_charge));
-      m_seriesErrLe->append(pt.T, V(m_seriesErrLe, pt.err_le));
-      m_seriesErrLmu->append(pt.T, V(m_seriesErrLmu, pt.err_lmu));
-      m_seriesErrLtau->append(pt.T, V(m_seriesErrLtau, pt.err_ltau));
+      m_seriesErrB->append(pt.T, V(m_seriesErrB, pt.err_b, pt.nB));
+      m_seriesErrQ->append(pt.T, V(m_seriesErrQ, pt.err_charge, pt.nB));
+      m_seriesErrLe->append(pt.T, V(m_seriesErrLe, pt.err_le, pt.nB));
+      m_seriesErrLmu->append(pt.T, V(m_seriesErrLmu, pt.err_lmu, pt.nB));
+      m_seriesErrLtau->append(pt.T, V(m_seriesErrLtau, pt.err_ltau, pt.nB));
     } else {
-      m_seriesnB->append(pt.T, V(m_seriesnB, pt.nB));
-      m_seriesS->append(pt.T, V(m_seriesS, pt.s));
-      m_seriesnQ->append(pt.T, V(m_seriesnQ, pt.nQ));
-      m_seriesNe->append(pt.T, V(m_seriesNe, pt.ne));
-      m_seriesNmu->append(pt.T, V(m_seriesNmu, pt.nmu));
-      m_seriesNtau->append(pt.T, V(m_seriesNtau, pt.ntau));
-      m_seriesNnue->append(pt.T, V(m_seriesNnue, pt.nnue));
-      m_seriesNnumu->append(pt.T, V(m_seriesNnumu, pt.nnumu));
-      m_seriesNnutau->append(pt.T, V(m_seriesNnutau, pt.nnutau));
-      m_seriesMuB->append(pt.T, V(m_seriesMuB, pt.muB));
-      m_seriesMuQ->append(pt.T, V(m_seriesMuQ, pt.muQ));
-      m_seriesMunue->append(pt.T, V(m_seriesMunue, pt.munue));
-      m_seriesMunumu->append(pt.T, V(m_seriesMunumu, pt.munumu));
-      m_seriesMnutau->append(pt.T, V(m_seriesMnutau, pt.mnutau));
+      m_seriesnB->append(pt.T, V(m_seriesnB, pt.nB, pt.nB));
+      m_seriesS->append(pt.T, V(m_seriesS, pt.s, pt.nB));
+      m_seriesnQ->append(pt.T, V(m_seriesnQ, pt.nQ, pt.nB));
+      m_seriesNe->append(pt.T, V(m_seriesNe, pt.ne, pt.nB));
+      m_seriesNmu->append(pt.T, V(m_seriesNmu, pt.nmu, pt.nB));
+      m_seriesNtau->append(pt.T, V(m_seriesNtau, pt.ntau, pt.nB));
+      m_seriesNnue->append(pt.T, V(m_seriesNnue, pt.nnue, pt.nB));
+      m_seriesNnumu->append(pt.T, V(m_seriesNnumu, pt.nnumu, pt.nB));
+      m_seriesNnutau->append(pt.T, V(m_seriesNnutau, pt.nnutau, pt.nB));
+      m_seriesMuB->append(pt.T, V(m_seriesMuB, pt.muB, pt.nB));
+      m_seriesMuQ->append(pt.T, V(m_seriesMuQ, pt.muQ, pt.nB));
+      m_seriesMunue->append(pt.T, V(m_seriesMunue, pt.munue, pt.nB));
+      m_seriesMunumu->append(pt.T, V(m_seriesMunumu, pt.munumu, pt.nB));
+      m_seriesMnutau->append(pt.T, V(m_seriesMnutau, pt.mnutau, pt.nB));
       // Errors: Flipped
-      m_seriesErrB->append(V(m_seriesErrB, pt.err_b), pt.T);
-      m_seriesErrQ->append(V(m_seriesErrQ, pt.err_charge), pt.T);
-      m_seriesErrLe->append(V(m_seriesErrLe, pt.err_le), pt.T);
-      m_seriesErrLmu->append(V(m_seriesErrLmu, pt.err_lmu), pt.T);
-      m_seriesErrLtau->append(V(m_seriesErrLtau, pt.err_ltau), pt.T);
+      m_seriesErrB->append(V(m_seriesErrB, pt.err_b, pt.nB), pt.T);
+      m_seriesErrQ->append(V(m_seriesErrQ, pt.err_charge, pt.nB), pt.T);
+      m_seriesErrLe->append(V(m_seriesErrLe, pt.err_le, pt.nB), pt.T);
+      m_seriesErrLmu->append(V(m_seriesErrLmu, pt.err_lmu, pt.nB), pt.T);
+      m_seriesErrLtau->append(V(m_seriesErrLtau, pt.err_ltau, pt.nB), pt.T);
     }
   }
 
@@ -1312,9 +1346,10 @@ void MainWindow::onScaleToggleClicked() {
         chart->addAxis(axisY, Qt::AlignLeft);
     };
 
-    swapAxes(m_densityChartView, m_densAxisX, m_densAxisY, "Densities [MeV^3]");
+    swapAxes(m_densityChartView, m_densAxisX, m_densAxisY, getDensLabel());
     swapAxes(m_muChartView,      m_muAxisX,   m_muAxisY,   "Chem Pot [MeV] (abs)");
     swapAxes(m_leptonChartView,  m_lepAxisX,  m_lepAxisY,  "Chem Pot [MeV] (abs)");
+    swapAxes(m_leptonDensChartView, m_lepDensAxisX, m_lepDensAxisY, getDensLabel());
     
     // Switch for Error plot
     {
@@ -1484,7 +1519,7 @@ void MainWindow::onExportFullDataClicked() {
 
   QTextStream out(&file);
   // Header
-  out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnB\tnQ\ts_QCD\ts_tot\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\n";
+  out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnB\tnQ\ts_QCD\ts_tot\tp_QCD\tp_tot\te_QCD\te_tot\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\n";
   
   for (const auto &pt : m_trajectoryData) {
     out << pt.T << "\t" 
@@ -1497,6 +1532,10 @@ void MainWindow::onExportFullDataClicked() {
         << pt.nQ << "\t" 
         << pt.s_QCD << "\t" 
         << pt.s << "\t" 
+        << pt.p_QCD << "\t" 
+        << pt.p_tot << "\t" 
+        << pt.e_QCD << "\t" 
+        << pt.e_tot << "\t" 
         << pt.ne << "\t" 
         << pt.nmu << "\t" 
         << pt.ntau << "\t" 

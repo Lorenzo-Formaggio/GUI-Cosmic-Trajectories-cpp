@@ -144,4 +144,54 @@ double sQCD(double muB, double muQ, double T, int nf) {
   return result;
 }
 
+double pQCD(double muB, double muQ, double T, int nf) {
+  if (currentEoS == 1) {
+    return LatticeQCD::pQCD(muB, muQ, T);
+  } else if (currentEoS == 2) {
+    // Interpolated EoS does not store pressure directly;
+    // use the thermodynamic identity P = T*s - e. But we don't have e either.
+    // Fall back to computing P from the relation: dP/dmu_i = n_i.
+    // Since the table only provides s, nB, nQ, we approximate using the
+    // free QGP formula for now.
+    // TODO: extend the interpolated table to include pressure.
+    double result = jelf::PTot(muB / 3 + 2 * muQ / 3, T, mu, gq) +
+                    jelf::PTot(muB / 3 - muQ / 3, T, md, gq) +
+                    jelb::PTot(0, T, 0, ggluon);
+    if (nf >= 3) {
+      result += jelf::PTot(muB / 3 - muQ / 3, T, ms, gq);
+    }
+    if (nf == 4) {
+      result += jelf::PTot(muB / 3 + 2 * muQ / 3, T, mc, gq);
+    }
+    return result;
+  } else if (currentEoS == 3) {
+    return EntropyContours::pQCD(muB, muQ, T);
+  } else if (currentEoS == 4) {
+    return EntropyContoursParam::pQCD(muB, muQ, T, getContour4(muB, muQ));
+  }
+
+  // Free QGP
+  double result = jelf::PTot(muB / 3 + 2 * muQ / 3, T, mu, gq) +
+                  jelf::PTot(muB / 3 - muQ / 3, T, md, gq) +
+                  jelb::PTot(0, T, 0, ggluon);
+  if (nf >= 3) {
+    result += jelf::PTot(muB / 3 - muQ / 3, T, ms, gq);
+  }
+  if (nf == 4) {
+    result += jelf::PTot(muB / 3 + 2 * muQ / 3, T, mc, gq);
+  }
+  return result;
+}
+
+double eQCD(double muB, double muQ, double T, int nf) {
+  // Use the thermodynamic identity:
+  //   e = T*s - P + muB*nB + muQ*nQ   (with muS = 0)
+  double s  = sQCD(muB, muQ, T, nf);
+  double P  = pQCD(muB, muQ, T, nf);
+  double nB = BarDens(muB, muQ, T, nf);
+  double nQ = QCDcharge(muB, muQ, T, nf);
+
+  return T * s - P + muB * nB + muQ * nQ;
+}
+
 } // namespace QCD

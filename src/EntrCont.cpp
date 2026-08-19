@@ -572,6 +572,18 @@ double StrDens(double, double, double T, const ContourValues &c) {
     return NaN;
   return b.nS * T * T * T;
 }
+double pQCD(double, double, double T, const ContourValues &c) {
+  if (!g_initialized)
+    throw std::runtime_error("EntropyContours not initialized");
+  if (!reachableT(T))
+    return NaN;
+  InvBranch b;
+  if (!invertAtT(c, T, b))
+    return NaN;
+  if (!std::isfinite(b.P))
+    return NaN;
+  return b.P * T * T * T * T;
+}
 
 double sQCD(double muB, double muQ, double T) {
   ContourValues c = evalContour(muB, muQ);
@@ -588,6 +600,10 @@ double QCDcharge(double muB, double muQ, double T) {
 double StrDens(double muB, double muQ, double T) {
   ContourValues c = evalContour(muB, muQ);
   return StrDens(muB, muQ, T, c);
+}
+double pQCD(double muB, double muQ, double T) {
+  ContourValues c = evalContour(muB, muQ);
+  return pQCD(muB, muQ, T, c);
 }
 
 } // namespace EntropyContours

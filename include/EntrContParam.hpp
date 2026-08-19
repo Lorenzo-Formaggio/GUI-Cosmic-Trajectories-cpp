@@ -96,6 +96,9 @@ double QCDcharge(double muB, double muQ, double T, const ContourValues &c);
 /** Strangeness density n_S (MeV^3). */
 double StrDens(double muB, double muQ, double T, const ContourValues &c);
 
+/** QCD pressure P (MeV^4). */
+double pQCD(double muB, double muQ, double T, const ContourValues &c);
+
 // ============================================================================
 // Convenience overloads (build the contour internally - less efficient if
 // multiple observables are needed at the same (muB, muQ)).
@@ -105,6 +108,7 @@ double sQCD(double muB, double muQ, double T);
 double BarDens(double muB, double muQ, double T);
 double QCDcharge(double muB, double muQ, double T);
 double StrDens(double muB, double muQ, double T);
+double pQCD(double muB, double muQ, double T);
 
 } // namespace EntropyContoursParam
 

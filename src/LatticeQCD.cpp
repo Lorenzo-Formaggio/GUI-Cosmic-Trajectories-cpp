@@ -919,6 +919,51 @@ double StrDens(double muB, double muQ, double T, const ChiValues &chi) {
 }
 
 // ============================================================================
+// Pressure (Taylor Expansion) - Using Pre-computed Chis
+// ============================================================================
+
+double pQCD(double muB, double muQ, double T, const ChiValues &chi) {
+  // muS = 0 for strangeness neutrality in early universe
+  const double muS = 0.0;
+
+  double T4 = T * T * T * T;
+
+  // Dimensionless chemical potentials
+  double mB = muB / T;
+  double mQ = muQ / T;
+  double mS = muS / T;
+
+  // Pressure from Taylor expansion: P/T^4 = chi000 + (1/2)*sum(chi2*hat_mu^2)
+  //                                       + (1/24)*sum(chi4*hat_mu^4)
+  double P_over_T4 = chi.chi000
+    // 2nd order terms (1/2 * chi_{ij} * hat_mu_i * hat_mu_j)
+    + 0.5 * chi.chi200 * mB * mB
+    + 0.5 * chi.chi020 * mQ * mQ
+    + 0.5 * chi.chi002 * mS * mS
+    + chi.chi110 * mB * mQ
+    + chi.chi101 * mB * mS
+    + chi.chi011 * mQ * mS
+    // 4th order terms (1/24 * chi_{ijkl} * hat_mu^4)
+    + (1.0 / 24.0) * chi.chi400 * mB * mB * mB * mB
+    + (1.0 / 24.0) * chi.chi040 * mQ * mQ * mQ * mQ
+    + (1.0 / 24.0) * chi.chi004 * mS * mS * mS * mS
+    + (1.0 / 6.0)  * chi.chi310 * mB * mB * mB * mQ
+    + (1.0 / 6.0)  * chi.chi301 * mB * mB * mB * mS
+    + (1.0 / 6.0)  * chi.chi130 * mB * mQ * mQ * mQ
+    + (1.0 / 6.0)  * chi.chi103 * mB * mS * mS * mS
+    + (1.0 / 6.0)  * chi.chi031 * mQ * mQ * mQ * mS
+    + (1.0 / 6.0)  * chi.chi013 * mQ * mS * mS * mS
+    + 0.25 * chi.chi220 * mB * mB * mQ * mQ
+    + 0.25 * chi.chi202 * mB * mB * mS * mS
+    + 0.25 * chi.chi022 * mQ * mQ * mS * mS
+    + 0.5  * chi.chi211 * mB * mB * mQ * mS
+    + 0.5  * chi.chi121 * mB * mQ * mQ * mS
+    + 0.5  * chi.chi112 * mB * mQ * mS * mS;
+
+  return P_over_T4 * T4;
+}
+
+// ============================================================================
 // Convenience Overloads (evaluate chis internally)
 // ============================================================================
 
@@ -940,6 +985,11 @@ double QCDcharge(double muB, double muQ, double T) {
 double StrDens(double muB, double muQ, double T) {
   ChiValues chi = evalChis(T);
   return StrDens(muB, muQ, T, chi);
+}
+
+double pQCD(double muB, double muQ, double T) {
+  ChiValues chi = evalChis(T);
+  return pQCD(muB, muQ, T, chi);
 }
 
 } // namespace LatticeQCD

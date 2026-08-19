@@ -16,6 +16,18 @@ double TotalS(double muB, double muQ, double munue, double munumu,
          QCD::sQCD(muB, muQ, T, nf);
 }
 
+double TotalP(double muB, double muQ, double munue, double munumu,
+              double mnutau, double T, int nf) {
+  return lepton::plep(muQ, munue, munumu, mnutau, T) +
+         QCD::pQCD(muB, muQ, T, nf);
+}
+
+double TotalE(double muB, double muQ, double munue, double munumu,
+              double mnutau, double T, int nf) {
+  return lepton::elep(muQ, munue, munumu, mnutau, T) +
+         QCD::eQCD(muB, muQ, T, nf);
+}
+
 std::vector<Solver::SystemFunction>
 getEquations(double T, double le, double lmu, double ltau, double b, int nf) {
   std::vector<Solver::SystemFunction> functions;

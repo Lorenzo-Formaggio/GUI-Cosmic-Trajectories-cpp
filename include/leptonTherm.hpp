@@ -33,6 +33,12 @@ double Qlep(double muQ, double munue, double munumu, double mnutau, double T);
 // Total lepton+photons entropy density
 double slep(double muQ, double munue, double munumu, double mnutau, double T);
 
+// Total lepton+photons pressure
+double plep(double muQ, double munue, double munumu, double mnutau, double T);
+
+// Total lepton+photons energy density
+double elep(double muQ, double munue, double munumu, double mnutau, double T);
+
 } // namespace lepton
 
 #endif // LEPTONTHERM_HPP

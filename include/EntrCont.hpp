@@ -61,11 +61,13 @@ double sQCD(double muB, double muQ, double T, const ContourValues &c);
 double BarDens(double muB, double muQ, double T, const ContourValues &c);
 double QCDcharge(double muB, double muQ, double T, const ContourValues &c);
 double StrDens(double muB, double muQ, double T, const ContourValues &c);
+double pQCD(double muB, double muQ, double T, const ContourValues &c);
 
 double sQCD(double muB, double muQ, double T);
 double BarDens(double muB, double muQ, double T);
 double QCDcharge(double muB, double muQ, double T);
 double StrDens(double muB, double muQ, double T);
+double pQCD(double muB, double muQ, double T);
 
 } // namespace EntropyContours
 

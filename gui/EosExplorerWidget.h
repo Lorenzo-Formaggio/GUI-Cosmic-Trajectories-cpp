@@ -1,11 +1,11 @@
 #ifndef EOSEXPLORERWIDGET_H
 #define EOSEXPLORERWIDGET_H
 
-#include <QWidget>
 #include <QFont>
-#include <QVector>
 #include <QPointF>
 #include <QString>
+#include <QVector>
+#include <QWidget>
 
 // Forward declarations
 class QComboBox;
@@ -17,12 +17,12 @@ class QTextEdit;
 class QCheckBox;
 class QTabWidget;
 
+#include "TooltipChartView.h"
+#include <QtCharts/QAbstractAxis>
 #include <QtCharts/QChartView>
 #include <QtCharts/QLineSeries>
 #include <QtCharts/QLogValueAxis>
 #include <QtCharts/QValueAxis>
-#include <QtCharts/QAbstractAxis>
-#include "TooltipChartView.h"
 
 /**
  * @brief EoS Explorer widget — third tab of the main window.
@@ -35,7 +35,8 @@ class EosExplorerWidget : public QWidget {
   Q_OBJECT
 
 public:
-  explicit EosExplorerWidget(const QString &workingDir, QWidget *parent = nullptr);
+  explicit EosExplorerWidget(const QString &workingDir,
+                             QWidget *parent = nullptr);
 
 private slots:
   void onComputeClicked();
@@ -58,42 +59,42 @@ private:
   QString m_workingDir;
 
   // ── Parameter widgets ───────────────────────────────────────────────
-  QComboBox      *m_comboEos       = nullptr;
-  QComboBox      *m_comboNf        = nullptr;
+  QComboBox *m_comboEos = nullptr;
+  QComboBox *m_comboNf = nullptr;
 
   // EoS table path (for Interpolated Table)
-  QWidget        *m_eosPathWidget  = nullptr;
-  QLineEdit      *m_lineEditEosPath = nullptr;
-  QPushButton    *m_btnBrowseEos   = nullptr;
-  QLabel         *m_labelEosPath   = nullptr;
+  QWidget *m_eosPathWidget = nullptr;
+  QLineEdit *m_lineEditEosPath = nullptr;
+  QPushButton *m_btnBrowseEos = nullptr;
+  QLabel *m_labelEosPath = nullptr;
 
   // Fixed chemical potentials
-  QDoubleSpinBox *m_spinMuB        = nullptr;
-  QDoubleSpinBox *m_spinMuQ        = nullptr;
+  QDoubleSpinBox *m_spinMuB = nullptr;
+  QDoubleSpinBox *m_spinMuQ = nullptr;
 
   // Temperature scan range
-  QDoubleSpinBox *m_spinTmin       = nullptr;
-  QDoubleSpinBox *m_spinTmax       = nullptr;
-  QDoubleSpinBox *m_spinDT         = nullptr;
+  QDoubleSpinBox *m_spinTmin = nullptr;
+  QDoubleSpinBox *m_spinTmax = nullptr;
+  QDoubleSpinBox *m_spinDT = nullptr;
 
-  QCheckBox      *m_chkNormalizeT3 = nullptr;
+  QCheckBox *m_chkNormalizeT3 = nullptr;
 
   // Buttons
-  QPushButton    *m_btnCompute     = nullptr;
-  QPushButton    *m_btnClear       = nullptr;
-  QPushButton    *m_btnThemeToggle = nullptr;
-  QPushButton    *m_btnScaleToggle = nullptr;
+  QPushButton *m_btnCompute = nullptr;
+  QPushButton *m_btnClear = nullptr;
+  QPushButton *m_btnThemeToggle = nullptr;
+  QPushButton *m_btnScaleToggle = nullptr;
 
   // Console
-  QLabel         *m_statusLabel    = nullptr;
-  QTextEdit      *m_console        = nullptr;
+  QLabel *m_statusLabel = nullptr;
+  QTextEdit *m_console = nullptr;
 
   // ── Charts (3 tabs: nB, nQ, s) ─────────────────────────────────────
   static const int NUM_CHARTS = 3;
-  QTabWidget       *m_chartTabs = nullptr;
+  QTabWidget *m_chartTabs = nullptr;
   TooltipChartView *m_chartViews[NUM_CHARTS] = {};
-  QAbstractAxis    *m_axesX[NUM_CHARTS] = {};
-  QAbstractAxis    *m_axesY[NUM_CHARTS] = {};
+  QAbstractAxis *m_axesX[NUM_CHARTS] = {};
+  QAbstractAxis *m_axesY[NUM_CHARTS] = {};
 
   bool m_isLogScale = false;
   bool m_isNormalizedT3 = false;
@@ -104,21 +105,14 @@ private:
   bool m_legendVisible = true;
 
   // Chart titles and Y-axis labels
-  static constexpr const char* CHART_TITLES[NUM_CHARTS] = {
-    "Baryon Density nB vs Temperature",
-    "Charge Density nQ vs Temperature",
-    "Entropy Density s vs Temperature"
-  };
-  static constexpr const char* CHART_YLABELS[NUM_CHARTS] = {
-    "Baryon Density nB [MeV³]",
-    "Charge Density nQ [MeV³]",
-    "Entropy Density s [MeV³]"
-  };
-  static constexpr const char* CHART_YLABELS_NORM[NUM_CHARTS] = {
-    "nB / T³",
-    "nQ / T³",
-    "s / T³"
-  };
+  static constexpr const char *CHART_TITLES[NUM_CHARTS] = {
+      "Baryon Density nB vs Temperature", "Charge Density nQ vs Temperature",
+      "Entropy Density s vs Temperature"};
+  static constexpr const char *CHART_YLABELS[NUM_CHARTS] = {
+      "Baryon Density nB [MeV³]", "Charge Density nQ [MeV³]",
+      "Entropy Density s [MeV³]"};
+  static constexpr const char *CHART_YLABELS_NORM[NUM_CHARTS] = {
+      "nB / T³", "nQ / T³", "s / T³"};
 
   // ── Data storage for export ─────────────────────────────────────────
   struct SeriesData {
@@ -128,6 +122,8 @@ private:
     QVector<QPointF> nB_points;
     QVector<QPointF> nQ_points;
     QVector<QPointF> s_points;
+    QVector<double> p_QCD; // QCD pressure [MeV^4]
+    QVector<double> e_QCD; // QCD energy density [MeV^4]
   };
   QVector<SeriesData> m_allSeries;
 
@@ -136,7 +132,7 @@ private:
   static QColor nextColor(int &idx);
 
   QFont m_axisFont;
-  bool  m_axisFontValid = false;
+  bool m_axisFontValid = false;
 };
 
 #endif // EOSEXPLORERWIDGET_H

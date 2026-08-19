@@ -1685,6 +1685,7 @@ void RunFromFileWidget::onExportFullData() {
     // written sequentially, separated by a "# Source N, Row M ..." comment
     // line that carries the per-row run parameters.
     out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnB\tnQ\ts_QCD\ts_tot"
+           "\tp_QCD\tp_tot\te_QCD\te_tot"
            "\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\n";
 
     for (int i = 0; i < m_sources.size(); ++i) {
@@ -1702,6 +1703,7 @@ void RunFromFileWidget::onExportFullData() {
           out << pt.T << "\t" << pt.muB << "\t" << pt.muQ
               << "\t" << pt.munue << "\t" << pt.munumu << "\t" << pt.mnutau
               << "\t" << pt.nB << "\t" << pt.nQ << "\t" << pt.s_QCD << "\t" << pt.s
+              << "\t" << pt.p_QCD << "\t" << pt.p_tot << "\t" << pt.e_QCD << "\t" << pt.e_tot
               << "\t" << pt.ne << "\t" << pt.nmu << "\t" << pt.ntau
               << "\t" << pt.nnue << "\t" << pt.nnumu << "\t" << pt.nnutau
               << "\n";
@@ -1749,12 +1751,14 @@ void RunFromFileWidget::onExportFullData() {
         QTextStream out(&file);
 
         out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnB\tnQ\ts_QCD\ts_tot"
+               "\tp_QCD\tp_tot\te_QCD\te_tot"
                "\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\n";
                
         for (const auto &pt : pts) {
           out << pt.T << "\t" << pt.muB << "\t" << pt.muQ
               << "\t" << pt.munue << "\t" << pt.munumu << "\t" << pt.mnutau
               << "\t" << pt.nB << "\t" << pt.nQ << "\t" << pt.s_QCD << "\t" << pt.s
+              << "\t" << pt.p_QCD << "\t" << pt.p_tot << "\t" << pt.e_QCD << "\t" << pt.e_tot
               << "\t" << pt.ne << "\t" << pt.nmu << "\t" << pt.ntau
               << "\t" << pt.nnue << "\t" << pt.nnumu << "\t" << pt.nnutau
               << "\n";
