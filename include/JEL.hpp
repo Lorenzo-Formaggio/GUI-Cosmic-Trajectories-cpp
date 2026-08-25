@@ -84,6 +84,8 @@ double nsPart(double mu, double T, double m, double g);
 // Massless fermion 
 double nm0(double mu, double T, double m, double g);
 double sm0(double mu, double T, double m, double g);
+double Pm0(double mu, double T, double m, double g);
+double em0(double mu, double T, double m, double g);
 
 // Particles + antiparticles
 double nNet(double mu, double T, double m, double g);
@@ -105,6 +107,8 @@ double nsPart(double mu, double T, double m, double g);
 // Massless boson 
 double nb0(double mu, double T, double m, double g);
 double sb0(double mu, double T, double m, double g);
+double Pb0(double mu, double T, double m, double g);
+double eb0(double mu, double T, double m, double g);
 
 // Particles + antiparticles
 double nNet(double mu, double T, double m, double g);

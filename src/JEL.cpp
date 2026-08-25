@@ -199,47 +199,6 @@ double ef(double f, double T, double m, double g) {
 
 // Fermion gas quantities (particles only) in µ T variables
 namespace jelf {
-// Particle number density of fermions (particles only)
-// Returns: n (MeV^3)
-double nPart(double mu, double T, double m, double g) {
-  double f = fJEL(mu, T, m);
-  if (f < F_JEL_CUT)
-    return 0.0;
-  return nf(f, T, m, g);
-}
-
-// Pressure of fermion gas (particle contribution)
-// Returns: P (MeV^4)
-double PPart(double mu, double T, double m, double g) {
-  double f = fJEL(mu, T, m);
-  if (f < F_JEL_CUT)
-    return 0.0;
-  return Pf(f, T, m, g);
-}
-
-// Energy density of fermion gas (particle contribution)
-// Returns: rho (MeV^4)
-double ePart(double mu, double T, double m, double g) {
-  double f = fJEL(mu, T, m);
-  if (f < F_JEL_CUT)
-    return 0.0;
-  return ef(f, T, m, g);
-}
-
-// Entropy density of fermion gas (particle contribution)
-// Returns: s (MeV^3)
-double sPart(double mu, double T, double m, double g) {
-  return (ePart(mu, T, m, g) + PPart(mu, T, m, g) - mu * nPart(mu, T, m, g)) /
-         T;
-}
-
-// Scalar density of fermions (particles only)
-// Corresponds to <\bar{\psi}\psi> or the trace of the energy-momentum tensor
-// divided by mass Returns: n_s (1/MeV^3)
-double nsPart(double mu, double T, double m, double g) {
-  return (ePart(mu, T, m, g) - 3.0 * PPart(mu, T, m, g)) / m;
-}
-
 // Massless fermion special cases
 double nm0(double mu, double T, double m, double g) {
   return (1.0 / std::pow(HC, 3)) * g *
@@ -251,6 +210,66 @@ double sm0(double mu, double T, double m, double g) {
   return (1.0 / std::pow(HC, 3)) * g *
          ((7.0 * PI * PI / 180.0) * std::pow(T, 3) +
           (1.0 / 12.0) * mu * mu * T);
+}
+
+double Pm0(double mu, double T, double m, double g) {
+  return (1.0 / std::pow(HC, 3)) * g *
+         ((7.0 * PI * PI / 720.0) * std::pow(T, 4) +
+          (1.0 / 24.0) * mu * mu * T * T +
+          (1.0 / (48.0 * PI * PI)) * std::pow(mu, 4));
+}
+
+double em0(double mu, double T, double m, double g) {
+  return 3.0 * Pm0(mu, T, m, g);
+}
+
+// Particle number density of fermions (particles only)
+// Returns: n (MeV^3)
+double nPart(double mu, double T, double m, double g) {
+  if (m == 0.0)
+    return nm0(mu, T, m, g);
+  double f = fJEL(mu, T, m);
+  if (f < F_JEL_CUT)
+    return 0.0;
+  return nf(f, T, m, g);
+}
+
+// Pressure of fermion gas (particle contribution)
+// Returns: P (MeV^4)
+double PPart(double mu, double T, double m, double g) {
+  if (m == 0.0)
+    return Pm0(mu, T, m, g);
+  double f = fJEL(mu, T, m);
+  if (f < F_JEL_CUT)
+    return 0.0;
+  return Pf(f, T, m, g);
+}
+
+// Energy density of fermion gas (particle contribution)
+// Returns: rho (MeV^4)
+double ePart(double mu, double T, double m, double g) {
+  if (m == 0.0)
+    return em0(mu, T, m, g);
+  double f = fJEL(mu, T, m);
+  if (f < F_JEL_CUT)
+    return 0.0;
+  return ef(f, T, m, g);
+}
+
+// Entropy density of fermion gas (particle contribution)
+// Returns: s (MeV^3)
+double sPart(double mu, double T, double m, double g) {
+  if (m == 0.0)
+    return sm0(mu, T, m, g);
+  return (ePart(mu, T, m, g) + PPart(mu, T, m, g) - mu * nPart(mu, T, m, g)) /
+         T;
+}
+
+// Scalar density of fermions (particles only)
+// Corresponds to <\bar{\psi}\psi> or the trace of the energy-momentum tensor
+// divided by mass Returns: n_s (1/MeV^3)
+double nsPart(double mu, double T, double m, double g) {
+  return (ePart(mu, T, m, g) - 3.0 * PPart(mu, T, m, g)) / m;
 }
 
 // Fermion gas quantities (particles + antiparticles)
@@ -267,12 +286,18 @@ double nNet(double mu, double T, double m, double g) {
 // Total pressure (particles + antiparticles)
 // Returns: P_tot (MeV^4)
 double PTot(double mu, double T, double m, double g) {
+  if (m == 0.0) {
+    return Pm0(mu, T, m, g) + Pm0(-mu, T, m, g);
+  }
   return PPart(mu, T, m, g) + PPart(-mu, T, m, g);
 }
 
 // Total energy density (particles + antiparticles)
 // Returns: rho_tot (MeV^4)
 double eTot(double mu, double T, double m, double g) {
+  if (m == 0.0) {
+    return em0(mu, T, m, g) + em0(-mu, T, m, g);
+  }
   return ePart(mu, T, m, g) + ePart(-mu, T, m, g);
 }
 
@@ -361,9 +386,28 @@ double eb(double h, double T, double m, double g) {
 
 // Boson gas quantities (particles only)
 namespace jelb {
+// Massless boson special cases
+double nb0(double mu, double T, double m, double g) {
+  return g * 1.202 * std::pow(T, 3) / (std::pow(HC, 3) * PI * PI);
+}
+
+double sb0(double mu, double T, double m, double g) {
+  return 2.0 * (PI * PI / 45.0) * g * std::pow(T, 3) / std::pow(HC, 3);
+}
+
+double Pb0(double mu, double T, double m, double g) {
+  return (PI * PI / 90.0) * g * std::pow(T, 4) / std::pow(HC, 3);
+}
+
+double eb0(double mu, double T, double m, double g) {
+  return (PI * PI / 30.0) * g * std::pow(T, 4) / std::pow(HC, 3);
+}
+
 // Particle number density of bosons (particles only)
 // Returns: n (MeV^3)
 double nPart(double mu, double T, double m, double g) {
+  if (m == 0.0)
+    return nb0(mu, T, m, g);
   double h = hJEL(mu, T, m);
   if (h < H_JEL_CUT)
     return 0.0;
@@ -373,6 +417,8 @@ double nPart(double mu, double T, double m, double g) {
 // Pressure of boson gas (particle contribution)
 // Returns: P (MeV^4)
 double PPart(double mu, double T, double m, double g) {
+  if (m == 0.0)
+    return Pb0(mu, T, m, g);
   double h = hJEL(mu, T, m);
   if (h < H_JEL_CUT)
     return 0.0;
@@ -382,6 +428,8 @@ double PPart(double mu, double T, double m, double g) {
 // Energy density of boson gas (particle contribution)
 // Returns: rho (MeV^4)
 double ePart(double mu, double T, double m, double g) {
+  if (m == 0.0)
+    return eb0(mu, T, m, g);
   double h = hJEL(mu, T, m);
   if (h < H_JEL_CUT)
     return 0.0;
@@ -391,6 +439,8 @@ double ePart(double mu, double T, double m, double g) {
 // Entropy density of boson gas (particle contribution)
 // Returns: s (MeV^3)
 double sPart(double mu, double T, double m, double g) {
+  if (m == 0.0)
+    return sb0(mu, T, m, g);
   return (ePart(mu, T, m, g) + PPart(mu, T, m, g) - mu * nPart(mu, T, m, g)) /
          T;
 }
@@ -399,15 +449,6 @@ double sPart(double mu, double T, double m, double g) {
 // Returns: n_s (MeV^3)
 double nsPart(double mu, double T, double m, double g) {
   return (ePart(mu, T, m, g) - 3.0 * PPart(mu, T, m, g)) / m;
-}
-
-// Massless boson special cases
-double nb0(double mu, double T, double m, double g) {
-  return g * 1.202 * std::pow(T, 3) / (std::pow(HC, 3) * PI * PI);
-}
-
-double sb0(double mu, double T, double m, double g) {
-  return 2.0 * (PI * PI / 45.0) * g * std::pow(T, 3) / std::pow(HC, 3);
 }
 
 // Boson gas quantities (particles + antiparticles)
@@ -424,12 +465,18 @@ double nNet(double mu, double T, double m, double g) {
 // Total pressure (particles + antiparticles)
 // Returns: P_tot (MeV^4)
 double PTot(double mu, double T, double m, double g) {
+  if (m == 0.0) {
+    return Pb0(mu, T, m, g);
+  }
   return PPart(mu, T, m, g) + PPart(-mu, T, m, g);
 }
 
 // Total energy density (particles + antiparticles)
 // Returns: rho_tot (MeV^4)
 double eTot(double mu, double T, double m, double g) {
+  if (m == 0.0) {
+    return eb0(mu, T, m, g);
+  }
   return ePart(mu, T, m, g) + ePart(-mu, T, m, g);
 }
 
