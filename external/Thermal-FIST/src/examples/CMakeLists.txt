@@ -1,0 +1,8 @@
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/examples")
+add_subdirectory(BagModelFit)
+add_subdirectory(CalculationTmu)
+add_subdirectory(cpc)
+add_subdirectory(PCE)
+add_subdirectory(Cosmology)
+add_subdirectory(EoS)
+add_subdirectory(NeutronStars)

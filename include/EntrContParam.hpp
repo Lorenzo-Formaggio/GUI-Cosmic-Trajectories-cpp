@@ -1,57 +1,88 @@
 #ifndef ENTRCONTPARAM_HPP
 #define ENTRCONTPARAM_HPP
 
+#include "ContourEoSCore.hpp"
+
 #include <string>
-#include <vector>
+
+/**
+ * @file EntrContParam.hpp
+ * @brief Constant-entropy-density contour equation of state, matched to
+ *        s_contours_c-dev4-tristan.
+ *
+ * The contour algebra itself lives in `ContourEoSCore.hpp`, shared with
+ * EntrCont; this file supplies only the mu = 0 lattice input, which is what
+ * distinguishes the two models. Here it is the closed-form Wuppertal-Budapest
+ * fits of `scontours::LatticeInput` with the symbolically generated exact
+ * T-derivatives, so the model reproduces s_contours_c-dev4-tristan's
+ * `scontours::EquationOfState` numerically.
+ *
+ * VALIDITY: those parametrizations are fits to the crossover region and are
+ * good up to about 200 MeV. Above that they are outside their fitted range --
+ * the tanh entropy fit saturates at s/T^3 = 12.09, where the lattice data keeps
+ * rising (14.7 at 300 MeV, 17.4 at 800 MeV). Nothing here clamps or warns,
+ * because the reference does not either and the contour stays smooth; but above
+ * ~200 MeV use EntrCont, whose tabulated input follows the data to 800 MeV.
+ *
+ * Differences from the previous implementation in this file, all of which were
+ * genuine deviations from the reference:
+ *   - the entropy density carried a spurious extra + X2 mu^2 T term on top of
+ *     s0(T0); along a constant-s contour s is exactly s0(T0)
+ *   - the charge densities used T_phys^2 where the contour result has T0^2,
+ *     and the T0low subtraction was only approximated by the seam shift
+ *   - the pressure integral was a 1000-point trapezoid of s0 dT/dT0 dT0 rather
+ *     than the closed-form antiderivative + Gauss-Legendre p0
+ *   - the lattice inputs were an outdated chi2Q fit, an entropy spline read
+ *     from disk, and independently fitted cross susceptibilities; the reference
+ *     uses the current Wuppertal-Budapest fits, a closed-form tanh entropy, and
+ *     (by default) isospin-derived chi11BS / chi11BQ
+ *   - the seam anchor was an ideal / excluded-volume HRG, not the QvdW-HRG
+ *
+ * All temperatures and chemical potentials in MeV; pressure in MeV^4, densities
+ * and entropy density in MeV^3.
+ */
 
 namespace EntropyContoursParam {
 
 /**
- * @brief Per-(muB, muQ) contour state.
+ * @brief Cross-susceptibility scheme for the lattice input.
  *
- * Holds the precomputed contour arrays evaluated on the T0 grid for a fixed
- * (muB, muQ) point (with muS = 0 enforced). Reuse this struct to query the
- * thermodynamic functions at multiple temperatures along the same contour
- * without recomputing.
- *
- * Density values are stored as dimensionless n/T^3 and entropy as s/T^3,
- * indexed on the T0 grid. T_phys[i] is the physical temperature corresponding
- * to T0g[i] under the contour T = T0 + 0.5 * a2(T0) * mu^2.
+ * Mirrors `scontours::LatticeInput::CrossMode`. IsospinDerived is the default
+ * (the 4D paper's production setup): only chi2B, chi2Q, chi2S and chi11QS are
+ * fitted, and chi11BS = 2 chi11QS - chi2S, chi11BQ = (chi2B + chi11BS)/2.
  */
-struct ContourValues {
-  double muB = 0.0;
-  double muQ = 0.0;
+enum class CrossMode { Fitted, IsospinDerived };
 
-  // Per-T0 grid arrays (size = N_T0).
-  std::vector<double> T_phys; // physical T(T0) along contour
-  std::vector<double> dTdT0;  // Jacobian dT/dT0 (for stability check)
-  std::vector<double> nB_T3;  // n_B / T^3
-  std::vector<double> nS_T3;  // n_S / T^3
-  std::vector<double> nQ_T3;  // n_Q / T^3
-  std::vector<double> s_T3;   // s   / T^3
-  std::vector<double> P_T4;   // P   / T^4 (used for Maxwell construction)
-};
+/** Thermodynamics at one resolved contour anchor; see ContourEoSCore.hpp. */
+using AnchorResult = ContourEoS::AnchorResult;
 
 /**
- * @brief Initialize the EntropyContours equation of state.
+ * @brief Per-direction contour state; see ContourEoS::Contour.
  *
- * Loads the lattice susceptibilities (chi2B, chi2Q, chi2S, chi11BS, chi11BQ,
- * chi11SQ) and the entropy spline from @p chisDir, plus the HRG anchor slice
- * from @p hrgPath (file format identical to the QvdW-HRG file consumed by
- * main.cpp's --CT mode). Must be called before any other function.
- *
- * @param chisDir Directory containing Chi*_30-2000.dT1 files and
- *                entro_2013_hrg+extrap.spln. Default: "chis".
- * @param hrgPath Path to the (muB, muQ)-plane HRG file at T = 80 MeV.
- *                Default: "HRG/muB-muQ-plane_QvdW_interacting_pions_filled_B.dat"
- *                (the NaN-filled file produced by mimic/fill_hrg.py).
- * @param useHRG  If false, skip HRG anchoring: pressure is set with a
- *                P_base[0]=0 convention and densities are not shifted
- *                (matches main.cpp's non-CT mode). Default: true.
+ * The same type backs EntropyContours::ContourValues -- the two models share
+ * the contour engine and differ only in their mu = 0 lattice input -- but the
+ * contours are not interchangeable between them: each carries a pointer to the
+ * engine that built it.
  */
-// Note: the implementation file requires the PDG list path (for HRG::initialize)
-// and the meson/baryon excluded volumes (for HRG::setExcludedVolumes), so the
-// 5-argument form below mirrors that of EntrCont::initialize.
+using ContourValues = ContourEoS::Contour;
+
+/**
+ * @brief Initialize the equation of state.
+ *
+ * @param chisDir   Ignored, kept for source compatibility with the previous
+ *                  signature (and with EntrCont's). The susceptibilities and
+ *                  the entropy density are now closed-form Wuppertal-Budapest
+ *                  fits compiled in, so no file is read.
+ * @param pdgListPath  Thermal-FIST particle list for the QvdW-HRG boundary;
+ *                  empty falls back to Thermal-FIST's bundled PDG2020 list.
+ * @param b_meson_fm3  Ignored: mesons are non-interacting in the QvdW-HRG.
+ * @param b_baryon_fm3 QvdW baryon eigenvolume b [fm^3] (3.42 in the paper).
+ * @param useHRG    If false, skip the QvdW-HRG boundary: the pressure uses the
+ *                  bare contour convention P(Tlow, mu) = p0(Tlow) and the
+ *                  densities get no boundary contribution. Relative
+ *                  thermodynamics (dP/dT, dP/dmu) is unaffected; the absolute
+ *                  pressure and n_X are.
+ */
 void initialize(const std::string &chisDir,
                 const std::string &pdgListPath,
                 double b_meson_fm3,
@@ -64,24 +95,33 @@ void cleanup();
 /** True iff initialize() has been called and not yet cleaned up. */
 bool isInitialized();
 
+/** Select the cross-susceptibility scheme (default: IsospinDerived, matching
+ *  the reference). Must be called before initialize(); it changes the
+ *  precomputed lattice tables. */
+void setCrossMode(CrossMode mode);
+CrossMode crossMode();
+
+/** Low-temperature boundary temperature Tlow [MeV] (80, as in the paper).
+ *  Temperatures below it are outside the domain of the contour EoS. */
+double referenceTemperature();
+
 /**
- * @brief Evaluate the contour arrays at a given (muB, muQ) point.
+ * @brief Build the contour for a given chemical potential point.
  *
- * The strangeness chemical potential muS is taken to be 0 (strangeness
- * neutrality), matching main.cpp's --CT mode. The returned struct can be
- * passed to the density/entropy functions to evaluate at multiple
- * temperatures without redoing the contour computation.
- *
- * @param muB Baryon chemical potential (MeV).
- * @param muQ Electric charge chemical potential (MeV).
+ * The direction is n_hat = (mu_B, mu_Q, mu_S)/mu and the radial coordinate is
+ * mu = |(mu_B, mu_Q, mu_S)|. This performs exactly one QvdW-HRG solve (at the
+ * seam), which dominates the cost -- cache the result and reuse it for every
+ * observable and temperature at this point.
  */
+ContourValues evalContour(double muB, double muQ, double muS);
+/** muS = 0 (strangeness-neutral cosmic-trajectory case), as before. */
 ContourValues evalContour(double muB, double muQ);
 
 // ============================================================================
 // Thermodynamic functions taking a precomputed ContourValues (efficient).
-// All assume muS = 0. The (muB, muQ) parameters must match those used to
-// build the ContourValues; they are accepted for API symmetry with LatticeQCD.
-// Returns dimensional density in MeV^3 (or MeV^3 for entropy density too).
+// The (muB, muQ) parameters are accepted for API symmetry with LatticeQCD and
+// are ignored; the point is the one stored in the ContourValues.
+// Dimensional results: MeV^3 for densities and entropy density, MeV^4 for P.
 // ============================================================================
 
 /** Entropy density s (MeV^3). */
@@ -99,9 +139,13 @@ double StrDens(double muB, double muQ, double T, const ContourValues &c);
 /** QCD pressure P (MeV^4). */
 double pQCD(double muB, double muQ, double T, const ContourValues &c);
 
+/** Energy density eps = T s - P + sum_X mu_X n_X (MeV^4). */
+double eQCD(double muB, double muQ, double T, const ContourValues &c);
+
 // ============================================================================
-// Convenience overloads (build the contour internally - less efficient if
-// multiple observables are needed at the same (muB, muQ)).
+// Convenience overloads (build the contour internally - much less efficient if
+// several observables are needed at the same point, since each one redoes the
+// QvdW-HRG seam solve unless it hits that model's cache).
 // ============================================================================
 
 double sQCD(double muB, double muQ, double T);
@@ -109,7 +153,8 @@ double BarDens(double muB, double muQ, double T);
 double QCDcharge(double muB, double muQ, double T);
 double StrDens(double muB, double muQ, double T);
 double pQCD(double muB, double muQ, double T);
+double eQCD(double muB, double muQ, double T);
 
 } // namespace EntropyContoursParam
 
-#endif // ENTRCONT_HPP
+#endif // ENTRCONTPARAM_HPP

@@ -1,0 +1,26 @@
+language: cpp
+compiler: g++
+sudo: required
+dist: bionic
+
+before_install:
+  - sudo apt-get update
+
+install:
+  - sudo apt-get install g++-6 cmake qt5-default
+  
+script:
+  - mkdir build
+  - cd build
+  - cmake -DINCLUDE_TESTS=ON ../
+  - make -j$(nproc)
+  - cd bin/examples
+  - ./CalculationTmu
+  - ./BagModelFit 0.50 0.100 0.301 0.005
+  - ./cpc1HRGTDep 0
+  - ./cpc1HRGTDep 1
+  - ./cpc1HRGTDep 2
+  - ./cpc3chi2NEQ 0
+  - ./cpc4mcHRG 1 100
+  - ./PCE-Saha-LHC
+  
