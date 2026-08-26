@@ -46,6 +46,7 @@ private slots:
   void onScaleToggleClicked();
   void onNormalizeToggleClicked();
   void onEosChanged(int index);
+  void onScanVarChanged(int index);
   void logMessage(const QString &msg, bool isError = false);
   void onConfigureAxisFontsClicked();
 
@@ -54,6 +55,8 @@ private:
   void setupUi();
   void rebuildAxes(int chartIdx);
   void rebuildAllAxes();
+  QString scanVarLabel() const;
+  QString scanVarUnit() const;
   void replotData();
 
   QString m_workingDir;
@@ -61,6 +64,7 @@ private:
   // ── Parameter widgets ───────────────────────────────────────────────
   QComboBox *m_comboEos = nullptr;
   QComboBox *m_comboNf = nullptr;
+  QComboBox *m_comboScanVar = nullptr; // 0=T, 1=µB, 2=µQ
 
   // EoS table path (for Interpolated Table)
   QWidget *m_eosPathWidget = nullptr;
@@ -68,14 +72,19 @@ private:
   QPushButton *m_btnBrowseEos = nullptr;
   QLabel *m_labelEosPath = nullptr;
 
-  // Fixed chemical potentials
-  QDoubleSpinBox *m_spinMuB = nullptr;
-  QDoubleSpinBox *m_spinMuQ = nullptr;
+  // Fixed parameters (two of {T, µB, µQ} — the third is scanned)
+  QLabel *m_labelFixed1 = nullptr;
+  QLabel *m_labelFixed2 = nullptr;
+  QDoubleSpinBox *m_spinFixed1 = nullptr; // first fixed param
+  QDoubleSpinBox *m_spinFixed2 = nullptr; // second fixed param
 
-  // Temperature scan range
-  QDoubleSpinBox *m_spinTmin = nullptr;
-  QDoubleSpinBox *m_spinTmax = nullptr;
-  QDoubleSpinBox *m_spinDT = nullptr;
+  // Scan range (for whichever variable is being scanned)
+  QLabel *m_labelScanMin = nullptr;
+  QLabel *m_labelScanMax = nullptr;
+  QLabel *m_labelScanStep = nullptr;
+  QDoubleSpinBox *m_spinScanMin = nullptr;
+  QDoubleSpinBox *m_spinScanMax = nullptr;
+  QDoubleSpinBox *m_spinDScan = nullptr;
 
   QCheckBox *m_chkNormalizeT3 = nullptr;
 
@@ -104,10 +113,9 @@ private:
   bool m_useAbs[NUM_CHARTS] = {false, false, false};
   bool m_legendVisible = true;
 
-  // Chart titles and Y-axis labels
-  static constexpr const char *CHART_TITLES[NUM_CHARTS] = {
-      "Baryon Density nB vs Temperature", "Charge Density nQ vs Temperature",
-      "Entropy Density s vs Temperature"};
+  // Y-axis labels (chart titles are built dynamically from scan variable)
+  static constexpr const char *CHART_YNAMES[NUM_CHARTS] = {
+      "Baryon Density nB", "Charge Density nQ", "Entropy Density s"};
   static constexpr const char *CHART_YLABELS[NUM_CHARTS] = {
       "Baryon Density nB [MeV³]", "Charge Density nQ [MeV³]",
       "Entropy Density s [MeV³]"};
@@ -117,11 +125,14 @@ private:
   // ── Data storage for export ─────────────────────────────────────────
   struct SeriesData {
     QString label;
+    int scanVar = 0; // 0=T, 1=µB, 2=µQ
+    double fixedT = 0.0;
     double muB = 0.0;
     double muQ = 0.0;
-    QVector<QPointF> nB_points;
+    QVector<QPointF> nB_points; // x = scan variable value
     QVector<QPointF> nQ_points;
     QVector<QPointF> s_points;
+    QVector<double> T_values; // temperature at each point (for T³ normalization)
     QVector<double> p_QCD; // QCD pressure [MeV^4]
     QVector<double> e_QCD; // QCD energy density [MeV^4]
   };

@@ -29,13 +29,27 @@
 #include <QAction>
 
 // Required for Qt < 5.17 / C++17 compatibility if taking address, though QString takes by value/pointer.
-constexpr const char* EosExplorerWidget::CHART_TITLES[NUM_CHARTS];
+constexpr const char* EosExplorerWidget::CHART_YNAMES[NUM_CHARTS];
 constexpr const char* EosExplorerWidget::CHART_YLABELS[NUM_CHARTS];
 constexpr const char* EosExplorerWidget::CHART_YLABELS_NORM[NUM_CHARTS];
 
 EosExplorerWidget::EosExplorerWidget(const QString &workingDir, QWidget *parent)
     : QWidget(parent), m_workingDir(workingDir) {
   setupUi();
+}
+
+// ── Helpers: human-readable label / unit for the active scan variable ──────
+QString EosExplorerWidget::scanVarLabel() const {
+  int idx = m_comboScanVar ? m_comboScanVar->currentIndex() : 0;
+  switch (idx) {
+    case 1:  return QStringLiteral("µB");
+    case 2:  return QStringLiteral("µQ");
+    default: return QStringLiteral("Temperature");
+  }
+}
+
+QString EosExplorerWidget::scanVarUnit() const {
+  return QStringLiteral("[MeV]");
 }
 
 void EosExplorerWidget::setupUi() {
@@ -96,26 +110,49 @@ void EosExplorerWidget::setupUi() {
       }
   });
 
-  // Fixed Parameters
-  auto addSpin = [&](const QString& label, double val, double min, double max, int decimals) -> QDoubleSpinBox* {
-    grid->addWidget(new QLabel(label), row, 0);
+  // ── Scan Variable Selector ─────────────────────────────────────────
+  m_comboScanVar = new QComboBox();
+  m_comboScanVar->addItems({"Temperature (T)", "Baryon Chem. Pot. (µB)", "Charge Chem. Pot. (µQ)"});
+  connect(m_comboScanVar, &QComboBox::currentIndexChanged, this, &EosExplorerWidget::onScanVarChanged);
+  grid->addWidget(new QLabel("Scan Variable:"), row, 0);
+  grid->addWidget(m_comboScanVar, row++, 1);
+
+  // ── Fixed Parameters (two of {T, µB, µQ}) ─────────────────────────
+  auto makeSpin = [](double val, double min, double max, int decimals) -> QDoubleSpinBox* {
     QDoubleSpinBox *spin = new QDoubleSpinBox();
     spin->setDecimals(decimals);
     spin->setRange(min, max);
     spin->setValue(val);
-    grid->addWidget(spin, row, 1);
-    row++;
     return spin;
   };
 
-  m_spinMuB = addSpin("Fix µB [MeV]:", 0.0, -10000.0, 10000.0, 2);
-  m_spinMuQ = addSpin("Fix µQ [MeV]:", 0.0, -10000.0, 10000.0, 2);
+  m_labelFixed1 = new QLabel("Fix µB [MeV]:");
+  m_spinFixed1 = makeSpin(0.0, -10000.0, 10000.0, 2);
+  grid->addWidget(m_labelFixed1, row, 0);
+  grid->addWidget(m_spinFixed1, row++, 1);
 
+  m_labelFixed2 = new QLabel("Fix µQ [MeV]:");
+  m_spinFixed2 = makeSpin(0.0, -10000.0, 10000.0, 2);
+  grid->addWidget(m_labelFixed2, row, 0);
+  grid->addWidget(m_spinFixed2, row++, 1);
+
+  // ── Scan Range ─────────────────────────────────────────────────────
   grid->addWidget(new QLabel("── Scan Range ──"), row++, 0, 1, 2, Qt::AlignCenter);
 
-  m_spinTmin = addSpin("T min [MeV]:", 80.0, 0.1, 10000.0, 1);
-  m_spinTmax = addSpin("T max [MeV]:", 250.0, 0.1, 10000.0, 1);
-  m_spinDT   = addSpin("T step [MeV]:", 2.0, 0.01, 100.0, 2);
+  m_labelScanMin = new QLabel("T min [MeV]:");
+  m_spinScanMin = makeSpin(80.0, 0.1, 10000.0, 1);
+  grid->addWidget(m_labelScanMin, row, 0);
+  grid->addWidget(m_spinScanMin, row++, 1);
+
+  m_labelScanMax = new QLabel("T max [MeV]:");
+  m_spinScanMax = makeSpin(250.0, 0.1, 10000.0, 1);
+  grid->addWidget(m_labelScanMax, row, 0);
+  grid->addWidget(m_spinScanMax, row++, 1);
+
+  m_labelScanStep = new QLabel("T step [MeV]:");
+  m_spinDScan = makeSpin(2.0, 0.01, 100.0, 2);
+  grid->addWidget(m_labelScanStep, row, 0);
+  grid->addWidget(m_spinDScan, row++, 1);
 
   m_chkNormalizeT3 = new QCheckBox("Normalize density by T³");
   m_chkNormalizeT3->setChecked(false);
@@ -171,7 +208,7 @@ void EosExplorerWidget::setupUi() {
 
   for (int i = 0; i < NUM_CHARTS; ++i) {
     QChart *chart = new QChart();
-    chart->setTitle(CHART_TITLES[i]);
+    chart->setTitle(QString("%1 vs %2").arg(CHART_YNAMES[i], scanVarLabel()));
     chart->setTheme(QChart::ChartThemeLight);
     chart->setAnimationOptions(QChart::NoAnimation);
     chart->legend()->setAlignment(Qt::AlignRight);
@@ -188,7 +225,6 @@ void EosExplorerWidget::setupUi() {
 
   rebuildAllAxes();
 
-  // ── Plot Settings Menu (Sleek Dark Styling) ───────────────────────────
   // ── Plot Settings Menu (Inherits Global Style) ───────────────────────────
   QPushButton *btnPlotSettings = new QPushButton("Plot Settings", rightPanel);
   
@@ -277,6 +313,9 @@ void EosExplorerWidget::setupUi() {
   splitter->addWidget(leftPanel);
   splitter->addWidget(rightPanel);
   splitter->setSizes({300, 700});
+
+  // Fire once so labels are correct for the default scan variable (T)
+  onScanVarChanged(0);
 }
 
 void EosExplorerWidget::rebuildAllAxes() {
@@ -310,8 +349,11 @@ void EosExplorerWidget::rebuildAxes(int chartIdx) {
     static_cast<QValueAxis*>(m_axesY[chartIdx])->setLabelFormat("%g");
   }
 
-  m_axesX[chartIdx]->setTitleText("Temperature [MeV]");
+  m_axesX[chartIdx]->setTitleText(scanVarLabel() + " " + scanVarUnit());
   m_axesY[chartIdx]->setTitleText(m_isNormalizedT3 ? CHART_YLABELS_NORM[chartIdx] : CHART_YLABELS[chartIdx]);
+
+  // Update chart title dynamically
+  chart->setTitle(QString("%1 vs %2").arg(CHART_YNAMES[chartIdx], scanVarLabel()));
 
   chart->addAxis(m_axesX[chartIdx], Qt::AlignBottom);
   chart->addAxis(m_axesY[chartIdx], Qt::AlignLeft);
@@ -340,10 +382,12 @@ void EosExplorerWidget::rebuildAxes(int chartIdx) {
     for (const auto& data : m_allSeries) {
       const QVector<QPointF>& points = (chartIdx == 0) ? data.nB_points :
                                        (chartIdx == 1) ? data.nQ_points : data.s_points;
-      for (const auto& pt : points) {
+      for (int j = 0; j < points.size(); ++j) {
+        const auto& pt = points[j];
         double y = pt.y();
-        if (m_isNormalizedT3) {
-            double T3 = pt.x() * pt.x() * pt.x();
+        if (m_isNormalizedT3 && j < data.T_values.size()) {
+            double T = data.T_values[j];
+            double T3 = T * T * T;
             if (T3 > 0) y /= T3;
         }
         if (m_isLogScale)             y = std::max(std::abs(y), 1e-15);
@@ -372,9 +416,9 @@ void EosExplorerWidget::rebuildAxes(int chartIdx) {
       m_axesX[chartIdx]->setRange(1.0, 1000.0);
       m_axesY[chartIdx]->setRange(1e-3, 1e3);
     } else {
-      const double tMin = m_spinTmin ? m_spinTmin->value() : 80.0;
-      const double tMax = m_spinTmax ? m_spinTmax->value() : 250.0;
-      m_axesX[chartIdx]->setRange(tMin, tMax);
+      const double vMin = m_spinScanMin ? m_spinScanMin->value() : 80.0;
+      const double vMax = m_spinScanMax ? m_spinScanMax->value() : 250.0;
+      m_axesX[chartIdx]->setRange(vMin, vMax);
       m_axesY[chartIdx]->setRange(0.0, 1.0);
     }
   }
@@ -384,6 +428,70 @@ void EosExplorerWidget::onEosChanged(int index) {
   bool isTable = (index == 2);
   m_labelEosPath->setVisible(isTable);
   m_eosPathWidget->setVisible(isTable);
+}
+
+void EosExplorerWidget::onScanVarChanged(int index) {
+  // index: 0=T, 1=µB, 2=µQ
+  // Update the two fixed-parameter labels and the scan range labels
+  switch (index) {
+    case 0: // scan T → fix µB, µQ
+      m_labelFixed1->setText("Fix µB [MeV]:");
+      m_spinFixed1->setValue(0.0);
+      m_spinFixed1->setRange(-10000.0, 10000.0);
+      m_labelFixed2->setText("Fix µQ [MeV]:");
+      m_spinFixed2->setValue(0.0);
+      m_spinFixed2->setRange(-10000.0, 10000.0);
+      m_labelScanMin->setText("T min [MeV]:");
+      m_spinScanMin->setValue(80.0);
+      m_spinScanMin->setRange(0.1, 10000.0);
+      m_labelScanMax->setText("T max [MeV]:");
+      m_spinScanMax->setValue(250.0);
+      m_spinScanMax->setRange(0.1, 10000.0);
+      m_labelScanStep->setText("T step [MeV]:");
+      m_spinDScan->setValue(2.0);
+      break;
+    case 1: // scan µB → fix T, µQ
+      m_labelFixed1->setText("Fix T [MeV]:");
+      m_spinFixed1->setValue(150.0);
+      m_spinFixed1->setRange(0.1, 10000.0);
+      m_labelFixed2->setText("Fix µQ [MeV]:");
+      m_spinFixed2->setValue(0.0);
+      m_spinFixed2->setRange(-10000.0, 10000.0);
+      m_labelScanMin->setText("µB min [MeV]:");
+      m_spinScanMin->setValue(0.0);
+      m_spinScanMin->setRange(-10000.0, 10000.0);
+      m_labelScanMax->setText("µB max [MeV]:");
+      m_spinScanMax->setValue(500.0);
+      m_spinScanMax->setRange(-10000.0, 10000.0);
+      m_labelScanStep->setText("µB step [MeV]:");
+      m_spinDScan->setValue(5.0);
+      break;
+    case 2: // scan µQ → fix T, µB
+      m_labelFixed1->setText("Fix T [MeV]:");
+      m_spinFixed1->setValue(150.0);
+      m_spinFixed1->setRange(0.1, 10000.0);
+      m_labelFixed2->setText("Fix µB [MeV]:");
+      m_spinFixed2->setValue(0.0);
+      m_spinFixed2->setRange(-10000.0, 10000.0);
+      m_labelScanMin->setText("µQ min [MeV]:");
+      m_spinScanMin->setValue(-200.0);
+      m_spinScanMin->setRange(-10000.0, 10000.0);
+      m_labelScanMax->setText("µQ max [MeV]:");
+      m_spinScanMax->setValue(200.0);
+      m_spinScanMax->setRange(-10000.0, 10000.0);
+      m_labelScanStep->setText("µQ step [MeV]:");
+      m_spinDScan->setValue(5.0);
+      break;
+  }
+
+  // Update chart titles to reflect the new scan variable
+  for (int i = 0; i < NUM_CHARTS; ++i) {
+    if (m_chartViews[i] && m_chartViews[i]->chart()) {
+      m_chartViews[i]->chart()->setTitle(
+        QString("%1 vs %2").arg(CHART_YNAMES[i], scanVarLabel()));
+    }
+  }
+  rebuildAllAxes();
 }
 
 void EosExplorerWidget::logMessage(const QString &msg, bool isError) {
@@ -417,6 +525,7 @@ void EosExplorerWidget::onComputeClicked() {
 
     int eos = m_comboEos->currentIndex();
     int nf = m_comboNf->currentText().toInt();
+    int scanVar = m_comboScanVar->currentIndex(); // 0=T, 1=µB, 2=µQ
     
     // Check for Lattice QCD flavor compatibility
     if (eos == 1 && nf == 2) {
@@ -440,7 +549,7 @@ void EosExplorerWidget::onComputeClicked() {
         InterpolatedEoS::loadTable(eosPath.toStdString());
       }
       if (InterpolatedEoS::isLoaded()) {
-          logMessage(QString("  Table loaded. T range: %1 \u2013 %2 MeV")
+          logMessage(QString("  Table loaded. T range: %1 – %2 MeV")
                             .arg(InterpolatedEoS::getTmin(), 0, 'f', 1)
                             .arg(InterpolatedEoS::getTmax(), 0, 'f', 1));
       }
@@ -452,57 +561,82 @@ void EosExplorerWidget::onComputeClicked() {
     std::string baseDir = m_workingDir.toStdString();
     QCD::setEoS(eos, baseDir, nf);
 
-    double muB = m_spinMuB->value();
-    double muQ = m_spinMuQ->value();
-    double tMin = m_spinTmin->value();
-    double tMax = m_spinTmax->value();
-    double dt = m_spinDT->value();
+    // ── Resolve the three thermodynamic variables from the UI ──────
+    double fixedVal1 = m_spinFixed1->value();
+    double fixedVal2 = m_spinFixed2->value();
+    double scanMin = m_spinScanMin->value();
+    double scanMax = m_spinScanMax->value();
+    double dScan   = m_spinDScan->value();
 
-    // Clamp tMin / tMax to the loaded table range (warn if outside)
-    if (eos == 2 && InterpolatedEoS::isLoaded()) {
+    // Map fixed values to T, muB, muQ depending on scan variable
+    double fixedT = 0, fixedMuB = 0, fixedMuQ = 0;
+    switch (scanVar) {
+      case 0: // scan T → fixed1=µB, fixed2=µQ
+        fixedMuB = fixedVal1; fixedMuQ = fixedVal2; break;
+      case 1: // scan µB → fixed1=T, fixed2=µQ
+        fixedT = fixedVal1; fixedMuQ = fixedVal2; break;
+      case 2: // scan µQ → fixed1=T, fixed2=µB
+        fixedT = fixedVal1; fixedMuB = fixedVal2; break;
+    }
+
+    // Clamp scan range to the loaded table range when scanning T (warn if outside)
+    if (scanVar == 0 && eos == 2 && InterpolatedEoS::isLoaded()) {
       double tableTmin = InterpolatedEoS::getTmin();
       double tableTmax = InterpolatedEoS::getTmax();
 
-      if (tMin < tableTmin) {
+      if (scanMin < tableTmin) {
         logMessage(QString("<font color='#ffc107'><b>Warning:</b> Requested Tmin (%1 MeV) is below table minimum (%2 MeV). Clamping to table minimum.</font>")
-                       .arg(tMin, 0, 'f', 1).arg(tableTmin, 0, 'f', 1));
-        tMin = tableTmin;
-      } else if (tMin > tableTmax) {
+                       .arg(scanMin, 0, 'f', 1).arg(tableTmin, 0, 'f', 1));
+        scanMin = tableTmin;
+      } else if (scanMin > tableTmax) {
         logMessage(QString("<font color='#ffc107'><b>Warning:</b> Requested Tmin (%1 MeV) exceeds table maximum (%2 MeV). Clamping to table maximum.</font>")
-                       .arg(tMin, 0, 'f', 1).arg(tableTmax, 0, 'f', 1));
-        tMin = tableTmax;
+                       .arg(scanMin, 0, 'f', 1).arg(tableTmax, 0, 'f', 1));
+        scanMin = tableTmax;
       }
 
-      if (tMax > tableTmax) {
+      if (scanMax > tableTmax) {
         logMessage(QString("<font color='#ffc107'><b>Warning:</b> Requested Tmax (%1 MeV) exceeds table maximum (%2 MeV). Clamping to table maximum.</font>")
-                       .arg(tMax, 0, 'f', 1).arg(tableTmax, 0, 'f', 1));
-        tMax = tableTmax;
-      } else if (tMax < tableTmin) {
+                       .arg(scanMax, 0, 'f', 1).arg(tableTmax, 0, 'f', 1));
+        scanMax = tableTmax;
+      } else if (scanMax < tableTmin) {
         logMessage(QString("<font color='#ffc107'><b>Warning:</b> Requested Tmax (%1 MeV) is below table minimum (%2 MeV). Clamping to table minimum.</font>")
-                       .arg(tMax, 0, 'f', 1).arg(tableTmin, 0, 'f', 1));
-        tMax = tableTmin;
+                       .arg(scanMax, 0, 'f', 1).arg(tableTmin, 0, 'f', 1));
+        scanMax = tableTmin;
       }
     }
+
+    // Build human-readable description
+    static const QStringList scanNames = {"T", "µB", "µQ"};
+    QString scanName = scanNames[scanVar];
     
-    logMessage(QString("Parameters: muB=%1 MeV, muQ=%2 MeV").arg(muB).arg(muQ));
+    QString fixedDesc;
+    switch (scanVar) {
+      case 0: fixedDesc = QString("µB=%1, µQ=%2").arg(fixedMuB).arg(fixedMuQ); break;
+      case 1: fixedDesc = QString("T=%1, µQ=%2").arg(fixedT).arg(fixedMuQ); break;
+      case 2: fixedDesc = QString("T=%1, µB=%2").arg(fixedT).arg(fixedMuB); break;
+    }
+    logMessage(QString("Parameters: %1").arg(fixedDesc));
     
-    if (tMin > tMax) std::swap(tMin, tMax);
-    if (dt <= 0) dt = 1.0;
-    int totalSteps = static_cast<int>(std::abs(tMax - tMin) / dt) + 1;
+    if (scanMin > scanMax) std::swap(scanMin, scanMax);
+    if (dScan <= 0) dScan = 1.0;
+    int totalSteps = static_cast<int>(std::abs(scanMax - scanMin) / dScan) + 1;
 
     logMessage("─────────────────────────────────────────");
-    logMessage(QString("Scanning T = %1 → %2 MeV  (step %3 MeV, %4 steps)")
-                        .arg(tMin, 0, 'f', 1)
-                        .arg(tMax, 0, 'f', 1)
-                        .arg(dt, 0, 'f', 2)
+    logMessage(QString("Scanning %1 = %2 → %3 MeV  (step %4 MeV, %5 steps)")
+                        .arg(scanName)
+                        .arg(scanMin, 0, 'f', 1)
+                        .arg(scanMax, 0, 'f', 1)
+                        .arg(dScan, 0, 'f', 2)
                         .arg(totalSteps));
 
-    QString seriesName = QString("T-scan (µB=%1, µQ=%2)").arg(muB).arg(muQ);
+    QString seriesName = QString("%1-scan (%2)").arg(scanName, fixedDesc);
     
     SeriesData newData;
     newData.label = seriesName;
-    newData.muB = muB;
-    newData.muQ = muQ;
+    newData.scanVar = scanVar;
+    newData.fixedT = fixedT;
+    newData.muB = fixedMuB;
+    newData.muQ = fixedMuQ;
 
     QLineSeries *series_arr[NUM_CHARTS];
     QColor c = nextColor(m_colorIndex);
@@ -514,7 +648,16 @@ void EosExplorerWidget::onComputeClicked() {
     }
 
     int count = 0;
-    for (double T = tMin; T <= tMax; T += dt) {
+    for (double v = scanMin; v <= scanMax; v += dScan) {
+      // Resolve T, muB, muQ for this scan step
+      double T, muB, muQ;
+      switch (scanVar) {
+        case 0: T = v; muB = fixedMuB; muQ = fixedMuQ; break;
+        case 1: T = fixedT; muB = v; muQ = fixedMuQ; break;
+        case 2: T = fixedT; muB = fixedMuB; muQ = v; break;
+        default: T = v; muB = fixedMuB; muQ = fixedMuQ; break;
+      }
+
       double nB = QCD::BarDens(muB, muQ, T, nf);
       double nQ = QCD::QCDcharge(muB, muQ, T, nf);
       double s  = QCD::sQCD(muB, muQ, T, nf);
@@ -529,12 +672,14 @@ void EosExplorerWidget::onComputeClicked() {
         }
         if (m_isLogScale)            yVal = std::max(std::abs(yVal), 1e-15);
         else if (m_useAbs[i])        yVal = std::abs(yVal);
-        series_arr[i]->append(T, yVal);
+        series_arr[i]->append(v, yVal);
       }
       
-      newData.nB_points.append(QPointF(T, nB));
-      newData.nQ_points.append(QPointF(T, nQ));
-      newData.s_points.append(QPointF(T, s));
+      // Store raw data with scan variable as x
+      newData.nB_points.append(QPointF(v, nB));
+      newData.nQ_points.append(QPointF(v, nQ));
+      newData.s_points.append(QPointF(v, s));
+      newData.T_values.append(T);
 
       // Pressure and energy density (QCD sector only; no leptons in EoS Explorer)
       double p = QCD::pQCD(muB, muQ, T, nf);
@@ -604,10 +749,12 @@ void EosExplorerWidget::replotData() {
         series->clear();
         const QVector<QPointF>& points = (c == 0) ? m_allSeries[i].nB_points :
                                          (c == 1) ? m_allSeries[i].nQ_points : m_allSeries[i].s_points;
-        for (const auto& pt : points) {
+        for (int j = 0; j < points.size(); ++j) {
+          const auto& pt = points[j];
           double y = pt.y();
-          if (m_isNormalizedT3) {
-              double T3 = pt.x() * pt.x() * pt.x();
+          if (m_isNormalizedT3 && j < m_allSeries[i].T_values.size()) {
+              double T = m_allSeries[i].T_values[j];
+              double T3 = T * T * T;
               if (T3 > 0) y /= T3;
           }
           if (m_isLogScale)         y = std::max(std::abs(y), 1e-15);
@@ -682,18 +829,40 @@ void EosExplorerWidget::onExportClicked() {
            "\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\n";
 
     for (const auto &series : m_allSeries) {
-      out << QString("# T-scan (muB=%1, muQ=%2)\n")
-                  .arg(series.muB).arg(series.muQ);
+      out << QString("# %1\n").arg(series.label);
       const int n = series.nB_points.size();
       for (int i = 0; i < n; ++i) {
-        const double T  = series.nB_points[i].x();
+        // Reconstruct T, muB, muQ from the stored data
+        double T, muB, muQ;
+        switch (series.scanVar) {
+          case 0: // scan T
+            T = series.nB_points[i].x();
+            muB = series.muB;
+            muQ = series.muQ;
+            break;
+          case 1: // scan µB
+            T = series.fixedT;
+            muB = series.nB_points[i].x();
+            muQ = series.muQ;
+            break;
+          case 2: // scan µQ
+            T = series.fixedT;
+            muB = series.muB;
+            muQ = series.nB_points[i].x();
+            break;
+          default:
+            T = series.nB_points[i].x();
+            muB = series.muB;
+            muQ = series.muQ;
+            break;
+        }
         const double nB = series.nB_points[i].y();
         const double nQ = (i < series.nQ_points.size()) ? series.nQ_points[i].y() : 0.0;
         const double s  = (i < series.s_points.size())  ? series.s_points[i].y()  : 0.0;
         const double p  = (i < series.p_QCD.size())     ? series.p_QCD[i]         : 0.0;
         const double e  = (i < series.e_QCD.size())     ? series.e_QCD[i]         : 0.0;
         out << T
-            << "\t" << series.muB << "\t" << series.muQ
+            << "\t" << muB << "\t" << muQ
             << "\t" << 0.0 << "\t" << 0.0 << "\t" << 0.0           // munue, munumu, mnutau
             << "\t" << nB << "\t" << nQ << "\t" << s << "\t" << s  // s_QCD == s_tot
             << "\t" << p << "\t" << p                              // p_QCD == p_tot (no leptons)
