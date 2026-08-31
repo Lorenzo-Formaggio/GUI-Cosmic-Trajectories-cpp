@@ -278,6 +278,12 @@ private:
 
   bool m_isLogScale     = true;
   bool m_tempIsVertical = true;
+  bool m_useFmUnits     = false;
+
+  static constexpr double HBARC_MEV_FM = 197.3269804;
+  QString getDensLabel() const {
+      return m_useFmUnits ? "Densities [fm⁻³]" : "Densities [MeV³]";
+  }
 
   QFont m_axisFont;
   bool  m_axisFontValid = false;

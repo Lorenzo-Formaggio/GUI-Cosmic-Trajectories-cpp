@@ -250,6 +250,14 @@ void CompareWidget::setupUi() {
   QAction *actScale = plotMenu->addAction("Toggle Log/Linear");
   connect(actScale, &QAction::triggered, this, [this]{ onScaleToggleClicked(); });
 
+  QAction *actFmUnits = plotMenu->addAction("Show Densities in fm⁻³");
+  actFmUnits->setCheckable(true);
+  actFmUnits->setChecked(m_useFmUnits);
+  connect(actFmUnits, &QAction::toggled, this, [this](bool on) {
+    m_useFmUnits = on;
+    replotData();
+  });
+
   QAction *actTheme = plotMenu->addAction("Toggle Plot Theme");
   connect(actTheme, &QAction::triggered, this, [this]{ onThemeToggleClicked(); });
 
@@ -622,7 +630,7 @@ void CompareWidget::createChartPanel(QWidget *parent) {
 
   QChart *c1, *c2, *c3;
   makeChart(m_densChartView, c1, m_densAxisX, m_densAxisY,
-            "Densities",          "Densities [MeV³]");
+            "Densities",          getDensLabel());
   makeChart(m_muChartView,   c2, m_muAxisX,   m_muAxisY,
             "Baryon & Electric μ","Chem. Pot. [MeV]");
   makeChart(m_lepChartView,  c3, m_lepAxisX,  m_lepAxisY,
@@ -797,14 +805,21 @@ void CompareWidget::updateChartAxes() {
     if (m_isLogScale) return std::max(std::abs(x), 1e-15);
     return x;
   };
+  auto valDens = [this, &val](double x) {
+    if (m_useFmUnits) {
+        double conv = HBARC_MEV_FM * HBARC_MEV_FM * HBARC_MEV_FM;
+        return val(x / conv);
+    }
+    return val(x);
+  };
 
   for (auto *slot : m_slots) {
     if (!slot) continue;
     for (const auto &p : slot->data) {
       hasData = true;
       minT = std::min(minT, p.T);   maxT = std::max(maxT, p.T);
-      minDens = std::min({minDens, val(p.nB), val(p.s), val(p.nQ)});
-      maxDens = std::max({maxDens, val(p.nB), val(p.s), val(p.nQ)});
+      minDens = std::min({minDens, valDens(p.nB), valDens(p.s), valDens(p.nQ)});
+      maxDens = std::max({maxDens, valDens(p.nB), valDens(p.s), valDens(p.nQ)});
       minMu = std::min({minMu, val(p.muB), val(p.muQ)});
       maxMu = std::max({maxMu, val(p.muB), val(p.muQ)});
       minLep = std::min({minLep, val(p.munue), val(p.munumu), val(p.mnutau)});
@@ -844,6 +859,9 @@ void CompareWidget::updateChartAxes() {
     if (m_muAxisY)   setRange(m_muAxisY,   minMu,   maxMu,   true);
     if (m_lepAxisY)  setRange(m_lepAxisY,  minLep,  maxLep,  true);
   }
+
+  if (m_densAxisX) m_densAxisX->setTitleText(m_tempIsVertical ? getDensLabel() : "Temperature [MeV]");
+  if (m_densAxisY) m_densAxisY->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : getDensLabel());
 }
 
 void CompareWidget::onLogMessage(const QString &msg, SlotConfig *s) {
@@ -902,27 +920,36 @@ void CompareWidget::replotData() {
      axisY->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : valLabel);
   };
   
-  updateTitles(m_densAxisX, m_densAxisY, "Densities [MeV³]");
+  updateTitles(m_densAxisX, m_densAxisY, getDensLabel());
   updateTitles(m_muAxisX, m_muAxisY, "Chem. Pot. [MeV]");
   updateTitles(m_lepAxisX, m_lepAxisY, "Chem. Pot. [MeV]");
+
+  auto absValDens = [this](double v, bool useAbs) {
+      double val = useAbs ? std::abs(v) : v;
+      if (m_useFmUnits) {
+          double conv = HBARC_MEV_FM * HBARC_MEV_FM * HBARC_MEV_FM;
+          val /= conv;
+      }
+      return val;
+  };
 
   for (auto *sl : m_slots) {
     clearSlotSeries(sl);
 
     for (const auto &pt : sl->data) {
       if (m_tempIsVertical) {
-        if(sl->sernB) sl->sernB->append(absVal(pt.nB, m_useAbsnB), pt.T);
-        if(sl->serS) sl->serS->append(absVal(pt.s, m_useAbsS),    pt.T);
-        if(sl->sernQ) sl->sernQ->append(absVal(pt.nQ, m_useAbsnQ), pt.T);
+        if(sl->sernB) sl->sernB->append(absValDens(pt.nB, m_useAbsnB), pt.T);
+        if(sl->serS) sl->serS->append(absValDens(pt.s, m_useAbsS),    pt.T);
+        if(sl->sernQ) sl->sernQ->append(absValDens(pt.nQ, m_useAbsnQ), pt.T);
         if(sl->serMuB) sl->serMuB->append(absVal(pt.muB, m_useAbsMuB), pt.T);
         if(sl->serMuQ) sl->serMuQ->append(absVal(pt.muQ, m_useAbsMuQ), pt.T);
         if(sl->serMunue) sl->serMunue->append(absVal(pt.munue, m_useAbsMunue), pt.T);
         if(sl->serMunumu) sl->serMunumu->append(absVal(pt.munumu, m_useAbsMunumu), pt.T);
         if(sl->serMnutau) sl->serMnutau->append(absVal(pt.mnutau, m_useAbsMnutau), pt.T);
       } else {
-        if(sl->sernB) sl->sernB->append(pt.T, absVal(pt.nB, m_useAbsnB));
-        if(sl->serS) sl->serS->append(pt.T, absVal(pt.s, m_useAbsS));
-        if(sl->sernQ) sl->sernQ->append(pt.T, absVal(pt.nQ, m_useAbsnQ));
+        if(sl->sernB) sl->sernB->append(pt.T, absValDens(pt.nB, m_useAbsnB));
+        if(sl->serS) sl->serS->append(pt.T, absValDens(pt.s, m_useAbsS));
+        if(sl->sernQ) sl->sernQ->append(pt.T, absValDens(pt.nQ, m_useAbsnQ));
         if(sl->serMuB) sl->serMuB->append(pt.T, absVal(pt.muB, m_useAbsMuB));
         if(sl->serMuQ) sl->serMuQ->append(pt.T, absVal(pt.muQ, m_useAbsMuQ));
         if(sl->serMunue) sl->serMunue->append(pt.T, absVal(pt.munue, m_useAbsMunue));
@@ -965,7 +992,7 @@ void CompareWidget::onScaleToggleClicked() {
         chart->addAxis(axisY, Qt::AlignLeft);
     };
 
-    swapAxes(m_densChartView, m_densAxisX, m_densAxisY, "Densities [MeV³]");
+    swapAxes(m_densChartView, m_densAxisX, m_densAxisY, getDensLabel());
     swapAxes(m_muChartView,   m_muAxisX,   m_muAxisY,   "Chem. Pot. [MeV]");
     swapAxes(m_lepChartView,  m_lepAxisX,  m_lepAxisY,  "Chem. Pot. [MeV]");
 

@@ -49,6 +49,7 @@ private slots:
   void onScanVarChanged(int index);
   void logMessage(const QString &msg, bool isError = false);
   void onConfigureAxisFontsClicked();
+  void onFmUnitsToggleClicked();
 
 private:
   void applyAxisFonts();
@@ -87,6 +88,7 @@ private:
   QDoubleSpinBox *m_spinDScan = nullptr;
 
   QCheckBox *m_chkNormalizeT3 = nullptr;
+  QCheckBox *m_chkFmUnits = nullptr;
 
   // Buttons
   QPushButton *m_btnCompute = nullptr;
@@ -107,6 +109,7 @@ private:
 
   bool m_isLogScale = false;
   bool m_isNormalizedT3 = false;
+  bool m_useFmUnits = false;
 
   // Per-chart abs flag (linear-mode only; log forces abs).
   // Order matches the chart index: 0 = nB, 1 = nQ, 2 = s.
@@ -121,6 +124,12 @@ private:
       "Entropy Density s [MeV³]"};
   static constexpr const char *CHART_YLABELS_NORM[NUM_CHARTS] = {
       "nB / T³", "nQ / T³", "s / T³"};
+  static constexpr const char *CHART_YLABELS_FM[NUM_CHARTS] = {
+      "Baryon Density nB [fm⁻³]", "Charge Density nQ [fm⁻³]",
+      "Entropy Density s [fm⁻³]"};
+
+  // Physical ħc for MeV³ → fm⁻³ conversion (divide by HBARC_MEV_FM³)
+  static constexpr double HBARC_MEV_FM = 197.3269804;
 
   // ── Data storage for export ─────────────────────────────────────────
   struct SeriesData {

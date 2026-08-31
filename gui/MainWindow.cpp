@@ -274,8 +274,20 @@ void MainWindow::setupUi() {
   QAction *actNormalizeNb = plotMenu->addAction("Normalize Densities by nB");
   actNormalizeNb->setCheckable(true);
   actNormalizeNb->setChecked(m_normalizeNb);
-  connect(actNormalizeNb, &QAction::toggled, this, [this](bool on) {
+
+  QAction *actFmUnits = plotMenu->addAction("Show Densities in fm⁻³");
+  actFmUnits->setCheckable(true);
+  actFmUnits->setChecked(m_useFmUnits);
+
+  connect(actNormalizeNb, &QAction::toggled, this, [this, actFmUnits](bool on) {
     m_normalizeNb = on;
+    actFmUnits->setEnabled(!on);
+    if (!m_trajectoryData.isEmpty()) replotData();
+    updateChartAxes();
+  });
+
+  connect(actFmUnits, &QAction::toggled, this, [this](bool on) {
+    m_useFmUnits = on;
     if (!m_trajectoryData.isEmpty()) replotData();
     updateChartAxes();
   });
@@ -981,6 +993,13 @@ void MainWindow::onStepCompleted(TrajectoryPoint pt) {
           s == m_seriesNnue || s == m_seriesNnumu || s == m_seriesNnutau) {
         val = v / pt.nB;
       }
+    } else if (m_useFmUnits && !m_normalizeNb) {
+      if (s == m_seriesnB || s == m_seriesS || s == m_seriesnQ ||
+          s == m_seriesNe || s == m_seriesNmu || s == m_seriesNtau ||
+          s == m_seriesNnue || s == m_seriesNnumu || s == m_seriesNnutau) {
+        double conv = HBARC_MEV_FM * HBARC_MEV_FM * HBARC_MEV_FM;
+        val = v / conv;
+      }
     }
     return absTransform(s, val); 
   };
@@ -1083,6 +1102,10 @@ void MainWindow::updateChartAxes() {
 
   auto valDens = [this, &val](double v, double nB) {
     if (m_normalizeNb && nB != 0.0) return val(v / nB);
+    if (m_useFmUnits) {
+        double conv = HBARC_MEV_FM * HBARC_MEV_FM * HBARC_MEV_FM;
+        return val(v / conv);
+    }
     return val(v);
   };
 
@@ -1148,6 +1171,11 @@ void MainWindow::updateChartAxes() {
     setRange(m_errAxisX, minErr, maxErr, true);
     setRange(m_errAxisY, minT,   maxT,   false);
   }
+
+  m_densAxisX->setTitleText(m_tempIsVertical ? getDensLabel() : "Temperature [MeV]");
+  m_densAxisY->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : getDensLabel());
+  m_lepDensAxisX->setTitleText(m_tempIsVertical ? getDensLabel() : "Temperature [MeV]");
+  m_lepDensAxisY->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : getDensLabel());
 }
 
 void MainWindow::onLogMessage(const QString &msg) {
@@ -1261,6 +1289,13 @@ void MainWindow::replotData() {
           s == m_seriesNe || s == m_seriesNmu || s == m_seriesNtau ||
           s == m_seriesNnue || s == m_seriesNnumu || s == m_seriesNnutau) {
         val = v / nB;
+      }
+    } else if (m_useFmUnits && !m_normalizeNb) {
+      if (s == m_seriesnB || s == m_seriesS || s == m_seriesnQ ||
+          s == m_seriesNe || s == m_seriesNmu || s == m_seriesNtau ||
+          s == m_seriesNnue || s == m_seriesNnumu || s == m_seriesNnutau) {
+        double conv = HBARC_MEV_FM * HBARC_MEV_FM * HBARC_MEV_FM;
+        val = v / conv;
       }
     }
     return absTransform(s, val);

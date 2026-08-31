@@ -380,6 +380,14 @@ void RunFromFileWidget::setupUi() {
   QAction *actScale = plotMenu->addAction("Toggle Log/Linear");
   connect(actScale, &QAction::triggered, this, &RunFromFileWidget::onScaleToggle);
 
+  QAction *actFmUnits = plotMenu->addAction("Show Densities in fm⁻³");
+  actFmUnits->setCheckable(true);
+  actFmUnits->setChecked(m_useFmUnits);
+  connect(actFmUnits, &QAction::toggled, this, [this](bool on) {
+    m_useFmUnits = on;
+    replotAll();
+  });
+
   QAction *actTheme = plotMenu->addAction("Toggle Plot Theme");
   connect(actTheme, &QAction::triggered, this, &RunFromFileWidget::onThemeToggle);
 
@@ -527,8 +535,8 @@ void RunFromFileWidget::createChartPanel(QWidget *parent) {
   };
 
   QChart *c1, *c2, *c3, *c4;
-  makeChart(m_densView, c1, m_densAxisX, m_densAxisY, "Densities",            "Densities [MeV³]");
-  makeChart(m_lepDensView, c4, m_lepDensAxisX, m_lepDensAxisY, "Lepton Densities", "Densities [MeV³]");
+  makeChart(m_densView, c1, m_densAxisX, m_densAxisY, "Densities", getDensLabel());
+  makeChart(m_lepDensView, c4, m_lepDensAxisX, m_lepDensAxisY, "Lepton Densities", getDensLabel());
   makeChart(m_muView,   c2, m_muAxisX,   m_muAxisY,   "Baryon & Electric μ",  "Chem. Pot. [MeV]");
   makeChart(m_lepView,  c3, m_lepAxisX,  m_lepAxisY,  "Lepton μ",             "Chem. Pot. [MeV]");
 }
@@ -1215,11 +1223,15 @@ void RunFromFileWidget::onClearAll() {
 void RunFromFileWidget::replotAll() {
   // Re-fill all series from m_sources (used after axis/scale/abs toggle).
   auto fill = [&](QLineSeries *s, const QVector<TrajectoryPoint> &pts,
-                  double TrajectoryPoint::*qty, bool useAbs) {
+                  double TrajectoryPoint::*qty, bool useAbs, bool isDens) {
     if (!s) return;
     s->clear();
     for (const auto &pt : pts) {
       double v = absVal(pt.*qty, useAbs);
+      if (isDens && m_useFmUnits) {
+          double conv = HBARC_MEV_FM * HBARC_MEV_FM * HBARC_MEV_FM;
+          v /= conv;
+      }
       double x, y;
       if (m_tempIsVertical) { x = v;    y = pt.T; }
       else                  { x = pt.T; y = v; }
@@ -1230,20 +1242,20 @@ void RunFromFileWidget::replotAll() {
   for (auto &src : m_sources) {
     for (int j = 0; j < src.data.size(); ++j) {
       const auto &pts = src.data[j];
-      if (j < src.series_nB.size())     fill(src.series_nB[j],     pts, &TrajectoryPoint::nB,     m_useAbsnB);
-      if (j < src.series_s.size())      fill(src.series_s[j],      pts, &TrajectoryPoint::s,      m_useAbsS);
-      if (j < src.series_nQ.size())     fill(src.series_nQ[j],     pts, &TrajectoryPoint::nQ,     m_useAbsnQ);
-      if (j < src.series_ne.size())     fill(src.series_ne[j],     pts, &TrajectoryPoint::ne,     m_useAbsNe);
-      if (j < src.series_nmu.size())    fill(src.series_nmu[j],    pts, &TrajectoryPoint::nmu,    m_useAbsNmu);
-      if (j < src.series_ntau.size())   fill(src.series_ntau[j],   pts, &TrajectoryPoint::ntau,   m_useAbsNtau);
-      if (j < src.series_nnue.size())   fill(src.series_nnue[j],   pts, &TrajectoryPoint::nnue,   m_useAbsNnue);
-      if (j < src.series_nnumu.size())  fill(src.series_nnumu[j],  pts, &TrajectoryPoint::nnumu,  m_useAbsNnumu);
-      if (j < src.series_nnutau.size()) fill(src.series_nnutau[j], pts, &TrajectoryPoint::nnutau, m_useAbsNnutau);
-      if (j < src.series_muB.size())    fill(src.series_muB[j],    pts, &TrajectoryPoint::muB,    m_useAbsMuB);
-      if (j < src.series_muQ.size())    fill(src.series_muQ[j],    pts, &TrajectoryPoint::muQ,    m_useAbsMuQ);
-      if (j < src.series_munue.size())  fill(src.series_munue[j],  pts, &TrajectoryPoint::munue,  m_useAbsMunue);
-      if (j < src.series_munumu.size()) fill(src.series_munumu[j], pts, &TrajectoryPoint::munumu, m_useAbsMunumu);
-      if (j < src.series_mnutau.size()) fill(src.series_mnutau[j], pts, &TrajectoryPoint::mnutau, m_useAbsMnutau);
+      if (j < src.series_nB.size())     fill(src.series_nB[j],     pts, &TrajectoryPoint::nB,     m_useAbsnB, true);
+      if (j < src.series_s.size())      fill(src.series_s[j],      pts, &TrajectoryPoint::s,      m_useAbsS, true);
+      if (j < src.series_nQ.size())     fill(src.series_nQ[j],     pts, &TrajectoryPoint::nQ,     m_useAbsnQ, true);
+      if (j < src.series_ne.size())     fill(src.series_ne[j],     pts, &TrajectoryPoint::ne,     m_useAbsNe, true);
+      if (j < src.series_nmu.size())    fill(src.series_nmu[j],    pts, &TrajectoryPoint::nmu,    m_useAbsNmu, true);
+      if (j < src.series_ntau.size())   fill(src.series_ntau[j],   pts, &TrajectoryPoint::ntau,   m_useAbsNtau, true);
+      if (j < src.series_nnue.size())   fill(src.series_nnue[j],   pts, &TrajectoryPoint::nnue,   m_useAbsNnue, true);
+      if (j < src.series_nnumu.size())  fill(src.series_nnumu[j],  pts, &TrajectoryPoint::nnumu,  m_useAbsNnumu, true);
+      if (j < src.series_nnutau.size()) fill(src.series_nnutau[j], pts, &TrajectoryPoint::nnutau, m_useAbsNnutau, true);
+      if (j < src.series_muB.size())    fill(src.series_muB[j],    pts, &TrajectoryPoint::muB,    m_useAbsMuB, false);
+      if (j < src.series_muQ.size())    fill(src.series_muQ[j],    pts, &TrajectoryPoint::muQ,    m_useAbsMuQ, false);
+      if (j < src.series_munue.size())  fill(src.series_munue[j],  pts, &TrajectoryPoint::munue,  m_useAbsMunue, false);
+      if (j < src.series_munumu.size()) fill(src.series_munumu[j], pts, &TrajectoryPoint::munumu, m_useAbsMunumu, false);
+      if (j < src.series_mnutau.size()) fill(src.series_mnutau[j], pts, &TrajectoryPoint::mnutau, m_useAbsMnutau, false);
     }
   }
   refreshSeriesNames();
@@ -1262,9 +1274,17 @@ void RunFromFileWidget::updateChartAxes() {
     for (const auto &pts : src.data) {
       for (const auto &p : pts) {
         hasData = true;
+        auto valDens = [this](double v, bool useAbs) {
+            double val = absVal(v, useAbs);
+            if (m_useFmUnits) {
+                double conv = HBARC_MEV_FM * HBARC_MEV_FM * HBARC_MEV_FM;
+                val /= conv;
+            }
+            return val;
+        };
         minT = std::min(minT, p.T);    maxT = std::max(maxT, p.T);
-        minDens = std::min({minDens, absVal(p.nB, m_useAbsnB), absVal(p.s, m_useAbsS), absVal(p.nQ, m_useAbsnQ)});
-        maxDens = std::max({maxDens, absVal(p.nB, m_useAbsnB), absVal(p.s, m_useAbsS), absVal(p.nQ, m_useAbsnQ)});
+        minDens = std::min({minDens, valDens(p.nB, m_useAbsnB), valDens(p.s, m_useAbsS), valDens(p.nQ, m_useAbsnQ)});
+        maxDens = std::max({maxDens, valDens(p.nB, m_useAbsnB), valDens(p.s, m_useAbsS), valDens(p.nQ, m_useAbsnQ)});
         minMu = std::min({minMu, absVal(p.muB, m_useAbsMuB), absVal(p.muQ, m_useAbsMuQ)});
         maxMu = std::max({maxMu, absVal(p.muB, m_useAbsMuB), absVal(p.muQ, m_useAbsMuQ)});
         minLep = std::min({minLep, absVal(p.munue, m_useAbsMunue), absVal(p.munumu, m_useAbsMunumu), absVal(p.mnutau, m_useAbsMnutau)});
@@ -1297,19 +1317,28 @@ void RunFromFileWidget::updateChartAxes() {
 
   if (m_tempIsVertical) {
     applyAxis(m_densAxisY, m_densY, minT, maxT, false);
+    applyAxis(m_lepDensAxisY, m_lepDensY, minT, maxT, false);
     applyAxis(m_muAxisY,   m_muY,   minT, maxT, false);
     applyAxis(m_lepAxisY,  m_lepY,  minT, maxT, false);
     applyAxis(m_densAxisX, m_densX, minDens, maxDens, true);
+    applyAxis(m_lepDensAxisX, m_lepDensX, minDens, maxDens, true);
     applyAxis(m_muAxisX,   m_muX,   minMu,   maxMu,   true);
     applyAxis(m_lepAxisX,  m_lepX,  minLep,  maxLep,  true);
   } else {
     applyAxis(m_densAxisX, m_densX, minT, maxT, false);
+    applyAxis(m_lepDensAxisX, m_lepDensX, minT, maxT, false);
     applyAxis(m_muAxisX,   m_muX,   minT, maxT, false);
     applyAxis(m_lepAxisX,  m_lepX,  minT, maxT, false);
     applyAxis(m_densAxisY, m_densY, minDens, maxDens, true);
+    applyAxis(m_lepDensAxisY, m_lepDensY, minDens, maxDens, true);
     applyAxis(m_muAxisY,   m_muY,   minMu,   maxMu,   true);
     applyAxis(m_lepAxisY,  m_lepY,  minLep,  maxLep,  true);
   }
+
+  m_densAxisX->setTitleText(m_tempIsVertical ? getDensLabel() : "Temperature [MeV]");
+  m_densAxisY->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : getDensLabel());
+  m_lepDensAxisX->setTitleText(m_tempIsVertical ? getDensLabel() : "Temperature [MeV]");
+  m_lepDensAxisY->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : getDensLabel());
 }
 
 // ── Series visibility ──────────────────────────────────────────────────────
@@ -1488,8 +1517,8 @@ void RunFromFileWidget::onScaleToggle() {
     axisY->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : valLabel);
     chart->addAxis(axisY, Qt::AlignLeft);
   };
-  swapAxes(m_densView, m_densAxisX, m_densAxisY, "Densities [MeV³]");
-  swapAxes(m_lepDensView, m_lepDensAxisX, m_lepDensAxisY, "Densities [MeV³]");
+  swapAxes(m_densView, m_densAxisX, m_densAxisY, getDensLabel());
+  swapAxes(m_lepDensView, m_lepDensAxisX, m_lepDensAxisY, getDensLabel());
   swapAxes(m_muView,   m_muAxisX,   m_muAxisY,   "Chem. Pot. [MeV]");
   swapAxes(m_lepView,  m_lepAxisX,  m_lepAxisY,  "Chem. Pot. [MeV]");
 
@@ -1537,8 +1566,8 @@ void RunFromFileWidget::onAxisToggle() {
     axisX->setTitleText(m_tempIsVertical ? valLabel : "Temperature [MeV]");
     axisY->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : valLabel);
   };
-  updateTitles(m_densAxisX, m_densAxisY, "Densities [MeV³]");
-  updateTitles(m_lepDensAxisX, m_lepDensAxisY, "Densities [MeV³]");
+  updateTitles(m_densAxisX, m_densAxisY, getDensLabel());
+  updateTitles(m_lepDensAxisX, m_lepDensAxisY, getDensLabel());
   updateTitles(m_muAxisX,   m_muAxisY,   "Chem. Pot. [MeV]");
   updateTitles(m_lepAxisX,  m_lepAxisY,  "Chem. Pot. [MeV]");
 

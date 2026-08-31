@@ -246,8 +246,12 @@ private:
 
   // Normalization state
   bool m_normalizeNb = false;
+  bool m_useFmUnits = false;
+  static constexpr double HBARC_MEV_FM = 197.3269804;
   QString getDensLabel() const {
-      return m_normalizeNb ? "Densities / nB" : "Densities [MeV^3]";
+      if (m_normalizeNb) return "Densities / nB";
+      if (m_useFmUnits)  return "Densities [fm⁻³]";
+      return "Densities [MeV³]";
   }
 
   // ── Worker thread ───────────────────────────────────────────────────

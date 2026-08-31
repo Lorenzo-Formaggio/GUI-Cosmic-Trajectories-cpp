@@ -213,6 +213,12 @@ private:
 
   bool m_tempIsVertical = true;
   bool m_isLogScale     = true;
+  bool m_useFmUnits     = false;
+
+  static constexpr double HBARC_MEV_FM = 197.3269804;
+  QString getDensLabel() const {
+      return m_useFmUnits ? "Densities [fm⁻³]" : "Densities [MeV³]";
+  }
 
   QTabWidget    *m_chartTabs      = nullptr;
   TooltipChartView *m_densChartView  = nullptr;

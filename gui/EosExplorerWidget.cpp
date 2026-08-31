@@ -32,6 +32,7 @@
 constexpr const char* EosExplorerWidget::CHART_YNAMES[NUM_CHARTS];
 constexpr const char* EosExplorerWidget::CHART_YLABELS[NUM_CHARTS];
 constexpr const char* EosExplorerWidget::CHART_YLABELS_NORM[NUM_CHARTS];
+constexpr const char* EosExplorerWidget::CHART_YLABELS_FM[NUM_CHARTS];
 
 EosExplorerWidget::EosExplorerWidget(const QString &workingDir, QWidget *parent)
     : QWidget(parent), m_workingDir(workingDir) {
@@ -158,6 +159,11 @@ void EosExplorerWidget::setupUi() {
   m_chkNormalizeT3->setChecked(false);
   connect(m_chkNormalizeT3, &QCheckBox::clicked, this, &EosExplorerWidget::onNormalizeToggleClicked);
   grid->addWidget(m_chkNormalizeT3, row++, 0, 1, 2);
+
+  m_chkFmUnits = new QCheckBox("Show densities in fm⁻³");
+  m_chkFmUnits->setChecked(false);
+  connect(m_chkFmUnits, &QCheckBox::clicked, this, &EosExplorerWidget::onFmUnitsToggleClicked);
+  grid->addWidget(m_chkFmUnits, row++, 0, 1, 2);
 
   paramsLayout->addLayout(grid);
 
@@ -350,7 +356,12 @@ void EosExplorerWidget::rebuildAxes(int chartIdx) {
   }
 
   m_axesX[chartIdx]->setTitleText(scanVarLabel() + " " + scanVarUnit());
-  m_axesY[chartIdx]->setTitleText(m_isNormalizedT3 ? CHART_YLABELS_NORM[chartIdx] : CHART_YLABELS[chartIdx]);
+  if (m_isNormalizedT3)
+    m_axesY[chartIdx]->setTitleText(CHART_YLABELS_NORM[chartIdx]);
+  else if (m_useFmUnits)
+    m_axesY[chartIdx]->setTitleText(CHART_YLABELS_FM[chartIdx]);
+  else
+    m_axesY[chartIdx]->setTitleText(CHART_YLABELS[chartIdx]);
 
   // Update chart title dynamically
   chart->setTitle(QString("%1 vs %2").arg(CHART_YNAMES[chartIdx], scanVarLabel()));
@@ -390,6 +401,8 @@ void EosExplorerWidget::rebuildAxes(int chartIdx) {
             double T3 = T * T * T;
             if (T3 > 0) y /= T3;
         }
+        if (m_useFmUnits && !m_isNormalizedT3)
+            y /= (HBARC_MEV_FM * HBARC_MEV_FM * HBARC_MEV_FM);
         if (m_isLogScale)             y = std::max(std::abs(y), 1e-15);
         else if (m_useAbs[chartIdx])  y = std::abs(y);
         minX = std::min(minX, pt.x());
@@ -670,6 +683,8 @@ void EosExplorerWidget::onComputeClicked() {
             double T3 = T * T * T;
             if (T3 > 0) yVal /= T3;
         }
+        if (m_useFmUnits && !m_isNormalizedT3)
+            yVal /= (HBARC_MEV_FM * HBARC_MEV_FM * HBARC_MEV_FM);
         if (m_isLogScale)            yVal = std::max(std::abs(yVal), 1e-15);
         else if (m_useAbs[i])        yVal = std::abs(yVal);
         series_arr[i]->append(v, yVal);
@@ -757,6 +772,8 @@ void EosExplorerWidget::replotData() {
               double T3 = T * T * T;
               if (T3 > 0) y /= T3;
           }
+          if (m_useFmUnits && !m_isNormalizedT3)
+              y /= (HBARC_MEV_FM * HBARC_MEV_FM * HBARC_MEV_FM);
           if (m_isLogScale)         y = std::max(std::abs(y), 1e-15);
           else if (m_useAbs[c])     y = std::abs(y);
           series->append(pt.x(), y);
@@ -775,6 +792,12 @@ void EosExplorerWidget::onScaleToggleClicked() {
 
 void EosExplorerWidget::onNormalizeToggleClicked() {
   m_isNormalizedT3 = m_chkNormalizeT3->isChecked();
+  if (m_chkFmUnits) m_chkFmUnits->setEnabled(!m_isNormalizedT3);
+  replotData();
+}
+
+void EosExplorerWidget::onFmUnitsToggleClicked() {
+  m_useFmUnits = m_chkFmUnits->isChecked();
   replotData();
 }
 
