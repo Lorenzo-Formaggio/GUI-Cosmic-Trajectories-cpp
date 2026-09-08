@@ -3,8 +3,13 @@
  * s_contours_c-dev4-tristan's `eos_line`.
  *
  * Usage:
- *   eos_check [muB] [muQ] [muS] [Tmin Tmax dT] [--no-hrg] [--fitted]
- *             [--data <path>]
+ *   eos_check [muB] [muQ] [muS] [Tmin Tmax dT] [--no-hrg] [--tabulated]
+ *             [--fitted] [--data <path>]
+ *
+ *   --no-hrg     bare contour boundary (no QvdW-HRG seam)
+ *   --tabulated  tabulated lattice input (EntrCont, eos 3/5) instead of the
+ *                closed-form fits (EntrContParam, eos 4/6)
+ *   --fitted     all six cross-susceptibility fits (EntrContParam only)
  *
  * Prints the same observables as `eos_line`, in the same units, along a line of
  * fixed chemical potentials:
@@ -17,6 +22,7 @@
  *   ./build/eos_line 300 90 200 10 --dir 5.710593 0 --qvdw
  */
 
+#include "EntrCont.hpp"
 #include "EntrContParam.hpp"
 #include "HRG.hpp"
 
@@ -30,6 +36,7 @@ int main(int argc, char **argv) {
   double muB = 300.0, muQ = 0.0, muS = 0.0;
   double Tmin = 90.0, Tmax = 200.0, dT = 10.0;
   bool useHRG = true;
+  bool tabulated = false;
   bool fitted = false;
   std::string dataPath = ".";
 
@@ -38,6 +45,8 @@ int main(int argc, char **argv) {
   for (int i = 1; i < argc; ++i) {
     if (!std::strcmp(argv[i], "--no-hrg")) {
       useHRG = false;
+    } else if (!std::strcmp(argv[i], "--tabulated")) {
+      tabulated = true;
     } else if (!std::strcmp(argv[i], "--fitted")) {
       fitted = true;
     } else if (!std::strcmp(argv[i], "--data") && i + 1 < argc) {
@@ -58,10 +67,12 @@ int main(int argc, char **argv) {
   if (fitted)
     EntropyContoursParam::setCrossMode(EntropyContoursParam::CrossMode::Fitted);
 
-  EntropyContoursParam::initialize(dataPath + "/EntroContourEoS/chis",
-                                   dataPath +
-                                       "/EntroContourEoS/HRG/list-PDG2020.dat",
-                                   1.0, 3.42, useHRG);
+  const std::string chisDir = dataPath + "/EntroContourEoS/chis";
+  const std::string listPath = dataPath + "/EntroContourEoS/HRG/list-PDG2020.dat";
+  if (tabulated)
+    EntropyContours::initialize(chisDir, listPath, 1.0, 3.42, useHRG);
+  else
+    EntropyContoursParam::initialize(chisDir, listPath, 1.0, 3.42, useHRG);
 
   const double mu = std::sqrt(muB * muB + muQ * muQ + muS * muS);
   const double deg = 180.0 / M_PI;
@@ -71,14 +82,19 @@ int main(int argc, char **argv) {
   std::printf("# EoS at muB=%g muQ=%g muS=%g MeV\n", muB, muQ, muS);
   std::printf("# radial mu = %.4f MeV, theta = %.6f deg, phi = %.6f deg\n", mu,
               theta * deg, phi * deg);
-  std::printf("# cross mode: %s\n",
-              EntropyContoursParam::crossMode() ==
-                      EntropyContoursParam::CrossMode::Fitted
-                  ? "fitted (6 independent)"
-                  : "isospin-derived");
+  std::printf("# lattice input: %s\n",
+              tabulated ? "tabulated splines (EntrCont, eos 3/5)"
+                        : "closed-form fits (EntrContParam, eos 4/6)");
+  if (!tabulated)
+    std::printf("# cross mode: %s\n",
+                EntropyContoursParam::crossMode() ==
+                        EntropyContoursParam::CrossMode::Fitted
+                    ? "fitted (6 independent)"
+                    : "isospin-derived");
   std::printf("# low-T boundary: %s (Tlow = %g MeV)\n",
               useHRG ? "QvdW-HRG (Thermal-FIST)" : "mu = 0 contour, p0(Tlow)",
-              EntropyContoursParam::referenceTemperature());
+              tabulated ? EntropyContours::referenceTemperature()
+                        : EntropyContoursParam::referenceTemperature());
   if (useHRG) {
     const HRG::Params &p = HRG::parameters();
     std::printf("# QvdW: a = %g MeV fm^3, b = %g fm^3, stats = %d, width = %d, "
@@ -92,22 +108,26 @@ int main(int argc, char **argv) {
   const double hbarc = 197.3269804;             /* MeV fm */
   const double hbarc3 = hbarc * hbarc * hbarc;  /* MeV^3 -> fm^-3 */
 
-  const EntropyContoursParam::ContourValues c =
-      EntropyContoursParam::evalContour(muB, muQ, muS);
+  /* both models share the contour type; only the namespace differs */
+  namespace EC = EntropyContours;
+  namespace ECP = EntropyContoursParam;
+  const ContourEoS::Contour c = tabulated ? EC::evalContour(muB, muQ, muS)
+                                          : ECP::evalContour(muB, muQ, muS);
 
   for (double T = Tmin; T <= Tmax + 1e-9; T += dT) {
     const double T3 = T * T * T;
     const double T4 = T3 * T;
-    const double P = EntropyContoursParam::pQCD(muB, muQ, T, c);
-    const double s = EntropyContoursParam::sQCD(muB, muQ, T, c);
-    const double nB = EntropyContoursParam::BarDens(muB, muQ, T, c);
-    const double nQ = EntropyContoursParam::QCDcharge(muB, muQ, T, c);
-    const double nS = EntropyContoursParam::StrDens(muB, muQ, T, c);
-    const double eps = EntropyContoursParam::eQCD(muB, muQ, T, c);
+    const double P = tabulated ? EC::pQCD(muB, muQ, T, c) : ECP::pQCD(muB, muQ, T, c);
+    const double s = tabulated ? EC::sQCD(muB, muQ, T, c) : ECP::sQCD(muB, muQ, T, c);
+    const double nB = tabulated ? EC::BarDens(muB, muQ, T, c) : ECP::BarDens(muB, muQ, T, c);
+    const double nQ = tabulated ? EC::QCDcharge(muB, muQ, T, c) : ECP::QCDcharge(muB, muQ, T, c);
+    const double nS = tabulated ? EC::StrDens(muB, muQ, T, c) : ECP::StrDens(muB, muQ, T, c);
+    const double eps = tabulated ? EC::eQCD(muB, muQ, T, c) : ECP::eQCD(muB, muQ, T, c);
     std::printf("%8.2f %10.5f %10.5f %10.5f %13.6f %13.6f %13.6f\n", T, P / T4,
                 s / T3, eps / T4, nB / hbarc3, nQ / hbarc3, nS / hbarc3);
   }
 
+  EntropyContours::cleanup();
   EntropyContoursParam::cleanup();
   HRG::cleanup();
   return 0;

@@ -18,7 +18,13 @@ constexpr double ggluon = 16.0;
 
 /**
  * @brief Set the equation of state type.
- * @param eos         0 = free QGP, 1 = lattice QCD, 2 = Interpolated Table, 3 = Entropy Contour
+ * @param eos         0 = free QGP, 1 = lattice QCD, 2 = Interpolated Table,
+ *                    3 = Entropy Contour (tabulated chis, QvdW-HRG seam),
+ *                    4 = Entropy Contour Param (parametrized chis, QvdW-HRG seam),
+ *                    5 = Entropy Contour with the Gibbs mixed phase,
+ *                    6 = Entropy Contour Param with the Gibbs mixed phase
+ *                    (for 5 and 6 the "muB" argument of every function below
+ *                    is the stretched coordinate x of GibbsMixedPhase.hpp)
  * @param dataPath    Base path (typically the working directory) for EoS data files
  * @param nf          Number of active quark flavors (3 or 4)
  * @param interpType  Lattice QCD interpolation order (0=Cubic Spline, 1=Linear, 2=Akima, 3=Steffen)
@@ -35,6 +41,20 @@ int getEoS();
  * @brief Cleanup resources (call at program end).
  */
 void cleanup();
+
+/** True for the Gibbs mixed-phase variants (eos = 5, 6). */
+bool isGibbs(int eos);
+
+/**
+ * For eos = 5 and 6 the trajectory solver's first unknown is the stretched
+ * coordinate x of GibbsMixedPhase.hpp, not mu_B. These map it back: the
+ * physical mu_B, and the dilute-phase volume fraction (NaN outside the mixed
+ * phase). For every other EoS they are the identity and NaN.
+ */
+double physicalMuB(double x, double muQ, double T);
+double phaseFraction(double x, double muQ, double T);
+/** Inverse map for a homogeneous state at physical mu_B (identity unless 5/6). */
+double coordinateFromMuB(double muB, double muQ, double T);
 
 // Baryon density (3 or 4 flavors based on nf)
 // Note: nf is ignored when using lattice QCD EoS (always 3 flavors)

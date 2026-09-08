@@ -177,6 +177,10 @@ SimulationParameters readParameters(const std::string &filename,
   if (params.eos == 0) oss << "Free QGP";
   else if (params.eos == 1) oss << "Lattice QCD";
   else if (params.eos == 2) oss << "Interpolated Table";
+  else if (params.eos == 3) oss << "Entropy Contour";
+  else if (params.eos == 4) oss << "Entropy Contour Param";
+  else if (params.eos == 5) oss << "Entropy Contour Gibbs";
+  else if (params.eos == 6) oss << "Entropy Contour Param Gibbs";
   else oss << "Unknown";
   std::cout << "║    Equation of State: " << std::left << std::setw(36)
             << oss.str() << " ║" << std::endl;

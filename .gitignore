@@ -50,3 +50,6 @@ EoS_Table_Lattice.txt
 # Generated comparisons and plots
 susceptibilities_comparison.pdf
 *_comparison.png
+
+# ── Local scratch (not tracked) ───────────────────────────────────
+local/

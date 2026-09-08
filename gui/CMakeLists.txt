@@ -83,7 +83,7 @@ if(NOT _ctg_tf_added)
     set(CTG_WITH_THERMALFIST OFF)
     message(WARNING
         "Thermal-FIST not available: the QvdW-HRG seam model is not built, so "
-        "the Entropy Contour equations of state (EoS 3 and 4) will report the "
+        "the Entropy Contour equations of state (EoS 3 to 6) will report the "
         "missing dependency at start-up. The other models are unaffected. "
         "Point -DTHERMALFIST_ROOT=<path> at a checkout, place one under "
         "external/Thermal-FIST, or allow -DCTG_FETCH_THERMALFIST=ON.")
@@ -104,6 +104,7 @@ set(PHYSICS_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/EntrCont.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/EntrContParam.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/HRG.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/GibbsMixedPhase.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/Metropolis.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/TRangeManager.cpp
 )
@@ -175,3 +176,13 @@ target_include_directories(eos_check PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../incl
 target_link_libraries(eos_check PRIVATE ${GSL_LIBRARIES})
 target_link_directories(eos_check PRIVATE ${GSL_LIBRARY_DIRS})
 ctg_link_thermalfist(eos_check)
+
+# ── First-order surface of the Entropy Contour Param EoS ─────────────────────
+# Locates the Maxwell surface of eos = 4 on a (T, mu_Q) grid at mu_S = 0 and
+# writes assets/first_order_surface_param.dat (the 3D overlay of the GUI). The
+# HRG seam cancels in the equal-pressure condition, so it runs without it.
+add_executable(first_order_surface first_order_surface.cpp ${PHYSICS_SOURCES})
+target_include_directories(first_order_surface PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include ${CMAKE_CURRENT_SOURCE_DIR}/.. ${GSL_INCLUDE_DIRS})
+target_link_libraries(first_order_surface PRIVATE ${GSL_LIBRARIES})
+target_link_directories(first_order_surface PRIVATE ${GSL_LIBRARY_DIRS})
+ctg_link_thermalfist(first_order_surface)

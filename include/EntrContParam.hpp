@@ -117,6 +117,15 @@ ContourValues evalContour(double muB, double muQ, double muS);
 /** muS = 0 (strangeness-neutral cosmic-trajectory case), as before. */
 ContourValues evalContour(double muB, double muQ);
 
+/**
+ * @brief Same, with the low-T boundary chosen per call: @p useHRG false builds
+ *        the bare contour (P(Tlow, mu) = p0(Tlow), zero boundary densities)
+ *        regardless of how the model was initialized. Used by the Gibbs mixed
+ *        phase to locate the coexistence surface cheaply: the seam cancels in
+ *        the equal-pressure condition, so no QvdW solve is needed for that.
+ */
+ContourValues evalContour(double muB, double muQ, double muS, bool useHRG);
+
 // ============================================================================
 // Thermodynamic functions taking a precomputed ContourValues (efficient).
 // The (muB, muQ) parameters are accepted for API symmetry with LatticeQCD and

@@ -318,6 +318,12 @@ ContourValues evalContour(double muB, double muQ) {
   return evalContour(muB, muQ, 0.0);
 }
 
+ContourValues evalContour(double muB, double muQ, double muS, bool useHRG) {
+  if (!g_initialized)
+    throw std::runtime_error("EntropyContours not initialized");
+  return g_engine->build(muB, muQ, muS, useHRG);
+}
+
 // ============================================================================
 // Thermodynamic accessors.
 // ============================================================================

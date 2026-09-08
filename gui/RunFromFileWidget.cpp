@@ -570,7 +570,7 @@ void RunFromFileWidget::addSourceRow(const RunSource &src) {
 
   // EoS combo
   QComboBox *comboEos = new QComboBox();
-  comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)", "Entropy Contour Param (4)"});
+  comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)", "Entropy Contour Param (4)", "Entropy Contour Gibbs (5)", "Entropy Contour Param Gibbs (6)"});
   comboEos->setCurrentIndex(src.eos);
   connect(comboEos, &QComboBox::currentIndexChanged, this, [this, comboEos](int idx) {
     for (int rr = 0; rr < m_table->rowCount(); ++rr) {

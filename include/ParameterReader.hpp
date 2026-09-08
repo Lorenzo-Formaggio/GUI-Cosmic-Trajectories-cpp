@@ -12,7 +12,7 @@ struct SimulationParameters {
   double Tmin;
   double Tmax;
   int nf;
-  int eos;           // 0 = free QGP, 1 = lattice QCD
+  int eos;           // 0 = free QGP, 1 = lattice QCD, 2 = table, 3-6 = Entropy Contour family (see QCDTherm.hpp)
   int guessMethod;   // 0 = simple (previous solution), 1 = linear extrapolation
   int scanDirection; // 0 = low to high T, 1 = high to low T
 };

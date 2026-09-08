@@ -6,6 +6,6 @@ dT = 0.1            //Temperature step in MeV
 Tmin = 50.0         //Initial temperature in MeV
 Tmax = 500.0        //Final temperature in MeV
 nf = 3             //"3" for three flavors QGP, "4" for four flavors QGP
-eos = 1             //"0" for free QGP, "1" for lattice QCD, "2" for Interpolated Table (EoS_Table.txt)
+eos = 1             //"0" for free QGP, "1" for lattice QCD, "2" for Interpolated Table (EoS_Table.txt), "3"/"4" Entropy Contour (tabulated/parametrized chis, one phase at a time), "5"/"6" the same with the Gibbs mixed phase in the first-order region
 guessMethod = 1     //"0" for simple (previous solution), "1" for linear extrapolation
 scanDirection = 0   //"0" for low to high T, "1" for high to low T

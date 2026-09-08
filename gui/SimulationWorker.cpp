@@ -46,6 +46,8 @@ void SimulationWorker::run() {
     else if (eos == 2) eosName = "Interpolated Table";
     else if (eos == 3) eosName = "Entropy Contour";
     else if (eos == 4) eosName = "Entropy Contour (Parametrized)";
+    else if (eos == 5) eosName = "Entropy Contour (Gibbs mixed phase)";
+    else if (eos == 6) eosName = "Entropy Contour (Parametrized, Gibbs mixed phase)";
     else eosName = "Unknown";
 
     emit logMessage(QString("Setting EoS: %1").arg(QString::fromStdString(eosName)));
@@ -124,6 +126,8 @@ void SimulationWorker::run() {
 
     std::vector<double> prev_solution;
     bool has_prev_solution = false;
+    bool inMixedPhase = false; // Gibbs variants: currently inside the mixed phase
+    double lastStepMuB = 0.0;  // |change of solution[0]| at the previous accepted step
 
     // Also write trajectory.txt and errors.txt in the working directory
     std::string trajPath = workingDir.toStdString() + "/trajectory.txt";
@@ -137,7 +141,7 @@ void SimulationWorker::run() {
               << std::endl;
       outfile << "T[MeV] muB[MeV] muQ[MeV] munue[MeV] munumu[MeV] mnutau[MeV] "
                  "nB[MeV^3] nQ[MeV^3] s[MeV^3] p_QCD[MeV^4] p_tot[MeV^4] e_QCD[MeV^4] e_tot[MeV^4] "
-                 "nnue[MeV^3] nnumu[MeV^3] nnutau[MeV^3]"
+                 "nnue[MeV^3] nnumu[MeV^3] nnutau[MeV^3] lambda_dilute(eos5/6,nan=homogeneous)"
               << std::endl;
     }
     if (errfile.is_open()) {
@@ -273,6 +277,39 @@ void SimulationWorker::run() {
 
       firstStep = false;
 
+      // ── Continuity safeguard ──────────────────────────────────────────
+      // Near a phase transition (and at large asymmetries in general) the
+      // five equations can have several roots. The physical state is the one
+      // continuously connected to the previous step, so if the root just found
+      // sits far from the previous solution -- farther than the previous
+      // step's change allows -- retry from the previous solution and a few
+      // nudges of it, and keep the converged root closest to the previous step.
+      if (solved && has_prev_solution) {
+        auto dist = [&](const std::vector<double> &v) {
+          return std::abs(v[0] - prev_solution[0]) + std::abs(v[1] - prev_solution[1]);
+        };
+        const double maxJump = 40.0 + 3.0 * lastStepMuB;
+        if (dist(solution) > maxJump) {
+          std::vector<double> best = solution;
+          for (double f : {1.0, 0.98, 1.02, 0.95, 1.05}) {
+            std::vector<double> g2 = prev_solution;
+            g2[0] *= f;
+            try {
+              std::vector<double> s2 = Solver::solveSystem(functions, targets, g2, tolerance, std::max(20, std::min(maxIter, 60)));
+              bool fin = true;
+              for (double v : s2) fin = fin && std::isfinite(v);
+              if (fin && dist(s2) < dist(best)) best = s2;
+            } catch (const std::exception &) {
+            }
+          }
+          if (dist(best) < dist(solution)) {
+            emit logMessage(QString("<font color='#ffc107'>  Continuity: at T=%1 MeV the solver jumped to a distant root (muB %2); kept the root closest to the previous step (muB %3).</font>")
+                                .arg(T, 0, 'f', 2).arg(solution[0], 0, 'g', 6).arg(best[0], 0, 'g', 6));
+            solution = best;
+          }
+        }
+      }
+
       if (!solved) {
         ++failedSteps;
         currentStep++;
@@ -280,7 +317,7 @@ void SimulationWorker::run() {
         continue;
       }
 
-      double muB_sol    = solution[0];
+      double muB_sol    = solution[0]; /* for eos 5/6: the stretched coordinate x */
       double muQ_sol    = solution[1];
       double munue_sol  = solution[2];
       double munumu_sol = solution[3];
@@ -303,10 +340,26 @@ void SimulationWorker::run() {
       double nnumu_val = jelf::nNet(munumu_sol, T, lepton::m_numu, lepton::gnu);
       double nnutau_val = jelf::nNet(mnutau_sol, T, lepton::m_nutau, lepton::gnu);
 
+      // Gibbs variants (eos 5/6): map the solver coordinate back to the
+      // physical mu_B and read the dilute-phase fraction (NaN if homogeneous).
+      const double muB_phys = QCD::physicalMuB(muB_sol, muQ_sol, T);
+      const double lambda   = QCD::phaseFraction(muB_sol, muQ_sol, T);
+      const bool mixedNow   = std::isfinite(lambda);
+      if (mixedNow && !inMixedPhase) {
+        emit logMessage(QString("<font color='#17a2b8'>  &#8594; Entered the Gibbs mixed phase at T=%1 MeV: coexistence muB=%2 MeV, dilute fraction lambda=%3</font>")
+                            .arg(T, 0, 'f', 2).arg(muB_phys, 0, 'f', 3).arg(lambda, 0, 'f', 4));
+      } else if (!mixedNow && inMixedPhase) {
+        emit logMessage(QString("<font color='#17a2b8'>  &#8592; Left the Gibbs mixed phase at T=%1 MeV (now in the %2 phase, muB=%3 MeV)</font>")
+                            .arg(T, 0, 'f', 2)
+                            .arg(muB_sol > muB_phys ? "dense" : "dilute")
+                            .arg(muB_phys, 0, 'f', 3));
+      }
+      inMixedPhase = mixedNow;
+
       // Emit the point to the GUI
       TrajectoryPoint pt;
       pt.T      = T;
-      pt.muB    = muB_sol;
+      pt.muB    = muB_phys;
       pt.muQ    = muQ_sol;
       pt.munue  = munue_sol;
       pt.munumu = munumu_sol;
@@ -338,11 +391,12 @@ void SimulationWorker::run() {
 
       // Write to files
       if (outfile.is_open()) {
-        outfile << T << " " << muB_sol << " " << muQ_sol << " "
+        outfile << T << " " << muB_phys << " " << muQ_sol << " "
                 << munue_sol << " " << munumu_sol << " " << mnutau_sol << " "
                 << nB_val << " " << nQ_val << " " << s_val << " "
                 << pQCD << " " << p_val << " " << eQCD << " " << e_val << " "
-                << nnue_val << " " << nnumu_val << " " << nnutau_val << std::endl;
+                << nnue_val << " " << nnumu_val << " " << nnutau_val << " "
+                << lambda << std::endl;
       }
       if (errfile.is_open()) {
         errfile << T << " " << err.err_b << " " << err.err_charge << " "
@@ -358,6 +412,7 @@ void SimulationWorker::run() {
       } else {
         guess = solution;
       }
+      if (has_prev_solution) lastStepMuB = std::abs(solution[0] - prev_solution[0]);
       prev_solution = solution;
       has_prev_solution = true;
 
@@ -368,9 +423,10 @@ void SimulationWorker::run() {
 
       // Log every ~10% or so
       if (currentStep % std::max(1, totalSteps / 20) == 0) {
-        emit logMessage(QString("  T = %1 MeV   muB = %2")
+        emit logMessage(QString("  T = %1 MeV   muB = %2%3")
                             .arg(T, 8, 'f', 1)
-                            .arg(muB_sol, 12, 'e', 4));
+                            .arg(muB_phys, 12, 'e', 4)
+                            .arg(mixedNow ? QString("   (mixed phase, lambda = %1)").arg(lambda, 0, 'f', 3) : QString()));
       }
     }
 

@@ -508,7 +508,7 @@ void MainWindow::createParameterPanel(QWidget *parent) {
   grid->addWidget(m_comboNf, row++, 1);
 
   m_comboEos = new QComboBox();
-  m_comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)", "Entropy Contour Param (4)"});
+  m_comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)", "Entropy Contour Param (4)", "Entropy Contour Gibbs (5)", "Entropy Contour Param Gibbs (6)"});
   connect(m_comboEos, &QComboBox::currentIndexChanged, this, &MainWindow::onEosChanged);
   grid->addWidget(new QLabel("EoS"), row, 0);
   grid->addWidget(m_comboEos, row++, 1);
@@ -834,10 +834,11 @@ void MainWindow::onEosChanged(int index) {
   m_eosPathWidget->setVisible(showEosPath);
 
   // First-order surface overlay is only meaningful for the Entropy Contour
-  // family of EoS (file-loaded chi tables = 3; analytic parametrization = 4).
-  // Each variant has its own data file, so a cached load from one variant
-  // is invalidated when switching to the other.
-  const bool entrCont = (index == 3 || index == 4);
+  // family of EoS (file-loaded chi tables = 3, 5; analytic parametrization =
+  // 4, 6). Each lattice input has its own data file (the Gibbs variants share
+  // the surface of their homogeneous counterparts), so a cached load from one
+  // variant is invalidated when switching to another.
+  const bool entrCont = (index >= 3 && index <= 6);
   if (m_chkSurface) m_chkSurface->setEnabled(entrCont);
   if (m_sliderSurfaceOpacity) m_sliderSurfaceOpacity->setEnabled(entrCont && m_chkSurface && m_chkSurface->isChecked());
   if (!entrCont) {
@@ -1880,10 +1881,13 @@ void MainWindow::loadFirstOrderSurface() {
   // Skip if already loaded for this EoS variant.
   if (m_surfaceLoaded && m_surfaceLoadedEos == eos) return;
 
-  // Pick the surface file matching the selected EoS. Both files share the
-  // same column layout (T, muB, muS, muQ, dnB).
-  const QString fileName = (eos == 4) ? "assets/first_order_surface_param.dat"
-                                       : "assets/first_order_surface.dat";
+  // Pick the surface file matching the selected lattice input. Both files
+  // share the same column layout (T, muB, muS, muQ, dnB). The Gibbs variants
+  // (5, 6) use the same coexistence surface as their homogeneous counterparts
+  // (3, 4): there the mixed phase sits exactly on it.
+  const QString fileName = (eos == 4 || eos == 6)
+                               ? "assets/first_order_surface_param.dat"
+                               : "assets/first_order_surface.dat";
 
   // Files live next to the project root. The application is launched from
   // gui/build/, so go up two levels.

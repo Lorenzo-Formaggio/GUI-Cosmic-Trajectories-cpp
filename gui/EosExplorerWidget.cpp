@@ -1,6 +1,7 @@
 #include "EosExplorerWidget.h"
 #include "SimulationWorker.h"
 #include "include/QCDTherm.hpp"
+#include "include/EntrCont.hpp"
 #include "include/JEL.hpp"
 #include "include/InterpolatedEoS.hpp"
 
@@ -75,7 +76,7 @@ void EosExplorerWidget::setupUi() {
 
   // EoS Selection
   m_comboEos = new QComboBox();
-  m_comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)", "Entropy Contour Param (4)"});
+  m_comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)", "Entropy Contour Param (4)", "Entropy Contour Gibbs (5)", "Entropy Contour Param Gibbs (6)"});
   connect(m_comboEos, &QComboBox::currentIndexChanged, this, &EosExplorerWidget::onEosChanged);
   grid->addWidget(new QLabel("Equation of State:"), row, 0);
   grid->addWidget(m_comboEos, row++, 1);
@@ -551,6 +552,9 @@ void EosExplorerWidget::onComputeClicked() {
     else if (eos == 1) eosName = "Lattice QCD";
     else if (eos == 2) eosName = "Interpolated Table";
     else if (eos == 3) eosName = "Entropy Contour";
+    else if (eos == 4) eosName = "Entropy Contour (Parametrized)";
+    else if (eos == 5) eosName = "Entropy Contour (Gibbs mixed phase)";
+    else if (eos == 6) eosName = "Entropy Contour (Parametrized, Gibbs mixed phase)";
     
     // If using interpolated EoS, load the table and log its range
     if (eos == 2) {
@@ -618,6 +622,29 @@ void EosExplorerWidget::onComputeClicked() {
       }
     }
 
+    // The Entropy Contour family (3-6) is undefined below its seam temperature
+    // Tlow = 80 MeV (every query returns NaN): clamp a T scan, and a fixed T,
+    // to the domain and say so.
+    if (eos >= 3 && eos <= 6) {
+      const double Tlow = EntropyContours::referenceTemperature();
+      if (scanVar == 0) {
+        if (scanMin < Tlow) {
+          logMessage(QString("<font color='#ffc107'><b>Warning:</b> Requested Tmin (%1 MeV) is below the Entropy Contour EoS domain (Tlow = %2 MeV, the HRG seam). Clamping to %2 MeV.</font>")
+                         .arg(scanMin, 0, 'f', 1).arg(Tlow, 0, 'f', 1));
+          scanMin = Tlow;
+        }
+        if (scanMax < Tlow) {
+          logMessage(QString("<font color='#ffc107'><b>Warning:</b> Requested Tmax (%1 MeV) is below the Entropy Contour EoS domain (Tlow = %2 MeV). Clamping to %2 MeV.</font>")
+                         .arg(scanMax, 0, 'f', 1).arg(Tlow, 0, 'f', 1));
+          scanMax = Tlow;
+        }
+      } else if (fixedT < Tlow) {
+        logMessage(QString("<font color='#ffc107'><b>Warning:</b> Fixed T (%1 MeV) is below the Entropy Contour EoS domain (Tlow = %2 MeV, the HRG seam). Clamping to %2 MeV.</font>")
+                       .arg(fixedT, 0, 'f', 1).arg(Tlow, 0, 'f', 1));
+        fixedT = Tlow;
+      }
+    }
+
     // Build human-readable description
     static const QStringList scanNames = {"T", "µB", "µQ"};
     QString scanName = scanNames[scanVar];
@@ -671,9 +698,13 @@ void EosExplorerWidget::onComputeClicked() {
         default: T = v; muB = fixedMuB; muQ = fixedMuQ; break;
       }
 
-      double nB = QCD::BarDens(muB, muQ, T, nf);
-      double nQ = QCD::QCDcharge(muB, muQ, T, nf);
-      double s  = QCD::sQCD(muB, muQ, T, nf);
+      // Gibbs variants (5/6): the QCD functions take the stretched coordinate;
+      // map the physical mu_B to it (a scan at fixed mu_B never sits inside
+      // the mixed phase, so this shows the homogeneous branches, as 3/4 do).
+      const double muBx = QCD::coordinateFromMuB(muB, muQ, T);
+      double nB = QCD::BarDens(muBx, muQ, T, nf);
+      double nQ = QCD::QCDcharge(muBx, muQ, T, nf);
+      double s  = QCD::sQCD(muBx, muQ, T, nf);
 
       double yVals[NUM_CHARTS] = {nB, nQ, s};
 
@@ -697,8 +728,8 @@ void EosExplorerWidget::onComputeClicked() {
       newData.T_values.append(T);
 
       // Pressure and energy density (QCD sector only; no leptons in EoS Explorer)
-      double p = QCD::pQCD(muB, muQ, T, nf);
-      double e = QCD::eQCD(muB, muQ, T, nf);
+      double p = QCD::pQCD(muBx, muQ, T, nf);
+      double e = QCD::eQCD(muBx, muQ, T, nf);
       newData.p_QCD.append(p);
       newData.e_QCD.append(e);
       count++;

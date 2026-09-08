@@ -16,7 +16,7 @@ This application solves the evolution of chemical potentials ($\mu_B$, $\mu_Q$, 
 - **Physics Models (EoS)**:
   - Free Quark Gluon Plasma (QGP, 2-flavor, 3-flavor, or 4-flavor with Charm).
   - Lattice QCD-based EoS (3-flavor or 4-flavor with Charm).
-  - Entropy Contour-based EoS (two variants; see *Entropy Contour EoS* below).
+  - Entropy Contour-based EoS (four variants: two lattice inputs, each with or without the Gibbs mixed phase in the first-order region; see *Entropy Contour EoS* below).
   - External Tabulated EoS (Import CSV/TXT tables). Features:
     - **Smart RAM Caching**: Heavy tables are loaded once and kept in memory for performance.
     - **Intelligent Temperature Clamping**: User-defined temperature ranges are respected if they fall within the table's bounds. If the user input exceeds the table range, the simulation automatically clamps to the available extremes and provides a clear warning in the console.
@@ -35,20 +35,30 @@ This application solves the evolution of chemical potentials ($\mu_B$, $\mu_Q$, 
 The Entropy Contour equation of state is the lattice-QCD-anchored constant
 entropy density contour expansion of Shah et al.
 [arXiv:2410.16206, arXiv:2601.08823], extended to the full three-dimensional
-chemical potential space. Two variants ship here:
+chemical potential space. Four variants ship here:
 
-Both variants run the **same contour algebra** -- `src/ContourEoSCore.cpp`, a
+All variants run the **same contour algebra** -- `src/ContourEoSCore.cpp`, a
 port of `scontours::EquationOfState` from **s_contours_c-dev4-tristan** -- and
-both anchor on the same QvdW-HRG seam. They differ in exactly one thing, the
-mu = 0 lattice input:
+all anchor on the same QvdW-HRG seam at Tlow = 80 MeV. They differ in two
+independent choices: the mu = 0 lattice input, and how the first-order region
+beyond the critical point is treated:
 
-| GUI selection | Source | mu = 0 lattice input |
-| --- | --- | --- |
-| **Entropy Contour** (`eos = 3`) | `src/EntrCont.cpp` | cubic splines through the tabulated Wuppertal-Budapest susceptibilities in `EntroContourEoS/chis/` and the entropy density in `entro_2013_hrg+extrap.spln` |
-| **Entropy Contour Param** (`eos = 4`) | `src/EntrContParam.cpp` | the reference's closed-form Wuppertal-Budapest fits, with symbolically generated exact T-derivatives; reproduces s_contours_c-dev4-tristan exactly |
+| GUI selection | Source | mu = 0 lattice input | first-order region |
+| --- | --- | --- | --- |
+| **Entropy Contour** (`eos = 3`) | `src/EntrCont.cpp` | cubic splines through the tabulated Wuppertal-Budapest susceptibilities in `EntroContourEoS/chis/` and the entropy density in `entro_2013_hrg+extrap.spln` | one phase at a time (Maxwell) |
+| **Entropy Contour Param** (`eos = 4`) | `src/EntrContParam.cpp` | the reference's closed-form Wuppertal-Budapest fits, with symbolically generated exact T-derivatives; reproduces s_contours_c-dev4-tristan exactly | one phase at a time (Maxwell) |
+| **Entropy Contour Gibbs** (`eos = 5`) | `src/EntrCont.cpp` + `src/GibbsMixedPhase.cpp` | as `eos = 3` | Gibbs mixed phase |
+| **Entropy Contour Param Gibbs** (`eos = 6`) | `src/EntrContParam.cpp` + `src/GibbsMixedPhase.cpp` | as `eos = 4` | Gibbs mixed phase |
 
-So comparing the two in the GUI isolates the effect of the lattice input
-representation, which is the only reason to keep both.
+So comparing 3 with 4 (or 5 with 6) in the GUI isolates the effect of the
+lattice input representation, and comparing 3 with 5 (or 4 with 6) isolates
+the treatment of the first-order region. Outside that region 5 and 6 are
+identical to 3 and 4.
+
+**Domain.** All four are defined for T >= Tlow = 80 MeV only: the contour is
+anchored on the seam there and every query below it returns NaN (the solver
+then reports a NaN Jacobian at each step). A run or an EoS-explorer scan that
+asks for a lower temperature is clamped to 80 MeV with a warning in the log.
 
 **Which one to use.** The parametrizations behind `eos = 4` are fits to the
 crossover region and are good **up to about 200 MeV**; the tabulated input of
@@ -106,10 +116,57 @@ The hypothetical sexaquark (pdg 9000001) is commented out of the list; it is not
 part of the PDG2020 list the reference uses, and at mu_B ~ 600 MeV it shifts the
 seam by a few percent in n_B and n_S.
 
+### Gibbs mixed phase (`eos = 5`, `eos = 6`)
+
+Past the critical point the contour EoS has two mechanically stable phases at
+the same (T, mu_B, mu_Q), a dilute and a dense one. The homogeneous models
+(`eos = 3, 4`) always return the phase of highest pressure, so along a
+trajectory the densities jump when mu_B crosses the coexistence value
+mu_B*(T, mu_Q): a Maxwell construction, the system being entirely in one phase
+or entirely in the other.
+
+With conserved charges (n_B/s = b, electric neutrality with the leptons) the
+system can instead sit on the coexistence surface as a **mixture**: a volume
+fraction lambda in the dilute phase and 1 - lambda in the dense one, both at
+the same T, mu_B*, mu_Q and pressure (the Gibbs conditions), the conserved
+densities being the lever-rule averages n_X = lambda n_X^dil +
+(1 - lambda) n_X^den, s likewise, P = P*. Going through the transition the
+chemical potentials then move continuously along the coexistence surface while
+lambda goes from 1 to 0, instead of jumping. `src/GibbsMixedPhase.cpp`
+implements this on top of either lattice model (`GibbsPhase::MixedPhaseEoS`).
+
+Since a mixture is not a function of (T, mu) alone, the mixed phase is exposed
+through a *stretched* baryon coordinate x that the trajectory solver uses in
+place of mu_B: x <= mu_B* is the dilute phase at mu_B = x; mu_B* < x <
+mu_B* + W is the mixed phase at mu_B = mu_B* with lambda = 1 - (x - mu_B*)/W;
+x >= mu_B* + W is the dense phase at mu_B = x - W. Everything is continuous in
+x, so the existing Newton solver walks through the transition; the width W
+(100 MeV) is arbitrary and never enters a physical result --
+`QCD::physicalMuB` and `QCD::phaseFraction` map x back, and the GUI reports
+the physical mu_B and logs lambda whenever the trajectory is inside the mixed
+phase (`trajectory.txt` carries it as a last column, NaN when homogeneous).
+mu_B*(T, mu_Q) is located exactly, by bisection of the model's own branch
+switch on the bare contour (the seam cancels there, so no Thermal-FIST solve
+is needed for the search), and memoized per point. Strangeness is not
+conserved in the cosmic setting, so mu_S = 0 throughout and the two phases
+share (T, mu_B, mu_Q) only.
+
+What it changes in a run: with the homogeneous EoS the trajectory solver finds
+no state at all where the required n_B/s falls inside the density gap of the
+transition (at b = 0.06 with zero lepton asymmetries that is T = 104..108 MeV
+for the parametrized input), while the Gibbs variant passes through the mixed
+phase there and coincides with the homogeneous one everywhere else. Near the
+transition the five equations can also have several roots; the worker now
+keeps, among the converged roots, the one closest to the previous step (it
+logs when this kicks in), so the trajectory stays on the branch continuously
+connected to its high-temperature start.
+
 ### Cross-checking against the reference
 
 `gui/eos_check.cpp` prints the same observables, in the same units and layout,
-as the reference's `eos_line`, so the two can be diffed column by column:
+as the reference's `eos_line`, so the two can be diffed column by column
+(`--tabulated` selects the `eos = 3/5` lattice input, `--no-hrg` the bare
+contour):
 
 ```sh
 # this repository
@@ -118,6 +175,26 @@ as the reference's `eos_line`, so the two can be diffed column by column:
 #                             theta = acos(300/mu), phi = 0)
 ./build/eos_line 300 90 200 10 --dir 5.710593 0 --qvdw
 ```
+
+### First-order surface overlay
+
+`assets/first_order_surface_param.dat` (the "first-order surface" overlay of
+the 3D view for `eos = 4`) is generated by `gui/first_order_surface.cpp`. For
+every (T, mu_Q) of a regular grid at mu_S = 0 it scans mu_B and bisects the
+point where the engine's branch selection (highest-pressure stable branch,
+`Engine::invert`) switches from the dilute to the dense phase -- the
+equal-pressure Maxwell point, solved to 1e-6 MeV in mu_B. The last column is
+the baryon-density jump n_B(dense) - n_B(dilute) in fm^-3. The QvdW-HRG seam
+cancels in both the pressure difference and the density jump, so the tool runs
+with it switched off. Regenerate (about a minute on 10 cores) with
+
+```sh
+./build/first_order_surface 80 114.5 0.25 0.5 -o ../assets/first_order_surface_param.dat
+```
+
+(positionals: Tmin Tmax dT dmuQ in MeV; `--diag FILE` also writes the phase
+densities and the pressure mismatch of every point). The muQ = 0 line agrees
+with s_contours_c-dev4's `coexistence` macro to better than 0.01 MeV in mu_B.
 
 ## Prerequisites & Installation
 
@@ -140,7 +217,7 @@ The application requires:
    Pass `-DCTG_FETCH_THERMALFIST=OFF` to forbid the download entirely. Only
    Thermal-FIST's library target is built; its own GUI and command-line tools
    are excluded. Without Thermal-FIST the Entropy Contour equations of state
-   (`eos = 3` and `eos = 4`) report the missing dependency at start-up; the
+   (`eos = 3` to `eos = 6`) report the missing dependency at start-up; the
    other models are unaffected.
 
 ### 🍏 macOS
