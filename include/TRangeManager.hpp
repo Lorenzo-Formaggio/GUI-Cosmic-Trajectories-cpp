@@ -14,9 +14,9 @@ struct RangeResult {
 /**
  * @brief Validates and clamps the temperature range based on the Equation of State requirements.
  *        Handles Interpolated EoS table loading and range enforcement (eos = 2), and the
- *        lower domain edge Tlow = 80 MeV of the Entropy Contour family (eos = 3..6).
+ *        lower domain edge Tlow = 80 MeV of the Entropy Contour family (eos = 3..7).
  * 
- * @param eos             EoS type (2 for Interpolated Table, 3..6 for the Entropy Contour family)
+ * @param eos             EoS type (2 for Interpolated Table, 3..7 for the Entropy Contour family)
  * @param eosTablePath    Path to the EoS table file
  * @param Tmin            User requested minimum temperature
  * @param Tmax            User requested maximum temperature

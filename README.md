@@ -16,7 +16,7 @@ This application solves the evolution of chemical potentials ($\mu_B$, $\mu_Q$, 
 - **Physics Models (EoS)**:
   - Free Quark Gluon Plasma (QGP, 2-flavor, 3-flavor, or 4-flavor with Charm).
   - Lattice QCD-based EoS (3-flavor or 4-flavor with Charm).
-  - Entropy Contour-based EoS (four variants: two lattice inputs, each with or without the Gibbs mixed phase in the first-order region; see *Entropy Contour EoS* below).
+  - Entropy Contour-based EoS (five variants: two lattice inputs, each with or without the Gibbs mixed phase in the first-order region, plus the parametrized input with all six susceptibility fits; see *Entropy Contour EoS* below).
   - External Tabulated EoS (Import CSV/TXT tables). Features:
     - **Smart RAM Caching**: Heavy tables are loaded once and kept in memory for performance.
     - **Intelligent Temperature Clamping**: User-defined temperature ranges are respected if they fall within the table's bounds. If the user input exceeds the table range, the simulation automatically clamps to the available extremes and provides a clear warning in the console.
@@ -35,30 +35,46 @@ This application solves the evolution of chemical potentials ($\mu_B$, $\mu_Q$, 
 The Entropy Contour equation of state is the lattice-QCD-anchored constant
 entropy density contour expansion of Shah et al.
 [arXiv:2410.16206, arXiv:2601.08823], extended to the full three-dimensional
-chemical potential space. Four variants ship here:
+chemical potential space. Five variants ship here:
 
 All variants run the **same contour algebra** -- `src/ContourEoSCore.cpp`, a
 port of `scontours::EquationOfState` from **s_contours_c-dev4-tristan** -- and
-all anchor on the same QvdW-HRG seam at Tlow = 80 MeV. They differ in two
-independent choices: the mu = 0 lattice input, and how the first-order region
-beyond the critical point is treated:
+all anchor on the same QvdW-HRG seam at Tlow = 80 MeV. They differ in the
+mu = 0 lattice input, in how the cross susceptibilities are obtained, and in
+how the first-order region beyond the critical point is treated:
 
 | GUI selection | Source | mu = 0 lattice input | first-order region |
 | --- | --- | --- | --- |
 | **Entropy Contour** (`eos = 3`) | `src/EntrCont.cpp` | cubic splines through the tabulated Wuppertal-Budapest susceptibilities in `EntroContourEoS/chis/` and the entropy density in `entro_2013_hrg+extrap.spln` | one phase at a time (Maxwell) |
-| **Entropy Contour Param** (`eos = 4`) | `src/EntrContParam.cpp` | the reference's closed-form Wuppertal-Budapest fits, with symbolically generated exact T-derivatives; reproduces s_contours_c-dev4-tristan exactly | one phase at a time (Maxwell) |
+| **Entropy Contour Param** (`eos = 4`) | `src/EntrContParam.cpp` | the reference's closed-form Wuppertal-Budapest fits, with symbolically generated exact T-derivatives; chi11BS and chi11BQ derived from the isospin relations; reproduces s_contours_c-dev4-tristan exactly | one phase at a time (Maxwell) |
 | **Entropy Contour Gibbs** (`eos = 5`) | `src/EntrCont.cpp` + `src/GibbsMixedPhase.cpp` | as `eos = 3` | Gibbs mixed phase |
 | **Entropy Contour Param Gibbs** (`eos = 6`) | `src/EntrContParam.cpp` + `src/GibbsMixedPhase.cpp` | as `eos = 4` | Gibbs mixed phase |
+| **Entropy Contour Param-Legacy Gibbs** (`eos = 7`) | `src/EntrContParam.cpp` + `src/GibbsMixedPhase.cpp` | the same closed-form fits, but all six cross-susceptibility fits used as they are (no isospin relations), as in the pre-August code | Gibbs mixed phase |
 
 So comparing 3 with 4 (or 5 with 6) in the GUI isolates the effect of the
-lattice input representation, and comparing 3 with 5 (or 4 with 6) isolates
-the treatment of the first-order region. Outside that region 5 and 6 are
+lattice input representation, comparing 3 with 5 (or 4 with 6) isolates the
+treatment of the first-order region, and comparing 6 with 7 isolates the
+cross-susceptibility scheme. Outside the first-order region 5 and 6 are
 identical to 3 and 4.
+
+**Why `eos = 7` exists.** In 4 and 6, chi11BS = 2 chi11QS - chi2S and
+chi11BQ = (chi2B + chi11BS)/2 are derived from four fits, which is the paper's
+production setup. The relations are exact for isospin-symmetric quark
+susceptibilities, but chi2B was fitted to a different dataset from the other
+five, so the cancellation does not close: the derived chi11BQ keeps a residual
+of ~0.016 above 250 MeV where the tables (from which the other fits were made)
+give ~0.005, and it turns negative below ~95 MeV. Along a cosmic trajectory
+this shows up as "waves" in mu_Q(T) that the tabulated input does not have.
+`eos = 7` takes all six fits as they are instead (`CrossMode::Fitted`); its
+chi11BQ follows the tables to <1% up to 200 MeV but decays too fast above. Its
+first-order surface differs off the mu_B axis, so it has its own overlay file,
+`assets/first_order_surface_param_fitted.dat` (`first_order_surface --fitted`).
 
 **Domain.** All four are defined for T >= Tlow = 80 MeV only: the contour is
 anchored on the seam there and every query below it returns NaN (the solver
 then reports a NaN Jacobian at each step). A run or an EoS-explorer scan that
 asks for a lower temperature is clamped to 80 MeV with a warning in the log.
+(This holds for all of `eos = 3` to `eos = 7`.)
 
 **Which one to use.** The parametrizations behind `eos = 4` are fits to the
 crossover region and are good **up to about 200 MeV**; the tabulated input of
@@ -116,7 +132,7 @@ The hypothetical sexaquark (pdg 9000001) is commented out of the list; it is not
 part of the PDG2020 list the reference uses, and at mu_B ~ 600 MeV it shifts the
 seam by a few percent in n_B and n_S.
 
-### Gibbs mixed phase (`eos = 5`, `eos = 6`)
+### Gibbs mixed phase (`eos = 5`, `eos = 6`, `eos = 7`)
 
 Past the critical point the contour EoS has two mechanically stable phases at
 the same (T, mu_B, mu_Q), a dilute and a dense one. The homogeneous models
@@ -217,7 +233,7 @@ The application requires:
    Pass `-DCTG_FETCH_THERMALFIST=OFF` to forbid the download entirely. Only
    Thermal-FIST's library target is built; its own GUI and command-line tools
    are excluded. Without Thermal-FIST the Entropy Contour equations of state
-   (`eos = 3` to `eos = 6`) report the missing dependency at start-up; the
+   (`eos = 3` to `eos = 7`) report the missing dependency at start-up; the
    other models are unaffected.
 
 ### 🍏 macOS

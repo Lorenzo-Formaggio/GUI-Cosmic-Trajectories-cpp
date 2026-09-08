@@ -508,7 +508,7 @@ void MainWindow::createParameterPanel(QWidget *parent) {
   grid->addWidget(m_comboNf, row++, 1);
 
   m_comboEos = new QComboBox();
-  m_comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)", "Entropy Contour Param (4)", "Entropy Contour Gibbs (5)", "Entropy Contour Param Gibbs (6)"});
+  m_comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)", "Entropy Contour Param (4)", "Entropy Contour Gibbs (5)", "Entropy Contour Param Gibbs (6)", "Entropy Contour Param-Legacy Gibbs (7)"});
   connect(m_comboEos, &QComboBox::currentIndexChanged, this, &MainWindow::onEosChanged);
   grid->addWidget(new QLabel("EoS"), row, 0);
   grid->addWidget(m_comboEos, row++, 1);
@@ -838,7 +838,7 @@ void MainWindow::onEosChanged(int index) {
   // 4, 6). Each lattice input has its own data file (the Gibbs variants share
   // the surface of their homogeneous counterparts), so a cached load from one
   // variant is invalidated when switching to another.
-  const bool entrCont = (index >= 3 && index <= 6);
+  const bool entrCont = (index >= 3 && index <= 7);
   if (m_chkSurface) m_chkSurface->setEnabled(entrCont);
   if (m_sliderSurfaceOpacity) m_sliderSurfaceOpacity->setEnabled(entrCont && m_chkSurface && m_chkSurface->isChecked());
   if (!entrCont) {
@@ -1881,11 +1881,13 @@ void MainWindow::loadFirstOrderSurface() {
   // Skip if already loaded for this EoS variant.
   if (m_surfaceLoaded && m_surfaceLoadedEos == eos) return;
 
-  // Pick the surface file matching the selected lattice input. Both files
+  // Pick the surface file matching the selected lattice input. All files
   // share the same column layout (T, muB, muS, muQ, dnB). The Gibbs variants
   // (5, 6) use the same coexistence surface as their homogeneous counterparts
-  // (3, 4): there the mixed phase sits exactly on it.
-  const QString fileName = (eos == 4 || eos == 6)
+  // (3, 4): there the mixed phase sits exactly on it. The all-fits scheme (7)
+  // has its own surface (generated with `first_order_surface --fitted`).
+  const QString fileName = (eos == 7)   ? "assets/first_order_surface_param_fitted.dat"
+                           : (eos == 4 || eos == 6)
                                ? "assets/first_order_surface_param.dat"
                                : "assets/first_order_surface.dat";
 

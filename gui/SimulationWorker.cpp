@@ -48,6 +48,7 @@ void SimulationWorker::run() {
     else if (eos == 4) eosName = "Entropy Contour (Parametrized)";
     else if (eos == 5) eosName = "Entropy Contour (Gibbs mixed phase)";
     else if (eos == 6) eosName = "Entropy Contour (Parametrized, Gibbs mixed phase)";
+    else if (eos == 7) eosName = "Entropy Contour (Parametrized, all fits, Gibbs mixed phase)";
     else eosName = "Unknown";
 
     emit logMessage(QString("Setting EoS: %1").arg(QString::fromStdString(eosName)));

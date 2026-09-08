@@ -65,11 +65,11 @@ RangeResult validateAndClamp(int eos,
         }
     }
 
-    // The Entropy Contour family (3-6) is anchored on its HRG seam at
+    // The Entropy Contour family (3-7) is anchored on its HRG seam at
     // Tlow = 80 MeV and is not defined below it: every query there returns NaN,
     // which the solver reports as a NaN Jacobian at each step. Clamp the range
     // the same way the interpolated table does, and say so.
-    if (eos >= 3 && eos <= 6) {
+    if (eos >= 3 && eos <= 7) {
         const double Tlow = EntropyContours::referenceTemperature();
         auto warn = [&](const std::string& param, double val) {
             std::stringstream ss;

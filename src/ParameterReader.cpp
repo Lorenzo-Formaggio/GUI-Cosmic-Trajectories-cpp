@@ -181,6 +181,7 @@ SimulationParameters readParameters(const std::string &filename,
   else if (params.eos == 4) oss << "Entropy Contour Param";
   else if (params.eos == 5) oss << "Entropy Contour Gibbs";
   else if (params.eos == 6) oss << "Entropy Contour Param Gibbs";
+  else if (params.eos == 7) oss << "Entropy Contour Param-Legacy Gibbs";
   else oss << "Unknown";
   std::cout << "║    Equation of State: " << std::left << std::setw(36)
             << oss.str() << " ║" << std::endl;

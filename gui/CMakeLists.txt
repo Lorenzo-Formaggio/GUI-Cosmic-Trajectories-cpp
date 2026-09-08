@@ -83,7 +83,7 @@ if(NOT _ctg_tf_added)
     set(CTG_WITH_THERMALFIST OFF)
     message(WARNING
         "Thermal-FIST not available: the QvdW-HRG seam model is not built, so "
-        "the Entropy Contour equations of state (EoS 3 to 6) will report the "
+        "the Entropy Contour equations of state (EoS 3 to 7) will report the "
         "missing dependency at start-up. The other models are unaffected. "
         "Point -DTHERMALFIST_ROOT=<path> at a checkout, place one under "
         "external/Thermal-FIST, or allow -DCTG_FETCH_THERMALFIST=ON.")

@@ -16,7 +16,7 @@ int main() {
         std::cout << "lepton::plep(0, 0, 0, 0, 150) = " << lepton::plep(0, 0, 0, 0, 150) << std::endl;
         std::cout << "lepton::elep(0, 0, 0, 0, 150) = " << lepton::elep(0, 0, 0, 0, 150) << std::endl;
 
-        for (int eos = 0; eos <= 6; ++eos) {
+        for (int eos = 0; eos <= 7; ++eos) {
             std::cout << "\nTesting EoS = " << eos << std::endl;
             QCD::setEoS(eos, "./", 3);
             double p = QCD::pQCD(0.01, 0.0, 150.0, 3);

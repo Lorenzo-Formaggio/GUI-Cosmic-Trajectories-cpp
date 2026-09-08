@@ -76,7 +76,7 @@ void EosExplorerWidget::setupUi() {
 
   // EoS Selection
   m_comboEos = new QComboBox();
-  m_comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)", "Entropy Contour Param (4)", "Entropy Contour Gibbs (5)", "Entropy Contour Param Gibbs (6)"});
+  m_comboEos->addItems({"Free QGP (0)", "Lattice QCD (1)", "Interpolated Table (2)", "Entropy Contour (3)", "Entropy Contour Param (4)", "Entropy Contour Gibbs (5)", "Entropy Contour Param Gibbs (6)", "Entropy Contour Param-Legacy Gibbs (7)"});
   connect(m_comboEos, &QComboBox::currentIndexChanged, this, &EosExplorerWidget::onEosChanged);
   grid->addWidget(new QLabel("Equation of State:"), row, 0);
   grid->addWidget(m_comboEos, row++, 1);
@@ -555,6 +555,7 @@ void EosExplorerWidget::onComputeClicked() {
     else if (eos == 4) eosName = "Entropy Contour (Parametrized)";
     else if (eos == 5) eosName = "Entropy Contour (Gibbs mixed phase)";
     else if (eos == 6) eosName = "Entropy Contour (Parametrized, Gibbs mixed phase)";
+    else if (eos == 7) eosName = "Entropy Contour (Parametrized, all fits, Gibbs mixed phase)";
     
     // If using interpolated EoS, load the table and log its range
     if (eos == 2) {
@@ -625,7 +626,7 @@ void EosExplorerWidget::onComputeClicked() {
     // The Entropy Contour family (3-6) is undefined below its seam temperature
     // Tlow = 80 MeV (every query returns NaN): clamp a T scan, and a fixed T,
     // to the domain and say so.
-    if (eos >= 3 && eos <= 6) {
+    if (eos >= 3 && eos <= 7) {
       const double Tlow = EntropyContours::referenceTemperature();
       if (scanVar == 0) {
         if (scanMin < Tlow) {
