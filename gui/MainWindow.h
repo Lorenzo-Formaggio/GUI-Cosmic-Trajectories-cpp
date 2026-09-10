@@ -143,6 +143,8 @@ private:
   QCheckBox *m_chkMunumu;
   QCheckBox *m_chkMnutau;
   QCheckBox *m_chkErrB, *m_chkErrQ, *m_chkErrLe, *m_chkErrLmu, *m_chkErrLtau;
+  QCheckBox *m_chkEtot, *m_chkEqcd;
+  QCheckBox *m_chkPtot, *m_chkPqcd;
 
   // Per-quantity absolute-value checkboxes (mirror visibility set)
   QCheckBox *m_absnB = nullptr;
@@ -161,6 +163,8 @@ private:
   QCheckBox *m_absMnutau = nullptr;
   QCheckBox *m_absErrB = nullptr, *m_absErrQ = nullptr, *m_absErrLe = nullptr,
             *m_absErrLmu = nullptr, *m_absErrLtau = nullptr;
+  QCheckBox *m_absEtot = nullptr, *m_absEqcd = nullptr;
+  QCheckBox *m_absPtot = nullptr, *m_absPqcd = nullptr;
 
   // Per-series abs flag + base name (no |·| bars). Linear scan is fine for ~20 entries.
   struct SeriesMeta { QXYSeries *series; QString baseName; bool useAbs; };
@@ -210,7 +214,14 @@ private:
   QLineSeries *m_seriesMunumu;
   QLineSeries *m_seriesMnutau;
 
-  // Tab 4: Residual Errors
+  // Tab: Energy & Pressure
+  TooltipChartView *m_energyPressureChartView;
+  QLineSeries *m_seriesEtot;
+  QLineSeries *m_seriesEqcd;
+  QLineSeries *m_seriesPtot;
+  QLineSeries *m_seriesPqcd;
+
+  // Tab: Residual Errors
   TooltipChartView *m_errorChartView;
   QLineSeries *m_seriesErrB, *m_seriesErrQ, *m_seriesErrLe, *m_seriesErrLmu, *m_seriesErrLtau;
 
@@ -239,6 +250,7 @@ private:
   QAbstractAxis *m_muAxisX,   *m_muAxisY;
   QAbstractAxis *m_lepAxisX,  *m_lepAxisY;
   QAbstractAxis *m_lepDensAxisX, *m_lepDensAxisY;
+  QAbstractAxis *m_epAxisX,   *m_epAxisY;
   QAbstractAxis *m_errAxisX,  *m_errAxisY;
 
   // Linear/Log state

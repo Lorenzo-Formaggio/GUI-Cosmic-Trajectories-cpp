@@ -244,6 +244,15 @@ void MainWindow::setupUi() {
       addQuantityRow(layErr, 3, "err_lmu",  m_chkErrLmu,  m_absErrLmu,  m_seriesErrLmu);
       addQuantityRow(layErr, 4, "err_ltau", m_chkErrLtau, m_absErrLtau, m_seriesErrLtau);
       dlgLayout->addWidget(grpErr);
+
+      // ── Energy & Pressure group ─────────────────────────────
+      QGroupBox *grpEP = new QGroupBox("Energy & Pressure");
+      QGridLayout *layEP = new QGridLayout(grpEP);
+      addQuantityRow(layEP, 0, "e_tot", m_chkEtot, m_absEtot, m_seriesEtot);
+      addQuantityRow(layEP, 1, "e_QCD", m_chkEqcd, m_absEqcd, m_seriesEqcd);
+      addQuantityRow(layEP, 2, "p_tot", m_chkPtot, m_absPtot, m_seriesPtot);
+      addQuantityRow(layEP, 3, "p_QCD", m_chkPqcd, m_absPqcd, m_seriesPqcd);
+      dlgLayout->addWidget(grpEP);
     }
     // Re-sync abs-checkbox enabled state with current scale before showing
     auto syncAbsEnabled = [this](QCheckBox *c){ if (c) c->setEnabled(!m_isLogScale); };
@@ -254,6 +263,8 @@ void MainWindow::setupUi() {
     syncAbsEnabled(m_absMunue); syncAbsEnabled(m_absMunumu); syncAbsEnabled(m_absMnutau);
     syncAbsEnabled(m_absErrB); syncAbsEnabled(m_absErrQ);
     syncAbsEnabled(m_absErrLe); syncAbsEnabled(m_absErrLmu); syncAbsEnabled(m_absErrLtau);
+    syncAbsEnabled(m_absEtot); syncAbsEnabled(m_absEqcd);
+    syncAbsEnabled(m_absPtot); syncAbsEnabled(m_absPqcd);
     m_visDialog->show();
     m_visDialog->raise();
     m_visDialog->activateWindow();
@@ -624,7 +635,7 @@ void MainWindow::createChartPanel(QWidget *parent) {
     m_chartTabs->addTab(view, title);
   };
 
-  QChart *c1, *c2, *c3, *c4, *c5;
+  QChart *c1, *c2, *c3, *c4, *c5, *cEP;
   
   // Densities tab
   setupChart(m_densityChartView, c1, m_densAxisX, m_densAxisY, "Densities vs Temperature", getDensLabel());
@@ -649,6 +660,23 @@ void MainWindow::createChartPanel(QWidget *parent) {
   c5->addSeries(m_seriesNnue);   m_seriesNnue->attachAxis(m_lepDensAxisX);   m_seriesNnue->attachAxis(m_lepDensAxisY);
   c5->addSeries(m_seriesNnumu);  m_seriesNnumu->attachAxis(m_lepDensAxisX);  m_seriesNnumu->attachAxis(m_lepDensAxisY);
   c5->addSeries(m_seriesNnutau); m_seriesNnutau->attachAxis(m_lepDensAxisX); m_seriesNnutau->attachAxis(m_lepDensAxisY);
+
+  // Energy & Pressure tab
+  setupChart(m_energyPressureChartView, cEP, m_epAxisX, m_epAxisY, "Energy & Pressure", "Energy Density & Pressure [MeV⁴]");
+  m_seriesEtot = new QLineSeries(); m_seriesEtot->setName("e_tot"); m_seriesEtot->setColor(QColor(220, 20, 60));   // Crimson
+  m_seriesEqcd = new QLineSeries(); m_seriesEqcd->setName("e_QCD"); m_seriesEqcd->setColor(QColor(255, 140, 0));  // Dark orange
+  QPen penEqcd(QColor(255, 140, 0)); penEqcd.setStyle(Qt::DashLine); penEqcd.setWidthF(2.0);
+  m_seriesEqcd->setPen(penEqcd);
+
+  m_seriesPtot = new QLineSeries(); m_seriesPtot->setName("p_tot"); m_seriesPtot->setColor(QColor(30, 144, 255));  // Dodger blue
+  m_seriesPqcd = new QLineSeries(); m_seriesPqcd->setName("p_QCD"); m_seriesPqcd->setColor(QColor(34, 139, 34));   // Forest green
+  QPen penPqcd(QColor(34, 139, 34)); penPqcd.setStyle(Qt::DashLine); penPqcd.setWidthF(2.0);
+  m_seriesPqcd->setPen(penPqcd);
+
+  cEP->addSeries(m_seriesEtot); m_seriesEtot->attachAxis(m_epAxisX); m_seriesEtot->attachAxis(m_epAxisY);
+  cEP->addSeries(m_seriesEqcd); m_seriesEqcd->attachAxis(m_epAxisX); m_seriesEqcd->attachAxis(m_epAxisY);
+  cEP->addSeries(m_seriesPtot); m_seriesPtot->attachAxis(m_epAxisX); m_seriesPtot->attachAxis(m_epAxisY);
+  cEP->addSeries(m_seriesPqcd); m_seriesPqcd->attachAxis(m_epAxisX); m_seriesPqcd->attachAxis(m_epAxisY);
 
   // Chem pots tab
   setupChart(m_muChartView, c2, m_muAxisX, m_muAxisY, "Baryon & Electric Chem Pot", "Chem Pot [MeV] (abs)");
@@ -694,6 +722,15 @@ void MainWindow::createChartPanel(QWidget *parent) {
     m_errAxisY->setTitleText("Relative Error");
   }
 
+  // Energy & Pressure plot: standard orientation has Temperature on horizontal X axis,
+  // decreasing going to the right
+  if (m_tempIsVertical) {
+    m_epAxisX->setTitleText("Temperature [MeV]");
+    m_epAxisY->setTitleText("Energy Density & Pressure [MeV⁴]");
+    m_epAxisX->setReverse(true);
+    m_epAxisY->setReverse(false);
+  }
+
   // Register all data series with their base name and default abs flag.
   // Quantities previously displayed as "|·|" default to abs=ON; signed-or-positive
   // quantities default to abs=OFF.
@@ -714,6 +751,11 @@ void MainWindow::createChartPanel(QWidget *parent) {
   registerSeriesAbs(m_seriesMunue,  "μνe",      true);
   registerSeriesAbs(m_seriesMunumu, "μνμ",      true);
   registerSeriesAbs(m_seriesMnutau, "μντ",      true);
+
+  registerSeriesAbs(m_seriesEtot,    "e_tot",      false);
+  registerSeriesAbs(m_seriesEqcd,    "e_QCD",      false);
+  registerSeriesAbs(m_seriesPtot,    "p_tot",      false);
+  registerSeriesAbs(m_seriesPqcd,    "p_QCD",      false);
 
   registerSeriesAbs(m_seriesErrB,    "err_b",      true);
   registerSeriesAbs(m_seriesErrQ,    "err_charge", true);
@@ -881,6 +923,11 @@ void MainWindow::clearCharts(bool keepData) {
   m_seriesErrLmu->clear();
   m_seriesErrLtau->clear();
 
+  m_seriesEtot->clear();
+  m_seriesEqcd->clear();
+  m_seriesPtot->clear();
+  m_seriesPqcd->clear();
+
   if (m_series3D && m_series3D->dataProxy()) {
     m_series3D->dataProxy()->resetArray(new QScatterDataArray);
   }
@@ -1024,6 +1071,12 @@ void MainWindow::onStepCompleted(TrajectoryPoint pt) {
     m_seriesMunumu->append(V(m_seriesMunumu, pt.munumu), pt.T);
     m_seriesMnutau->append(V(m_seriesMnutau, pt.mnutau), pt.T);
 
+    // Energy & Pressure: Temperature horizontally by default (decreasing going right)
+    m_seriesEtot->append(pt.T, V(m_seriesEtot, pt.e_tot));
+    m_seriesEqcd->append(pt.T, V(m_seriesEqcd, pt.e_QCD));
+    m_seriesPtot->append(pt.T, V(m_seriesPtot, pt.p_tot));
+    m_seriesPqcd->append(pt.T, V(m_seriesPqcd, pt.p_QCD));
+
     // Errors: Temperature horizontally by default
     m_seriesErrB->append(pt.T, V(m_seriesErrB, pt.err_b));
     m_seriesErrQ->append(pt.T, V(m_seriesErrQ, pt.err_charge));
@@ -1048,6 +1101,12 @@ void MainWindow::onStepCompleted(TrajectoryPoint pt) {
     m_seriesMunue->append(pt.T, V(m_seriesMunue, pt.munue));
     m_seriesMunumu->append(pt.T, V(m_seriesMunumu, pt.munumu));
     m_seriesMnutau->append(pt.T, V(m_seriesMnutau, pt.mnutau));
+
+    // Energy & Pressure: Flipped
+    m_seriesEtot->append(V(m_seriesEtot, pt.e_tot), pt.T);
+    m_seriesEqcd->append(V(m_seriesEqcd, pt.e_QCD), pt.T);
+    m_seriesPtot->append(V(m_seriesPtot, pt.p_tot), pt.T);
+    m_seriesPqcd->append(V(m_seriesPqcd, pt.p_QCD), pt.T);
 
     // Errors: Flipped
     m_seriesErrB->append(V(m_seriesErrB, pt.err_b), pt.T);
@@ -1092,6 +1151,7 @@ void MainWindow::updateChartAxes() {
   
   double minDens = 1e99, maxDens = -1e99;
   double minLepDens = 1e99, maxLepDens = -1e99;
+  double minEP = 1e99, maxEP = -1e99;
   double minMu = 1e99, maxMu = -1e99;
   double minLep = 1e99, maxLep = -1e99;
   double minErr = 1e99, maxErr = -1e99;
@@ -1128,6 +1188,9 @@ void MainWindow::updateChartAxes() {
 
     minErr = std::min({minErr, val(p.err_b), val(p.err_charge), val(p.err_le), val(p.err_lmu), val(p.err_ltau)});
     maxErr = std::max({maxErr, val(p.err_b), val(p.err_charge), val(p.err_le), val(p.err_lmu), val(p.err_ltau)});
+
+    minEP = std::min({minEP, val(p.e_tot), val(p.e_QCD), val(p.p_tot), val(p.p_QCD)});
+    maxEP = std::max({maxEP, val(p.e_tot), val(p.e_QCD), val(p.p_tot), val(p.p_QCD)});
   }
 
   // Add small margins
@@ -1156,6 +1219,12 @@ void MainWindow::updateChartAxes() {
     setRange(m_muAxisX,   minMu,   maxMu,   true);
     setRange(m_lepAxisX,  minLep,  maxLep,  true);
 
+    // Energy & Pressure: Temperature on horizontal X axis, decreasing to the right
+    setRange(m_epAxisX, minT, maxT, false);
+    setRange(m_epAxisY, minEP, maxEP, true);
+    m_epAxisX->setReverse(true);
+    m_epAxisY->setReverse(false);
+
     setRange(m_errAxisX, minT, maxT, false);
     setRange(m_errAxisY, minErr, maxErr, true);
   } else {
@@ -1169,6 +1238,12 @@ void MainWindow::updateChartAxes() {
     setRange(m_muAxisY,   minMu,   maxMu,   true);
     setRange(m_lepAxisY,  minLep,  maxLep,  true);
 
+    // Energy & Pressure: Values on X, Temperature on Y
+    setRange(m_epAxisX, minEP, maxEP, true);
+    setRange(m_epAxisY, minT, maxT, false);
+    m_epAxisX->setReverse(false);
+    m_epAxisY->setReverse(false);
+
     setRange(m_errAxisX, minErr, maxErr, true);
     setRange(m_errAxisY, minT,   maxT,   false);
   }
@@ -1177,6 +1252,12 @@ void MainWindow::updateChartAxes() {
   m_densAxisY->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : getDensLabel());
   m_lepDensAxisX->setTitleText(m_tempIsVertical ? getDensLabel() : "Temperature [MeV]");
   m_lepDensAxisY->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : getDensLabel());
+  m_muAxisX->setTitleText(m_tempIsVertical ? "Chem Pot [MeV] (abs)" : "Temperature [MeV]");
+  m_muAxisY->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : "Chem Pot [MeV] (abs)");
+  m_lepAxisX->setTitleText(m_tempIsVertical ? "Chem Pot [MeV] (abs)" : "Temperature [MeV]");
+  m_lepAxisY->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : "Chem Pot [MeV] (abs)");
+  m_epAxisX->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : "Energy Density & Pressure [MeV⁴]");
+  m_epAxisY->setTitleText(m_tempIsVertical ? "Energy Density & Pressure [MeV⁴]" : "Temperature [MeV]");
 }
 
 void MainWindow::onLogMessage(const QString &msg) {
@@ -1215,6 +1296,7 @@ void MainWindow::onThemeToggleClicked() {
   
   m_densityChartView->chart()->setTheme(newTheme);
   m_leptonDensChartView->chart()->setTheme(newTheme);
+  m_energyPressureChartView->chart()->setTheme(newTheme);
   m_muChartView->chart()->setTheme(newTheme);
   m_leptonChartView->chart()->setTheme(newTheme);
   m_errorChartView->chart()->setTheme(newTheme);
@@ -1243,6 +1325,16 @@ void MainWindow::onThemeToggleClicked() {
   m_seriesErrLe->setColor(Qt::cyan);
   m_seriesErrLmu->setColor(Qt::magenta);
   m_seriesErrLtau->setColor(QColor(200, 200, 0));
+
+  m_seriesEtot->setColor(QColor(220, 20, 60));   // Crimson
+  m_seriesEqcd->setColor(QColor(255, 140, 0));  // Dark orange
+  QPen penEqcd2(QColor(255, 140, 0)); penEqcd2.setStyle(Qt::DashLine); penEqcd2.setWidthF(2.0);
+  m_seriesEqcd->setPen(penEqcd2);
+
+  m_seriesPtot->setColor(QColor(30, 144, 255));  // Dodger blue
+  m_seriesPqcd->setColor(QColor(34, 139, 34));   // Forest green
+  QPen penPqcd2(QColor(34, 139, 34)); penPqcd2.setStyle(Qt::DashLine); penPqcd2.setWidthF(2.0);
+  m_seriesPqcd->setPen(penPqcd2);
 
   // Also update 3D plot theme
   if (m_scatter3D) {
@@ -1276,9 +1368,14 @@ void MainWindow::replotData() {
   updateTitles(m_lepDensAxisX, m_lepDensAxisY, getDensLabel());
   updateTitles(m_muAxisX, m_muAxisY, "Chem Pot [MeV] (abs)");
   updateTitles(m_lepAxisX, m_lepAxisY, "Chem Pot [MeV] (abs)");
-  // Error plot flips opposite to others
+  // Error plot and Energy & Pressure plot flip opposite to others
   m_errAxisX->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : "Relative Error");
   m_errAxisY->setTitleText(m_tempIsVertical ? "Relative Error" : "Temperature [MeV]");
+
+  m_epAxisX->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : "Energy Density & Pressure [MeV⁴]");
+  m_epAxisY->setTitleText(m_tempIsVertical ? "Energy Density & Pressure [MeV⁴]" : "Temperature [MeV]");
+  m_epAxisX->setReverse(m_tempIsVertical);
+  m_epAxisY->setReverse(false);
 
   // Re-plot data by rebuilding series and keeping underlying memory
   clearCharts(true);
@@ -1318,6 +1415,11 @@ void MainWindow::replotData() {
       m_seriesMunue->append(V(m_seriesMunue, pt.munue, pt.nB), pt.T);
       m_seriesMunumu->append(V(m_seriesMunumu, pt.munumu, pt.nB), pt.T);
       m_seriesMnutau->append(V(m_seriesMnutau, pt.mnutau, pt.nB), pt.T);
+      // Energy & Pressure: Temp on horizontal X axis (decreasing going to right)
+      m_seriesEtot->append(pt.T, V(m_seriesEtot, pt.e_tot, pt.nB));
+      m_seriesEqcd->append(pt.T, V(m_seriesEqcd, pt.e_QCD, pt.nB));
+      m_seriesPtot->append(pt.T, V(m_seriesPtot, pt.p_tot, pt.nB));
+      m_seriesPqcd->append(pt.T, V(m_seriesPqcd, pt.p_QCD, pt.nB));
       // Errors: Temp on X
       m_seriesErrB->append(pt.T, V(m_seriesErrB, pt.err_b, pt.nB));
       m_seriesErrQ->append(pt.T, V(m_seriesErrQ, pt.err_charge, pt.nB));
@@ -1339,6 +1441,11 @@ void MainWindow::replotData() {
       m_seriesMunue->append(pt.T, V(m_seriesMunue, pt.munue, pt.nB));
       m_seriesMunumu->append(pt.T, V(m_seriesMunumu, pt.munumu, pt.nB));
       m_seriesMnutau->append(pt.T, V(m_seriesMnutau, pt.mnutau, pt.nB));
+      // Energy & Pressure: Flipped
+      m_seriesEtot->append(V(m_seriesEtot, pt.e_tot, pt.nB), pt.T);
+      m_seriesEqcd->append(V(m_seriesEqcd, pt.e_QCD, pt.nB), pt.T);
+      m_seriesPtot->append(V(m_seriesPtot, pt.p_tot, pt.nB), pt.T);
+      m_seriesPqcd->append(V(m_seriesPqcd, pt.p_QCD, pt.nB), pt.T);
       // Errors: Flipped
       m_seriesErrB->append(V(m_seriesErrB, pt.err_b, pt.nB), pt.T);
       m_seriesErrQ->append(V(m_seriesErrQ, pt.err_charge, pt.nB), pt.T);
@@ -1387,6 +1494,33 @@ void MainWindow::onScaleToggleClicked() {
     swapAxes(m_leptonChartView,  m_lepAxisX,  m_lepAxisY,  "Chem Pot [MeV] (abs)");
     swapAxes(m_leptonDensChartView, m_lepDensAxisX, m_lepDensAxisY, getDensLabel());
     
+    // Switch for Energy & Pressure plot
+    {
+        QChart *chart = m_energyPressureChartView->chart();
+        chart->removeAxis(m_epAxisX);
+        chart->removeAxis(m_epAxisY);
+        delete m_epAxisX;
+        delete m_epAxisY;
+
+        if (m_isLogScale) {
+            m_epAxisX = new QLogValueAxis();
+            static_cast<QLogValueAxis*>(m_epAxisX)->setBase(10.0);
+            m_epAxisY = new QLogValueAxis();
+            static_cast<QLogValueAxis*>(m_epAxisY)->setBase(10.0);
+        } else {
+            m_epAxisX = new QValueAxis();
+            m_epAxisY = new QValueAxis();
+        }
+
+        m_epAxisX->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : "Energy Density & Pressure [MeV⁴]");
+        m_epAxisX->setReverse(m_tempIsVertical);
+        chart->addAxis(m_epAxisX, Qt::AlignBottom);
+
+        m_epAxisY->setTitleText(m_tempIsVertical ? "Energy Density & Pressure [MeV⁴]" : "Temperature [MeV]");
+        m_epAxisY->setReverse(false);
+        chart->addAxis(m_epAxisY, Qt::AlignLeft);
+    }
+
     // Switch for Error plot
     {
         QChart *chart = m_errorChartView->chart();
@@ -1414,9 +1548,9 @@ void MainWindow::onScaleToggleClicked() {
     m_seriesnB->attachAxis(m_densAxisX); m_seriesnB->attachAxis(m_densAxisY);
     m_seriesS->attachAxis(m_densAxisX);  m_seriesS->attachAxis(m_densAxisY);
     m_seriesnQ->attachAxis(m_densAxisX); m_seriesnQ->attachAxis(m_densAxisY);
-    m_seriesNnue->attachAxis(m_densAxisX);   m_seriesNnue->attachAxis(m_densAxisY);
-    m_seriesNnumu->attachAxis(m_densAxisX);  m_seriesNnumu->attachAxis(m_densAxisY);
-    m_seriesNnutau->attachAxis(m_densAxisX); m_seriesNnutau->attachAxis(m_densAxisY);
+    m_seriesNnue->attachAxis(m_lepDensAxisX);   m_seriesNnue->attachAxis(m_lepDensAxisY);
+    m_seriesNnumu->attachAxis(m_lepDensAxisX);  m_seriesNnumu->attachAxis(m_lepDensAxisY);
+    m_seriesNnutau->attachAxis(m_lepDensAxisX); m_seriesNnutau->attachAxis(m_lepDensAxisY);
 
     m_seriesMuB->attachAxis(m_muAxisX);  m_seriesMuB->attachAxis(m_muAxisY);
     m_seriesMuQ->attachAxis(m_muAxisX);  m_seriesMuQ->attachAxis(m_muAxisY);
@@ -1432,6 +1566,11 @@ void MainWindow::onScaleToggleClicked() {
     m_seriesErrLe->attachAxis(m_errAxisX);   m_seriesErrLe->attachAxis(m_errAxisY);
     m_seriesErrLmu->attachAxis(m_errAxisX);  m_seriesErrLmu->attachAxis(m_errAxisY);
     m_seriesErrLtau->attachAxis(m_errAxisX); m_seriesErrLtau->attachAxis(m_errAxisY);
+
+    m_seriesEtot->attachAxis(m_epAxisX); m_seriesEtot->attachAxis(m_epAxisY);
+    m_seriesEqcd->attachAxis(m_epAxisX); m_seriesEqcd->attachAxis(m_epAxisY);
+    m_seriesPtot->attachAxis(m_epAxisX); m_seriesPtot->attachAxis(m_epAxisY);
+    m_seriesPqcd->attachAxis(m_epAxisX); m_seriesPqcd->attachAxis(m_epAxisY);
 
     updateAxesTypes();
 
@@ -1451,6 +1590,8 @@ void MainWindow::onScaleToggleClicked() {
     syncAbsEnabled(m_absMunue); syncAbsEnabled(m_absMunumu); syncAbsEnabled(m_absMnutau);
     syncAbsEnabled(m_absErrB); syncAbsEnabled(m_absErrQ);
     syncAbsEnabled(m_absErrLe); syncAbsEnabled(m_absErrLmu); syncAbsEnabled(m_absErrLtau);
+    syncAbsEnabled(m_absEtot); syncAbsEnabled(m_absEqcd);
+    syncAbsEnabled(m_absPtot); syncAbsEnabled(m_absPqcd);
 
     updateCriticalPoint();
     applyAxisFonts();
@@ -1467,6 +1608,8 @@ void MainWindow::updateAxesTypes() {
     setFmt(m_densAxisX); setFmt(m_densAxisY);
     setFmt(m_muAxisX);   setFmt(m_muAxisY);
     setFmt(m_lepAxisX);  setFmt(m_lepAxisY);
+    setFmt(m_lepDensAxisX); setFmt(m_lepDensAxisY);
+    setFmt(m_epAxisX);   setFmt(m_epAxisY);
     setFmt(m_errAxisX);  setFmt(m_errAxisY);
 }
 
@@ -1490,12 +1633,7 @@ void MainWindow::onExportClicked() {
     QString fileName = QFileDialog::getSaveFileName(this, "Save PDF", QDir::currentPath(), "PDF Files (*.pdf)");
     if (fileName.isEmpty()) return;
 
-    QChartView *activeView = nullptr;
-    if (currentTab == 0) activeView = m_densityChartView;
-    else if (currentTab == 1) activeView = m_muChartView;
-    else if (currentTab == 2) activeView = m_leptonChartView;
-    else if (currentTab == 3) activeView = m_errorChartView;
-
+    QChartView *activeView = qobject_cast<QChartView*>(m_chartTabs->currentWidget());
     if (!activeView) return;
 
     QPdfWriter writer(fileName);
@@ -1520,16 +1658,23 @@ void MainWindow::onExportClicked() {
     }
     
     QTextStream out(&file);
-    if (currentTab == 0) {
-      out << "T\tnB\ts\t|nQ|\tnnue\tnnumu\tnnutau\n";
-      for (const auto &pt : m_trajectoryData) out << pt.T << "\t" << pt.nB << "\t" << pt.s << "\t" << pt.nQ << "\t" << pt.nnue << "\t" << pt.nnumu << "\t" << pt.nnutau << "\n";
-    } else if (currentTab == 1) {
-      out << "T\t|muB|\t|muQ|\n";
+    QWidget *w = m_chartTabs->currentWidget();
+    if (w == m_densityChartView) {
+      out << "T\tnB\ts\tnQ\n";
+      for (const auto &pt : m_trajectoryData) out << pt.T << "\t" << pt.nB << "\t" << pt.s << "\t" << pt.nQ << "\n";
+    } else if (w == m_leptonDensChartView) {
+      out << "T\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\n";
+      for (const auto &pt : m_trajectoryData) out << pt.T << "\t" << pt.ne << "\t" << pt.nmu << "\t" << pt.ntau << "\t" << pt.nnue << "\t" << pt.nnumu << "\t" << pt.nnutau << "\n";
+    } else if (w == m_energyPressureChartView) {
+      out << "T\te_tot\te_QCD\tp_tot\tp_QCD\n";
+      for (const auto &pt : m_trajectoryData) out << pt.T << "\t" << pt.e_tot << "\t" << pt.e_QCD << "\t" << pt.p_tot << "\t" << pt.p_QCD << "\n";
+    } else if (w == m_muChartView) {
+      out << "T\tmuB\tmuQ\n";
       for (const auto &pt : m_trajectoryData) out << pt.T << "\t" << pt.muB << "\t" << pt.muQ << "\n";
-    } else if (currentTab == 2) {
-      out << "T\t|munue|\t|munumu|\t|mnutau|\n";
+    } else if (w == m_leptonChartView) {
+      out << "T\tmunue\tmunumu\tmnutau\n";
       for (const auto &pt : m_trajectoryData) out << pt.T << "\t" << pt.munue << "\t" << pt.munumu << "\t" << pt.mnutau << "\n";
-    } else if (currentTab == 3) {
+    } else if (w == m_errorChartView) {
       out << "T\terr_b\terr_charge\terr_le\terr_lmu\terr_ltau\n";
       for (const auto &pt : m_trajectoryData) out << pt.T << "\t" << pt.err_b << "\t" << pt.err_charge << "\t" << pt.err_le << "\t" << pt.err_lmu << "\t" << pt.err_ltau << "\n";
     }
@@ -1868,6 +2013,7 @@ void MainWindow::refreshSeriesNames() {
 
 void MainWindow::refreshLegendVisibility() {
   TooltipChartView *views[] = {m_densityChartView, m_leptonDensChartView,
+                                m_energyPressureChartView,
                                 m_muChartView, m_leptonChartView, m_errorChartView};
   for (auto *v : views) {
     if (v && v->chart()) v->chart()->legend()->setVisible(m_legendVisible);
@@ -1993,6 +2139,7 @@ void MainWindow::applyAxisFonts() {
         m_muAxisX, m_muAxisY,
         m_lepAxisX, m_lepAxisY,
         m_lepDensAxisX, m_lepDensAxisY,
+        m_epAxisX, m_epAxisY,
         m_errAxisX, m_errAxisY
     };
     for (auto* ax : axes) {
