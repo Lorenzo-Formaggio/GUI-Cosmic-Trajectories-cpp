@@ -23,6 +23,7 @@ const double P_BOSE_MN[4][5] = {
     {8.51373, 35.6576, 57.7975, 42.4049, 11.8321},
     {3.47433, 15.1995, 25.6536, 19.3811, 5.54423}};
 
+
 std::vector<double> PSI_JEL_TABLE;
 std::vector<double> F_JEL_TABLE;
 std::vector<double> PSI_BOSE_JEL_TABLE;
