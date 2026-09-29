@@ -104,6 +104,10 @@ public:
     double minDnB = 1e-3;   /**< fm^-3, density jump that must survive it */
     double window = 25.0;   /**< MeV, half-width of the warm-started search */
     double eps = 1e-4;      /**< MeV, offset at which the two phases are read off */
+    /** MeV, criticalTemperatureBound() of an earlier layer over the same
+     *  model; NaN (default) runs the scan. Lets the caller skip the scan,
+     *  which takes seconds, when it rebuilds the layer. */
+    double tcBound = std::numeric_limits<double>::quiet_NaN();
   };
 
   /* Two overloads rather than a defaulted argument: `Options()` cannot be used

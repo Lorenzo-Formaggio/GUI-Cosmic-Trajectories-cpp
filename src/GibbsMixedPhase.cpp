@@ -43,6 +43,11 @@ bool MixedPhaseEoS::bareState(double T, double muB, double muQ, State &st) const
 double MixedPhaseEoS::tcMaxLocked() const {
   if (haveTcMax_)
     return tcMax_;
+  if (std::isfinite(opts_.tcBound)) {
+    tcMax_ = opts_.tcBound;
+    haveTcMax_ = true;
+    return tcMax_;
+  }
   const double muQs[] = {-100.0, -50.0, -20.0, 0.0, 20.0, 50.0, 100.0};
   tcMax_ = model_.Tlow; /* no first-order region inside the domain */
   for (double T = 130.0; T >= model_.Tlow; T -= 1.0) {

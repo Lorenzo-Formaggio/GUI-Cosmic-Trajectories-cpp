@@ -47,7 +47,9 @@
 #include <QtDataVisualization/QAbstract3DGraph>
 #include <QSlider>
 #include <QFile>
+#include <QSet>
 #include <QMouseEvent>
+#include <cmath>
 #include "TooltipChartView.h"
 
 // ── Custom Input Handler for 3D Plot ──────────────────────────────────────
@@ -2049,6 +2051,15 @@ void MainWindow::loadFirstOrderSurface() {
         QString("Could not open %1").arg(path));
     return;
   }
+  // Q3DScatter issues one draw call per sphere, so the frame time grows with
+  // the number of points, and the view redraws on every trajectory point and
+  // every mouse move. The eos 4/6 file has 124k points (~110 ms per redraw).
+  // Draw one point per cell of 0.5 MeV in T by 2 MeV in muQ instead: at this
+  // item size it looks the same, with ~16k points (~18 ms). The surfaces are
+  // single-valued in muB at fixed (T, muQ), so this drops no branch.
+  constexpr double kCellT = 0.5, kCellQ = 2.0;
+  QSet<QPair<qint64, qint64>> cells;
+  int nRead = 0;
   QTextStream in(&f);
   QScatterDataArray *arr = new QScatterDataArray;
   arr->reserve(20000);
@@ -2063,17 +2074,24 @@ void MainWindow::loadFirstOrderSurface() {
     const double muB = toks[1].toDouble(&okB);
     const double muQ = toks[3].toDouble(&okQ);
     if (!okT || !okB || !okQ) continue;
+    ++nRead;
+    const QPair<qint64, qint64> cell(static_cast<qint64>(std::floor(T / kCellT + 1e-6)),
+                                     static_cast<qint64>(std::floor(muQ / kCellQ + 1e-6)));
+    if (cells.contains(cell)) continue;
+    cells.insert(cell);
     arr->append(QScatterDataItem(QVector3D(static_cast<float>(muB),
                                             static_cast<float>(T),
                                             static_cast<float>(muQ))));
   }
   f.close();
+  const int nDrawn = static_cast<int>(arr->size());
   m_surface3D->dataProxy()->resetArray(arr);
   m_surfaceLoaded = true;
   m_surfaceLoadedEos = eos;
   applySurfaceColor();
-  onLogMessage(QString("Loaded first-order surface (%1): %2 points.")
-                   .arg(fileName).arg(arr->size()));
+  onLogMessage(QString("Loaded first-order surface (%1): %2 points, %3 drawn "
+                       "(one per %4 MeV in T by %5 MeV in muQ).")
+                   .arg(fileName).arg(nRead).arg(nDrawn).arg(kCellT).arg(kCellQ));
 }
 
 void MainWindow::applySurfaceColor() {

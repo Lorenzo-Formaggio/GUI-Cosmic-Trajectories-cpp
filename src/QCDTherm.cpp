@@ -7,7 +7,9 @@
 #include <atomic>
 #include <cmath>
 #include <limits>
+#include <map>
 #include <memory>
+#include <string>
 namespace QCD {
 
 // Current EoS selection (0 = free QGP, 1 = lattice QCD,
@@ -38,6 +40,12 @@ static EntropyContoursParam::CrossMode crossModeOf(int eos) {
 
 // The Gibbs layer over the selected lattice model (eos 5: tabulated, 6 and 7: param).
 static std::unique_ptr<GibbsPhase::MixedPhaseEoS> s_gibbs;
+
+// Top of the first-order region of each Gibbs EoS, keyed by (eos, dataPath),
+// which fix the model. Finding it is a scan of 5-7 s, and the Gibbs layer is
+// rebuilt for every run (every row of a run-from-file batch too), so it is
+// found once per session and handed to each new layer.
+static std::map<std::pair<int, std::string>, double> s_tcBound;
 
 // ── Contour caches (EoS 3/5 and 4/6) ─────────────────────────────────────
 // evalContour(muB, muQ) iterates over N_T0 = 1000 grid points. During a
@@ -112,8 +120,8 @@ static void resetContourCaches() {
   s_cacheGeneration.fetch_add(1, std::memory_order_acq_rel);
 }
 
-// Build the Gibbs layer over the lattice model that backs eos 5 or 6.
-static void makeGibbs(int eos) {
+// Build the Gibbs layer over the lattice model that backs eos 5, 6 or 7.
+static void makeGibbs(int eos, const std::string &dataPath) {
   GibbsPhase::Model m;
   if (eos == 5) {
     m.build = [](double muB, double muQ, double muS, bool useHRG) {
@@ -146,7 +154,13 @@ static void makeGibbs(int eos) {
     };
     m.Tlow = EntropyContoursParam::referenceTemperature();
   }
-  s_gibbs.reset(new GibbsPhase::MixedPhaseEoS(m));
+  GibbsPhase::MixedPhaseEoS::Options opts;
+  const auto key = std::make_pair(eos, dataPath);
+  const auto known = s_tcBound.find(key);
+  if (known != s_tcBound.end())
+    opts.tcBound = known->second;
+  s_gibbs.reset(new GibbsPhase::MixedPhaseEoS(m, opts));
+  s_tcBound[key] = s_gibbs->criticalTemperatureBound(); /* scans on first use only */
 }
 
 void setEoS(int eos, const std::string &dataPath, int nf, int interpType) {
@@ -174,7 +188,7 @@ void setEoS(int eos, const std::string &dataPath, int nf, int interpType) {
     EntropyContoursParam::initialize(dataPath + "/EntroContourEoS/chis", dataPath + "/EntroContourEoS/HRG/list-PDG2020.dat", 1.0, 3.42, true);
   }
   if (gibbsContour(eos))
-    makeGibbs(eos);
+    makeGibbs(eos, dataPath);
   else
     s_gibbs.reset();
 }
