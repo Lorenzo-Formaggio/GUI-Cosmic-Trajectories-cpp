@@ -23,8 +23,9 @@ static int currentEoS = 0;
 // The Entropy Contour family: two lattice inputs, each either homogeneous
 // (3, 4: one phase at a time, the Maxwell picture) or with the Gibbs mixed
 // phase in the first-order region (5, 6, 7; see GibbsMixedPhase.hpp). 4 and 6
-// derive chi11BS and chi11BQ from the isospin relations (the paper's
-// production setup); 7 takes all six cross-susceptibility fits as they are.
+// derive chi2S and chi11BQ from the isospin relations (s_contours_c's
+// isospin_derived_chi2s convention); 7 takes all six susceptibility fits as
+// they are.
 static bool tabulatedContour(int eos) { return eos == 3; }
 static bool parametrizedContour(int eos) { return eos == 4; }
 static bool gibbsContour(int eos) { return eos == 5 || eos == 6 || eos == 7; }
@@ -32,7 +33,7 @@ static bool usesTabulated(int eos) { return eos == 3 || eos == 5; }
 static bool usesParam(int eos) { return eos == 4 || eos == 6 || eos == 7; }
 static EntropyContoursParam::CrossMode crossModeOf(int eos) {
   return eos == 7 ? EntropyContoursParam::CrossMode::Fitted
-                  : EntropyContoursParam::CrossMode::IsospinDerived;
+                  : EntropyContoursParam::CrossMode::IsospinDerivedChi2S;
 }
 
 // The Gibbs layer over the selected lattice model (eos 5: tabulated, 6 and 7: param).
@@ -162,7 +163,7 @@ void setEoS(int eos, const std::string &dataPath, int nf, int interpType) {
   } else if (usesTabulated(eos)) {
     EntropyContours::initialize(dataPath + "/EntroContourEoS/chis", dataPath + "/EntroContourEoS/HRG/list-PDG2020.dat", 1.0, 3.42, true);
   } else if (usesParam(eos)) {
-    // The parametrized model holds one cross-susceptibility scheme at a time
+    // The parametrized model holds one susceptibility scheme at a time
     // (it enters the precomputed lattice tables), so switching between the
     // isospin-derived scheme (4, 6) and the all-fitted one (7) re-initializes
     // it. Cheap: closed forms, no files; the QvdW-HRG state is kept.

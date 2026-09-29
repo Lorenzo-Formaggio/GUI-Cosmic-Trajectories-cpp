@@ -110,21 +110,35 @@ public:
     for (int o = 0; o < 3; ++o) {
       c2B[o] = kChi2B.d(T, o);
       c2Q[o] = kChi2Q.d(T, o);
-      c2S[o] = kChi2S.d(T, o);
-      cQS[o] = kChi11QSfit.d(T, o); /* the fitted input in both modes */
+      cQS[o] = kChi11QSfit.d(T, o); /* the fitted input in every mode */
     }
-    if (mode_ == CrossMode::Fitted) {
+    switch (mode_) {
+    case CrossMode::Fitted:
       for (int o = 0; o < 3; ++o) {
+        c2S[o] = kChi2S.d(T, o);
         cBS[o] = kChi11BSfit.d(T, o);
         cBQ[o] = kChi11BQfit.d(T, o);
       }
-    } else {
+      break;
+    case CrossMode::IsospinDerivedChi11BS:
       /* isospin relations [Eqs. (17)-(18)]:
        *   chi11BS = 2 chi11QS - chi2S,  chi11BQ = (chi2B + chi11BS)/2 */
       for (int o = 0; o < 3; ++o) {
+        c2S[o] = kChi2S.d(T, o);
         cBS[o] = 2.0 * cQS[o] - c2S[o];
         cBQ[o] = 0.5 * (c2B[o] + cBS[o]);
       }
+      break;
+    case CrossMode::IsospinDerivedChi2S:
+      /* the same relations solved for chi2S instead (s_contours_c,
+       * isospin_derived_chi2s, src/Parameterization.c):
+       *   chi2S = 2 chi11QS - chi11BS,  chi11BQ = (chi2B + chi11BS)/2 */
+      for (int o = 0; o < 3; ++o) {
+        cBS[o] = kChi11BSfit.d(T, o);
+        c2S[o] = 2.0 * cQS[o] - cBS[o];
+        cBQ[o] = 0.5 * (c2B[o] + cBS[o]);
+      }
+      break;
     }
     for (int o = 0; o < 3; ++o) {
       L.chi[0][o] = c2B[o];
@@ -154,7 +168,7 @@ private:
 
 bool g_initialized = false;
 bool g_useHRG = true;
-CrossMode g_crossMode = CrossMode::IsospinDerived;
+CrossMode g_crossMode = CrossMode::IsospinDerivedChi2S;
 std::unique_ptr<FittedLattice> g_lattice;
 std::unique_ptr<ContourEoS::Engine> g_engine;
 
@@ -200,6 +214,18 @@ bool lookup(double T, const ContourValues &c, ContourEoS::AnchorResult &r) {
 // ============================================================================
 void setCrossMode(CrossMode mode) { g_crossMode = mode; }
 CrossMode crossMode() { return g_crossMode; }
+
+const char *crossModeName(CrossMode mode) {
+  switch (mode) {
+  case CrossMode::Fitted:
+    return "fitted (6 independent)";
+  case CrossMode::IsospinDerivedChi11BS:
+    return "isospin-derived chi11BS, chi11BQ";
+  case CrossMode::IsospinDerivedChi2S:
+    return "isospin-derived chi2S, chi11BQ";
+  }
+  return "unknown";
+}
 
 double referenceTemperature() {
   return g_engine ? g_engine->options().Tlow : engineOptions().Tlow;

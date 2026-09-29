@@ -15,7 +15,10 @@
  * distinguishes the two models. Here it is the closed-form Wuppertal-Budapest
  * fits of `scontours::LatticeInput` with the symbolically generated exact
  * T-derivatives, so the model reproduces s_contours_c-dev4-tristan's
- * `scontours::EquationOfState` numerically.
+ * `scontours::EquationOfState` numerically when run in that reference's
+ * susceptibility scheme (CrossMode::IsospinDerivedChi11BS). The default scheme
+ * is now s_contours_c's isospin_derived_chi2s (same fits, chi2S derived from
+ * chi11BS instead of the reverse); see CrossMode.
  *
  * VALIDITY: those parametrizations are fits to the crossover region and are
  * good up to about 200 MeV. Above that they are outside their fitted range --
@@ -45,13 +48,24 @@
 namespace EntropyContoursParam {
 
 /**
- * @brief Cross-susceptibility scheme for the lattice input.
+ * @brief Susceptibility scheme for the lattice input.
  *
- * Mirrors `scontours::LatticeInput::CrossMode`. IsospinDerived is the default
- * (the 4D paper's production setup): only chi2B, chi2Q, chi2S and chi11QS are
- * fitted, and chi11BS = 2 chi11QS - chi2S, chi11BQ = (chi2B + chi11BS)/2.
+ * Which of the six second-order susceptibilities are taken from their fits and
+ * which follow from the isospin relations (exact for isospin-symmetric quark
+ * susceptibilities):
+ *   - IsospinDerivedChi2S (default, s_contours_c branch isospin_derived_chi2s,
+ *     src/Parameterization.c): chi2B, chi2Q, chi11BS and chi11QS are fitted;
+ *     chi2S = 2 chi11QS - chi11BS and chi11BQ = (chi2B + chi11BS)/2.
+ *   - IsospinDerivedChi11BS (the previous default, s_contours_c-dev4-tristan's
+ *     `scontours::LatticeInput::CrossMode::IsospinDerived`): chi2B, chi2Q,
+ *     chi2S and chi11QS are fitted; chi11BS = 2 chi11QS - chi2S and
+ *     chi11BQ = (chi2B + chi11BS)/2.
+ *   - Fitted: all six fits, no isospin relations (eos 7).
  */
-enum class CrossMode { Fitted, IsospinDerived };
+enum class CrossMode { Fitted, IsospinDerivedChi11BS, IsospinDerivedChi2S };
+
+/** Short human-readable name of @p mode, for logs and file headers. */
+const char *crossModeName(CrossMode mode);
 
 /** Thermodynamics at one resolved contour anchor; see ContourEoSCore.hpp. */
 using AnchorResult = ContourEoS::AnchorResult;
@@ -95,9 +109,8 @@ void cleanup();
 /** True iff initialize() has been called and not yet cleaned up. */
 bool isInitialized();
 
-/** Select the cross-susceptibility scheme (default: IsospinDerived, matching
- *  the reference). Must be called before initialize(); it changes the
- *  precomputed lattice tables. */
+/** Select the susceptibility scheme (default: IsospinDerivedChi2S). Must be
+ *  called before initialize(); it changes the precomputed lattice tables. */
 void setCrossMode(CrossMode mode);
 CrossMode crossMode();
 

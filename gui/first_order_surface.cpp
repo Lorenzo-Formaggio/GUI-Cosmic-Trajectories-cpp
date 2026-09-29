@@ -23,7 +23,11 @@
  * Usage:
  *   first_order_surface [Tmin Tmax dT] [dmuQ] [-o FILE] [--jobs N]
  *                       [--muB-min X] [--muB-max X] [--muQ-max X]
- *                       [--fitted] [--diag FILE]
+ *                       [--fitted | --derive-chi11bs] [--diag FILE]
+ *
+ * --fitted takes all six susceptibility fits (eos 7); --derive-chi11bs the
+ * previous scheme (fitted chi2S, chi11BS and chi11BQ derived). The default is
+ * the scheme of eos 4/6: chi2S and chi11BQ derived from fitted chi11BS.
  *
  * --diag writes one row per point with the phase densities and the relative
  * pressure mismatch |P_dense - P_dilute|/P (a check that the switch really is
@@ -200,6 +204,7 @@ int main(int argc, char **argv) {
   Settings st;
   std::string outPath, diagPath;
   bool fitted = false;
+  bool deriveChi11BS = false;
   double pos[4];
   int npos = 0;
   for (int i = 1; i < argc; ++i) {
@@ -217,6 +222,8 @@ int main(int argc, char **argv) {
       st.muQmax = std::atof(argv[++i]);
     else if (!std::strcmp(argv[i], "--fitted"))
       fitted = true;
+    else if (!std::strcmp(argv[i], "--derive-chi11bs"))
+      deriveChi11BS = true;
     else if (npos < 4)
       pos[npos++] = std::atof(argv[i]);
     else {
@@ -241,8 +248,14 @@ int main(int argc, char **argv) {
   if (st.jobs <= 0)
     st.jobs = std::max(1u, std::thread::hardware_concurrency());
 
+  if (fitted && deriveChi11BS) {
+    std::fprintf(stderr, "--fitted and --derive-chi11bs are exclusive\n");
+    return 1;
+  }
   if (fitted)
     ECP::setCrossMode(ECP::CrossMode::Fitted);
+  else if (deriveChi11BS)
+    ECP::setCrossMode(ECP::CrossMode::IsospinDerivedChi11BS);
   /* HRG seam off: the Maxwell location and the density jump do not depend on
    * it (see the header), and without it no Thermal-FIST solve is needed. */
   ECP::initialize("", "", 1.0, 3.42, /*useHRG=*/false);
@@ -297,7 +310,7 @@ int main(int argc, char **argv) {
                   "to %g MeV by bisection of the equal-pressure branch switch "
                   "(HRG seam off: it cancels); cross mode: %s\n",
                st.Tmin, st.Tmax, st.dT, st.dmuQ, st.tol,
-               fitted ? "fitted (6 independent)" : "isospin-derived");
+               ECP::crossModeName(ECP::crossMode()));
   std::fprintf(f, "# columns: T [MeV], mu_B [MeV], mu_S [MeV], mu_Q [MeV], "
                   "dnB = n_B(dense) - n_B(dilute) [fm^-3]; %zu points, max "
                   "|P_dense - P_dilute|/P = %.1e\n",

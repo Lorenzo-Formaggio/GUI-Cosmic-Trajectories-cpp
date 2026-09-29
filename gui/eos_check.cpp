@@ -4,17 +4,21 @@
  *
  * Usage:
  *   eos_check [muB] [muQ] [muS] [Tmin Tmax dT] [--no-hrg] [--tabulated]
- *             [--fitted] [--data <path>]
+ *             [--fitted | --derive-chi11bs] [--data <path>]
  *
- *   --no-hrg     bare contour boundary (no QvdW-HRG seam)
- *   --tabulated  tabulated lattice input (EntrCont, eos 3/5) instead of the
- *                closed-form fits (EntrContParam, eos 4/6)
- *   --fitted     all six cross-susceptibility fits (EntrContParam only)
+ *   --no-hrg          bare contour boundary (no QvdW-HRG seam)
+ *   --tabulated       tabulated lattice input (EntrCont, eos 3/5) instead of
+ *                     the closed-form fits (EntrContParam, eos 4/6)
+ *   --fitted          all six susceptibility fits (EntrContParam only, eos 7)
+ *   --derive-chi11bs  the previous scheme, fitted chi2S with chi11BS and
+ *                     chi11BQ derived (EntrContParam only); the default derives
+ *                     chi2S and chi11BQ from fitted chi11BS
  *
  * Prints the same observables as `eos_line`, in the same units, along a line of
- * fixed chemical potentials:
+ * fixed chemical potentials. `eos_line` uses the previous susceptibility
+ * scheme, so compare the closed-form fits with --derive-chi11bs:
  *
- *   ./eos_check 300 30 0 90 200 10
+ *   ./eos_check 300 30 0 90 200 10 --derive-chi11bs
  *
  * is directly comparable to (mu = |(300, 30, 0)| = 301.4963,
  * theta = acos(300/mu) = 5.71059 deg, phi = 0):
@@ -38,6 +42,7 @@ int main(int argc, char **argv) {
   bool useHRG = true;
   bool tabulated = false;
   bool fitted = false;
+  bool deriveChi11BS = false;
   std::string dataPath = ".";
 
   double pos[6];
@@ -49,6 +54,8 @@ int main(int argc, char **argv) {
       tabulated = true;
     } else if (!std::strcmp(argv[i], "--fitted")) {
       fitted = true;
+    } else if (!std::strcmp(argv[i], "--derive-chi11bs")) {
+      deriveChi11BS = true;
     } else if (!std::strcmp(argv[i], "--data") && i + 1 < argc) {
       dataPath = argv[++i];
     } else if (npos < 6) {
@@ -64,8 +71,15 @@ int main(int argc, char **argv) {
     dT = pos[5];
   }
 
+  if (fitted && deriveChi11BS) {
+    std::fprintf(stderr, "--fitted and --derive-chi11bs are exclusive\n");
+    return 1;
+  }
   if (fitted)
     EntropyContoursParam::setCrossMode(EntropyContoursParam::CrossMode::Fitted);
+  else if (deriveChi11BS)
+    EntropyContoursParam::setCrossMode(
+        EntropyContoursParam::CrossMode::IsospinDerivedChi11BS);
 
   const std::string chisDir = dataPath + "/EntroContourEoS/chis";
   const std::string listPath = dataPath + "/EntroContourEoS/HRG/list-PDG2020.dat";
@@ -87,10 +101,8 @@ int main(int argc, char **argv) {
                         : "closed-form fits (EntrContParam, eos 4/6)");
   if (!tabulated)
     std::printf("# cross mode: %s\n",
-                EntropyContoursParam::crossMode() ==
-                        EntropyContoursParam::CrossMode::Fitted
-                    ? "fitted (6 independent)"
-                    : "isospin-derived");
+                EntropyContoursParam::crossModeName(
+                    EntropyContoursParam::crossMode()));
   std::printf("# low-T boundary: %s (Tlow = %g MeV)\n",
               useHRG ? "QvdW-HRG (Thermal-FIST)" : "mu = 0 contour, p0(Tlow)",
               tabulated ? EntropyContours::referenceTemperature()

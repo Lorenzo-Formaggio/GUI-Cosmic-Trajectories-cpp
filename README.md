@@ -46,7 +46,7 @@ how the first-order region beyond the critical point is treated:
 | GUI selection | Source | mu = 0 lattice input | first-order region |
 | --- | --- | --- | --- |
 | **Entropy Contour** (`eos = 3`) | `src/EntrCont.cpp` | cubic splines through the tabulated Wuppertal-Budapest susceptibilities in `EntroContourEoS/chis/` and the entropy density in `entro_2013_hrg+extrap.spln` | one phase at a time (Maxwell) |
-| **Entropy Contour Param** (`eos = 4`) | `src/EntrContParam.cpp` | the reference's closed-form Wuppertal-Budapest fits, with symbolically generated exact T-derivatives; chi11BS and chi11BQ derived from the isospin relations; reproduces s_contours_c-dev4-tristan exactly | one phase at a time (Maxwell) |
+| **Entropy Contour Param** (`eos = 4`) | `src/EntrContParam.cpp` | the reference's closed-form Wuppertal-Budapest fits, with symbolically generated exact T-derivatives; chi2S and chi11BQ derived from the isospin relations, as in s_contours_c's `isospin_derived_chi2s` branch; in the previous scheme (`CrossMode::IsospinDerivedChi11BS`) reproduces s_contours_c-dev4-tristan exactly | one phase at a time (Maxwell) |
 | **Entropy Contour Gibbs** (`eos = 5`) | `src/EntrCont.cpp` + `src/GibbsMixedPhase.cpp` | as `eos = 3` | Gibbs mixed phase |
 | **Entropy Contour Param Gibbs** (`eos = 6`) | `src/EntrContParam.cpp` + `src/GibbsMixedPhase.cpp` | as `eos = 4` | Gibbs mixed phase |
 | **Entropy Contour Param-Legacy Gibbs** (`eos = 7`) | `src/EntrContParam.cpp` + `src/GibbsMixedPhase.cpp` | the same closed-form fits, but all six cross-susceptibility fits used as they are (no isospin relations), as in the pre-August code | Gibbs mixed phase |
@@ -57,14 +57,25 @@ treatment of the first-order region, and comparing 6 with 7 isolates the
 cross-susceptibility scheme. Outside the first-order region 5 and 6 are
 identical to 3 and 4.
 
-**Why `eos = 7` exists.** In 4 and 6, chi11BS = 2 chi11QS - chi2S and
-chi11BQ = (chi2B + chi11BS)/2 are derived from four fits, which is the paper's
-production setup. The relations are exact for isospin-symmetric quark
-susceptibilities, but chi2B was fitted to a different dataset from the other
-five, so the cancellation does not close: the derived chi11BQ keeps a residual
-of ~0.016 above 250 MeV where the tables (from which the other fits were made)
-give ~0.005, and it turns negative below ~95 MeV. Along a cosmic trajectory
-this shows up as "waves" in mu_Q(T) that the tabulated input does not have.
+**Why `eos = 7` exists.** In 4 and 6, chi2S = 2 chi11QS - chi11BS and
+chi11BQ = (chi2B + chi11BS)/2 are derived from four fits (chi2B, chi2Q,
+chi11BS, chi11QS), the convention of s_contours_c's `isospin_derived_chi2s`
+branch. The relations are exact for isospin-symmetric quark susceptibilities,
+but chi2B was fitted to a different dataset from the other five, so the
+cancellation in chi11BQ does not close. Between 130 and 200 MeV the derived
+chi11BQ is within ~10% of the tables (from which the other fits were made); it
+stays positive down to 80 MeV but is about twice the tables below 100 MeV, and
+above 200 MeV it grows where the tables decay (0.028 against 0.0045 at
+300 MeV). The previous scheme, which derived chi11BS = 2 chi11QS - chi2S from a
+fitted chi2S (`CrossMode::IsospinDerivedChi11BS`, as in
+s_contours_c-dev4-tristan), kept 0.016 at 300 MeV and turned negative below
+~95 MeV. Along a cosmic trajectory the residual shows up as "waves" in
+mu_Q(T) that the tabulated input does not have: at b = 0.03, mu_Q(T) has four
+extrema with `eos = 4` (205, 147, 119, 101 MeV; 231, 145, 124, 105 MeV in the
+previous scheme) and one with `eos = 3` (108 MeV), and mu_Q = -18.5 MeV at
+300 MeV against -4.1 with the tables (-10.4 in the previous scheme). Below
+200 MeV the two isospin schemes differ by at most 0.2% in mu_B and 3 MeV in
+mu_Q.
 `eos = 7` takes all six fits as they are instead (`CrossMode::Fitted`); its
 chi11BQ follows the tables to <1% up to 200 MeV but decays too fast above. Its
 first-order surface differs off the mu_B axis, so it has its own overlay file,
@@ -87,9 +98,9 @@ agree to a few per cent, and past it they part company as expected -- the
 | --- | --- | --- | --- | --- | --- |
 | s/T^3 rel. difference | 3.5% | 0.2% | 0.4% | 17% | 28% |
 
-So use `eos = 4` at and below ~200 MeV, where it reproduces
-s_contours_c-dev4-tristan exactly, and `eos = 3` above it -- which is where
-cosmic trajectories spend most of their range.
+So use `eos = 4` at and below ~200 MeV, where its fits are valid, and
+`eos = 3` above it -- which is where cosmic trajectories spend most of their
+range.
 
 The shared contour algebra is:
 
@@ -102,11 +113,12 @@ with s = s0(T0) exact along the contour, the pressure from the closed-form
 antiderivative plus a Gauss-Legendre p0, and the anchor T0 resolved by a
 safeguarded Newton solve rather than read off the grid. For `eos = 4` the
 lattice input is `include/LatticeDerivatives.hpp`, the reference's symbolically
-generated closed forms copied verbatim (no `chis/` files are read). Cross
-susceptibilities default to the isospin-derived
-scheme (chi11BS = 2 chi11QS - chi2S, chi11BQ = (chi2B + chi11BS)/2), matching
-the paper's production setup; `EntropyContoursParam::setCrossMode` selects the
-all-fitted scheme instead.
+generated closed forms copied verbatim (no `chis/` files are read). The
+susceptibilities default to the isospin-derived scheme of s_contours_c's
+`isospin_derived_chi2s` branch (chi2S = 2 chi11QS - chi11BS,
+chi11BQ = (chi2B + chi11BS)/2); `EntropyContoursParam::setCrossMode` selects
+the previous scheme (`IsospinDerivedChi11BS`) or the all-fitted one (`Fitted`)
+instead.
 
 ### QvdW-HRG low-temperature boundary
 
@@ -182,11 +194,12 @@ connected to its high-temperature start.
 `gui/eos_check.cpp` prints the same observables, in the same units and layout,
 as the reference's `eos_line`, so the two can be diffed column by column
 (`--tabulated` selects the `eos = 3/5` lattice input, `--no-hrg` the bare
-contour):
+contour, `--fitted` the `eos = 7` scheme). `eos_line` uses the previous
+susceptibility scheme, so compare with `--derive-chi11bs`:
 
 ```sh
 # this repository
-./build/eos_check 300 30 0 90 200 10
+./build/eos_check 300 30 0 90 200 10 --derive-chi11bs
 # s_contours_c-dev4-tristan  (mu = |(300,30,0)| = 301.4963 MeV,
 #                             theta = acos(300/mu), phi = 0)
 ./build/eos_line 300 90 200 10 --dir 5.710593 0 --qvdw
@@ -209,8 +222,12 @@ with it switched off. Regenerate (about a minute on 10 cores) with
 ```
 
 (positionals: Tmin Tmax dT dmuQ in MeV; `--diag FILE` also writes the phase
-densities and the pressure mismatch of every point). The muQ = 0 line agrees
-with s_contours_c-dev4's `coexistence` macro to better than 0.01 MeV in mu_B.
+densities and the pressure mismatch of every point). It uses the scheme of
+`eos = 4/6`; `--derive-chi11bs` selects the previous one and `--fitted` that of
+`eos = 7`. The muQ = 0 line agrees with s_contours_c-dev4's `coexistence` macro
+to better than 0.01 MeV in mu_B. At mu_S = 0 the scheme reaches the pressure
+only through chi11BQ, which drops out on the mu_B axis, so the muQ = 0 line
+is the same in every scheme.
 
 ## Prerequisites & Installation
 
@@ -239,18 +256,22 @@ The application requires:
 ### 🍏 macOS
 
 **1. Install Dependencies (via Homebrew)**
-Open your terminal and run the following command to install CMake, Qt6, and GSL:
+Install the Xcode Command Line Tools (`xcode-select --install`) if you have not
+already, then CMake, Qt6, and GSL:
 ```bash
-brew install cmake qt@6 gsl
+brew install cmake qt gsl
 ```
 
-**2. Configure Qt Path**
-By default, Homebrew doesn't add Qt6 to your system path to avoid conflicts. You will typically need to run the compilation script, which handles this automatically. If you want to build manually, ensure CMake can find Qt6 by updating your path:
-```bash
-export PATH="/opt/homebrew/opt/qt@6/bin:$PATH"
-export LDFLAGS="-L/opt/homebrew/opt/qt@6/lib"
-export CPPFLAGS="-I/opt/homebrew/opt/qt@6/include"
-```
+**2. Nothing to configure**
+No paths or environment variables need setting, on Apple Silicon or Intel.
+`gui/cmake/MacOS.cmake` finds Qt6 and GSL in Homebrew (`/opt/homebrew` or
+`/usr/local`), MacPorts (`/opt/local`) or the Qt online installer
+(`~/Qt/6.x.y/macos`); anything passed in `-DCMAKE_PREFIX_PATH` or `-DQt6_DIR`
+takes precedence. It also checks that the default macOS SDK links with the
+installed linker. After a partial update the SDK can be newer than the Command
+Line Tools (every link then fails with `tapi error: unknown architecture`); the
+build then falls back to the newest SDK that works and warns you to install the
+pending Command Line Tools update.
 
 ### 🐧 Linux (Ubuntu / Debian)
 
@@ -292,7 +313,7 @@ bash gui/build_and_run.sh
 *(If you get a permission denied error, run `chmod +x gui/build_and_run.sh` first).*
 
 > [!TIP]
-> This script automatically detects your QT path, builds the binary inside the `gui/build/` folder, and launches the application. It works whether run from the project root or from inside the `/gui` folder.
+> This script builds the binary inside the `gui/build/` folder and launches the application. It works from any directory. `NO_RUN=1` builds without launching, `BUILD_DIR=<dir>` builds elsewhere, and extra arguments are passed to CMake (e.g. `bash gui/build_and_run.sh -DCTG_WITH_THERMALFIST=OFF`). A `gui/build/` folder copied from another machine is detected and reconfigured automatically.
 
 **Manual Build Process** (Fallback):
 If you prefer not to use the script, you can build manually using standard CMake commands:

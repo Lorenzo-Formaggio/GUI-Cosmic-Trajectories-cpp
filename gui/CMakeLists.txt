@@ -1,4 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
+
+# macOS: pick an SDK the installed linker can use and find Homebrew / MacPorts /
+# Qt-installer dependencies. Must run before project() detects the compiler.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/MacOS.cmake)
+
 project(CosmicTrajectoryGUI LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -7,9 +12,11 @@ set(CMAKE_AUTOMOC ON)
 
 # ── Qt6 ──────────────────────────────────────────────────────────────────────
 find_package(Qt6 REQUIRED COMPONENTS Widgets Charts DataVisualization)
+message(STATUS "Qt ${Qt6_VERSION}: ${Qt6_DIR}")
 
 # ── GSL ──────────────────────────────────────────────────────────────────────
 find_package(GSL REQUIRED)
+message(STATUS "GSL ${GSL_VERSION}: ${GSL_INCLUDE_DIRS}")
 
 # ── Thermal-FIST (QvdW-HRG seam model of the entropy-contour EoS) ────────────
 # HRG.cpp is the quantum van der Waals HRG that supplies the low-temperature
