@@ -263,6 +263,38 @@ double BarDens(double muB, double muQ, double T, int nf) {
   return result;
 }
 
+double BarDensPlus(double muB, double muQ, double T, int nf) {
+  if (currentEoS == 0) {
+    double result = 1.0 / 3.0 *
+                    (jelf::nPart(muB / 3 + 2 * muQ / 3, T, mu, gq) +
+                     jelf::nPart(muB / 3 - muQ / 3, T, md, gq));
+    if (nf >= 3) {
+      result += 1.0 / 3.0 * jelf::nPart(muB / 3 - muQ / 3, T, ms, gq);
+    }
+    if (nf == 4) {
+      result += 1.0 / 3.0 * jelf::nPart(muB / 3 + 2 * muQ / 3, T, mc, gq);
+    }
+    return result;
+  }
+  return std::numeric_limits<double>::quiet_NaN();
+}
+
+double BarDensMinus(double muB, double muQ, double T, int nf) {
+  if (currentEoS == 0) {
+    double result = 1.0 / 3.0 *
+                    (jelf::nPart(-(muB / 3 + 2 * muQ / 3), T, mu, gq) +
+                     jelf::nPart(-(muB / 3 - muQ / 3), T, md, gq));
+    if (nf >= 3) {
+      result += 1.0 / 3.0 * jelf::nPart(-(muB / 3 - muQ / 3), T, ms, gq);
+    }
+    if (nf == 4) {
+      result += 1.0 / 3.0 * jelf::nPart(-(muB / 3 + 2 * muQ / 3), T, mc, gq);
+    }
+    return result;
+  }
+  return std::numeric_limits<double>::quiet_NaN();
+}
+
 double QCDcharge(double muB, double muQ, double T, int nf) {
   if (currentEoS == 1) {
     return LatticeQCD::QCDcharge(muB, muQ, T);

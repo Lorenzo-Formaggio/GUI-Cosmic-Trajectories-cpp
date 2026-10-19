@@ -1713,9 +1713,9 @@ void RunFromFileWidget::onExportFullData() {
     // Canonical Single-Run format. Trajectories from each (source, row) are
     // written sequentially, separated by a "# Source N, Row M ..." comment
     // line that carries the per-row run parameters.
-    out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnB\tnQ\ts_QCD\ts_tot"
+    out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnetnB\tnQ\ts_QCD\ts_tot"
            "\tp_QCD\tp_tot\te_QCD\te_tot"
-           "\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\n";
+           "\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\tnB\tanti_nB\n";
 
     for (int i = 0; i < m_sources.size(); ++i) {
       const RunSource &src = m_sources[i];
@@ -1735,6 +1735,7 @@ void RunFromFileWidget::onExportFullData() {
               << "\t" << pt.p_QCD << "\t" << pt.p_tot << "\t" << pt.e_QCD << "\t" << pt.e_tot
               << "\t" << pt.ne << "\t" << pt.nmu << "\t" << pt.ntau
               << "\t" << pt.nnue << "\t" << pt.nnumu << "\t" << pt.nnutau
+              << "\t" << pt.nB_plus << "\t" << pt.nB_minus
               << "\n";
         }
       }
@@ -1779,9 +1780,9 @@ void RunFromFileWidget::onExportFullData() {
         }
         QTextStream out(&file);
 
-        out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnB\tnQ\ts_QCD\ts_tot"
+        out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnetnB\tnQ\ts_QCD\ts_tot"
                "\tp_QCD\tp_tot\te_QCD\te_tot"
-               "\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\n";
+               "\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\tnB\tanti_nB\n";
                
         for (const auto &pt : pts) {
           out << pt.T << "\t" << pt.muB << "\t" << pt.muQ
@@ -1790,6 +1791,7 @@ void RunFromFileWidget::onExportFullData() {
               << "\t" << pt.p_QCD << "\t" << pt.p_tot << "\t" << pt.e_QCD << "\t" << pt.e_tot
               << "\t" << pt.ne << "\t" << pt.nmu << "\t" << pt.ntau
               << "\t" << pt.nnue << "\t" << pt.nnumu << "\t" << pt.nnutau
+              << "\t" << pt.nB_plus << "\t" << pt.nB_minus
               << "\n";
         }
         file.close();

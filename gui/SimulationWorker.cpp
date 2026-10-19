@@ -141,7 +141,7 @@ void SimulationWorker::run() {
               << ", le = " << le << ", lmu = " << lmu << ", ltau = " << ltau
               << std::endl;
       outfile << "T[MeV] muB[MeV] muQ[MeV] munue[MeV] munumu[MeV] mnutau[MeV] "
-                 "nB[MeV^3] nQ[MeV^3] s[MeV^3] p_QCD[MeV^4] p_tot[MeV^4] e_QCD[MeV^4] e_tot[MeV^4] "
+                 "nB[MeV^3] nB_baryon[MeV^3] nB_antibaryon[MeV^3] nQ[MeV^3] s[MeV^3] p_QCD[MeV^4] p_tot[MeV^4] e_QCD[MeV^4] e_tot[MeV^4] "
                  "nnue[MeV^3] nnumu[MeV^3] nnutau[MeV^3] lambda_dilute(eos5/6,nan=homogeneous)"
               << std::endl;
     }
@@ -324,7 +324,9 @@ void SimulationWorker::run() {
       double munumu_sol = solution[3];
       double mnutau_sol = solution[4];
 
-      double nB_val  = QCD::BarDens(muB_sol, muQ_sol, T, nf);
+      double nB_val        = QCD::BarDens(muB_sol, muQ_sol, T, nf);
+      double nB_plus_val   = QCD::BarDensPlus(muB_sol, muQ_sol, T, nf);
+      double nB_minus_val  = QCD::BarDensMinus(muB_sol, muQ_sol, T, nf);
       double nQ_val  = QCD::QCDcharge(muB_sol, muQ_sol, T, nf);
       double s_val   = GetEq::TotalS(muB_sol, muQ_sol, munue_sol, munumu_sol, mnutau_sol, T, nf);
       double sQCD    = QCD::sQCD(muB_sol, muQ_sol, T, nf);
@@ -359,26 +361,28 @@ void SimulationWorker::run() {
 
       // Emit the point to the GUI
       TrajectoryPoint pt;
-      pt.T      = T;
-      pt.muB    = muB_phys;
-      pt.muQ    = muQ_sol;
-      pt.munue  = munue_sol;
-      pt.munumu = munumu_sol;
-      pt.mnutau = mnutau_sol;
-      pt.nB     = nB_val;
-      pt.nQ     = nQ_val;
-      pt.s      = s_val;
-      pt.s_QCD  = sQCD;
-      pt.p_tot  = p_val;
-      pt.p_QCD  = pQCD;
-      pt.e_tot  = e_val;
-      pt.e_QCD  = eQCD;
-      pt.ne     = ne_val;
-      pt.nmu    = nmu_val;
-      pt.ntau   = ntau_val;
-      pt.nnue   = nnue_val;
-      pt.nnumu  = nnumu_val;
-      pt.nnutau = nnutau_val;
+      pt.T        = T;
+      pt.muB      = muB_phys;
+      pt.muQ      = muQ_sol;
+      pt.munue    = munue_sol;
+      pt.munumu   = munumu_sol;
+      pt.mnutau   = mnutau_sol;
+      pt.nB       = nB_val;
+      pt.nB_plus  = nB_plus_val;
+      pt.nB_minus = nB_minus_val;
+      pt.nQ       = nQ_val;
+      pt.s        = s_val;
+      pt.s_QCD    = sQCD;
+      pt.p_tot    = p_val;
+      pt.p_QCD    = pQCD;
+      pt.e_tot    = e_val;
+      pt.e_QCD    = eQCD;
+      pt.ne       = ne_val;
+      pt.nmu      = nmu_val;
+      pt.ntau     = ntau_val;
+      pt.nnue     = nnue_val;
+      pt.nnumu    = nnumu_val;
+      pt.nnutau   = nnutau_val;
 
       // Errors
       GetEq::ErrorValues err = GetEq::getErrors(solution, T, le, lmu, ltau, b, nf);
@@ -394,7 +398,8 @@ void SimulationWorker::run() {
       if (outfile.is_open()) {
         outfile << T << " " << muB_phys << " " << muQ_sol << " "
                 << munue_sol << " " << munumu_sol << " " << mnutau_sol << " "
-                << nB_val << " " << nQ_val << " " << s_val << " "
+                << nB_val << " " << nB_plus_val << " " << nB_minus_val << " "
+                << nQ_val << " " << s_val << " "
                 << pQCD << " " << p_val << " " << eQCD << " " << e_val << " "
                 << nnue_val << " " << nnumu_val << " " << nnutau_val << " "
                 << lambda << std::endl;

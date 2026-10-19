@@ -22,6 +22,14 @@ int main() {
             double p = QCD::pQCD(0.01, 0.0, 150.0, 3);
             double e = QCD::eQCD(0.01, 0.0, 150.0, 3);
             std::cout << "QCD::pQCD = " << p << ", QCD::eQCD = " << e << std::endl;
+            if (eos == 0) {
+                double nB_net = QCD::BarDens(0.01, 0.0, 150.0, 3);
+                double nB_plus = QCD::BarDensPlus(0.01, 0.0, 150.0, 3);
+                double nB_minus = QCD::BarDensMinus(0.01, 0.0, 150.0, 3);
+                std::cout << "EoS 0 nB_net = " << nB_net << ", nB_plus = " << nB_plus << ", nB_minus = " << nB_minus << std::endl;
+                std::cout << "nB_plus - nB_minus = " << (nB_plus - nB_minus) << ", diff = " << (nB_plus - nB_minus - nB_net) << std::endl;
+                std::cout << "ratio anti-nB / nB = " << (nB_minus / nB_plus) << std::endl;
+            }
             double pTot = GetEq::TotalP(0.01, 0.0, 0.0, 0.0, 0.0, 150.0, 3);
             double eTot = GetEq::TotalE(0.01, 0.0, 0.0, 0.0, 0.0, 150.0, 3);
             std::cout << "GetEq::TotalP = " << pTot << ", GetEq::TotalE = " << eTot << std::endl;

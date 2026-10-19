@@ -255,6 +255,14 @@ void MainWindow::setupUi() {
       addQuantityRow(layEP, 2, "p_tot", m_chkPtot, m_absPtot, m_seriesPtot);
       addQuantityRow(layEP, 3, "p_QCD", m_chkPqcd, m_absPqcd, m_seriesPqcd);
       dlgLayout->addWidget(grpEP);
+
+      // ── Baryons & Antibaryons group ─────────────────────────
+      QGroupBox *grpBar = new QGroupBox("Baryons & Antibaryons (Free QGP)");
+      QGridLayout *layBar = new QGridLayout(grpBar);
+      addQuantityRow(layBar, 0, "nB (baryon)",     m_chknB_plus,  m_absnB_plus,  m_seriesnB_plus);
+      addQuantityRow(layBar, 1, "anti-nB",         m_chknB_minus, m_absnB_minus, m_seriesnB_minus);
+      addQuantityRow(layBar, 2, "anti-nB / nB",    m_chknB_ratio, m_absnB_ratio, m_seriesnB_ratio);
+      dlgLayout->addWidget(grpBar);
     }
     // Re-sync abs-checkbox enabled state with current scale before showing
     auto syncAbsEnabled = [this](QCheckBox *c){ if (c) c->setEnabled(!m_isLogScale); };
@@ -267,6 +275,7 @@ void MainWindow::setupUi() {
     syncAbsEnabled(m_absErrLe); syncAbsEnabled(m_absErrLmu); syncAbsEnabled(m_absErrLtau);
     syncAbsEnabled(m_absEtot); syncAbsEnabled(m_absEqcd);
     syncAbsEnabled(m_absPtot); syncAbsEnabled(m_absPqcd);
+    syncAbsEnabled(m_absnB_plus); syncAbsEnabled(m_absnB_minus); syncAbsEnabled(m_absnB_ratio);
     m_visDialog->show();
     m_visDialog->raise();
     m_visDialog->activateWindow();
@@ -359,6 +368,9 @@ void MainWindow::setupUi() {
   connect(btnAutoFit, &QPushButton::clicked, this, [this]() {
     QWidget *current = m_chartTabs->currentWidget();
     auto *view = qobject_cast<TooltipChartView*>(current);
+    if (!view && current) {
+      view = current->findChild<TooltipChartView*>();
+    }
     if (view && view->chart()) {
       autoFitChartFromVisibleSeries(view->chart());
     }
@@ -601,7 +613,7 @@ void MainWindow::createConsolePanel(QWidget *parent) {
 void MainWindow::createChartPanel(QWidget *parent) {
   m_chartTabs = new QTabWidget(parent);
 
-  auto setupChart = [&](TooltipChartView* &view, QChart* &chart, QAbstractAxis* &axisX, QAbstractAxis* &axisY, const QString& title, const QString& valLabel) {
+  auto setupChart = [&](TooltipChartView* &view, QChart* &chart, QAbstractAxis* &axisX, QAbstractAxis* &axisY, const QString& title, const QString& valLabel, bool addDirectlyToTabs = true) {
     chart = new QChart();
     chart->setTitle(title);
     chart->setTheme(QChart::ChartThemeLight); 
@@ -634,10 +646,12 @@ void MainWindow::createChartPanel(QWidget *parent) {
 
     view = new TooltipChartView(chart);
     view->setRenderHint(QPainter::Antialiasing);
-    m_chartTabs->addTab(view, title);
+    if (addDirectlyToTabs) {
+        m_chartTabs->addTab(view, title);
+    }
   };
 
-  QChart *c1, *c2, *c3, *c4, *c5, *cEP;
+  QChart *c1, *c2, *c3, *c4, *c5, *cEP, *cBar;
   
   // Densities tab
   setupChart(m_densityChartView, c1, m_densAxisX, m_densAxisY, "Densities vs Temperature", getDensLabel());
@@ -716,6 +730,62 @@ void MainWindow::createChartPanel(QWidget *parent) {
   c4->addSeries(m_seriesErrLmu);  m_seriesErrLmu->attachAxis(m_errAxisX);  m_seriesErrLmu->attachAxis(m_errAxisY);
   c4->addSeries(m_seriesErrLtau); m_seriesErrLtau->attachAxis(m_errAxisX); m_seriesErrLtau->attachAxis(m_errAxisY);
 
+  // Baryon & Antibaryon Densities tab (Free QGP)
+  setupChart(m_baryonChartView, cBar, m_baryonAxisX, m_baryonAxisY, "Baryon & Antibaryon Densities vs Temperature", getBaryonDensLabel(), false);
+  m_seriesnB_plus = new QLineSeries();
+  m_seriesnB_plus->setName("nB (baryon)");
+  m_seriesnB_plus->setColor(QColor(0, 102, 204)); // Blue
+  QPen penPlus(QColor(0, 102, 204)); penPlus.setWidthF(2.0); m_seriesnB_plus->setPen(penPlus);
+
+  m_seriesnB_minus = new QLineSeries();
+  m_seriesnB_minus->setName("anti-nB");
+  m_seriesnB_minus->setColor(QColor(220, 20, 60)); // Crimson
+  QPen penMinus(QColor(220, 20, 60)); penMinus.setStyle(Qt::DashLine); penMinus.setWidthF(2.0); m_seriesnB_minus->setPen(penMinus);
+
+  m_seriesnB_ratio = new QLineSeries();
+  m_seriesnB_ratio->setName("anti-nB / nB");
+  m_seriesnB_ratio->setColor(QColor(153, 50, 204)); // Dark orchid
+  QPen penRatio(QColor(153, 50, 204)); penRatio.setWidthF(2.0); m_seriesnB_ratio->setPen(penRatio);
+
+  cBar->addSeries(m_seriesnB_plus);  m_seriesnB_plus->attachAxis(m_baryonAxisX);  m_seriesnB_plus->attachAxis(m_baryonAxisY);
+  cBar->addSeries(m_seriesnB_minus); m_seriesnB_minus->attachAxis(m_baryonAxisX); m_seriesnB_minus->attachAxis(m_baryonAxisY);
+  cBar->addSeries(m_seriesnB_ratio); m_seriesnB_ratio->attachAxis(m_baryonAxisX); m_seriesnB_ratio->attachAxis(m_baryonAxisY);
+  m_seriesnB_ratio->setVisible(false);
+
+  QWidget *baryonTabRoot = new QWidget(m_chartTabs);
+  QVBoxLayout *baryonLay = new QVBoxLayout(baryonTabRoot);
+  baryonLay->setContentsMargins(0, 0, 0, 0);
+
+  QHBoxLayout *baryonToolBar = new QHBoxLayout();
+  baryonToolBar->setContentsMargins(10, 6, 10, 6);
+  baryonToolBar->addWidget(new QLabel("View Mode:", baryonTabRoot));
+  m_comboBaryonPlotMode = new QComboBox(baryonTabRoot);
+  m_comboBaryonPlotMode->addItems({"Densities (nB & anti-nB)", "Ratio (anti-nB / nB)", "All (Densities & Ratio)"});
+  baryonToolBar->addWidget(m_comboBaryonPlotMode);
+  baryonToolBar->addSpacing(15);
+
+  m_barTabChknBPlus = new QCheckBox("nB (baryon)", baryonTabRoot);
+  m_barTabChknBPlus->setChecked(true);
+  m_barTabChknBMinus = new QCheckBox("anti-nB", baryonTabRoot);
+  m_barTabChknBMinus->setChecked(true);
+  m_barTabChknBRatio = new QCheckBox("anti-nB / nB", baryonTabRoot);
+  m_barTabChknBRatio->setChecked(false);
+
+  baryonToolBar->addWidget(m_barTabChknBPlus);
+  baryonToolBar->addWidget(m_barTabChknBMinus);
+  baryonToolBar->addWidget(m_barTabChknBRatio);
+  baryonToolBar->addStretch();
+  baryonLay->addLayout(baryonToolBar);
+  baryonLay->addWidget(m_baryonChartView, 1);
+
+  connect(m_comboBaryonPlotMode, QOverload<int>::of(&QComboBox::currentIndexChanged),
+          this, &MainWindow::onBaryonPlotModeChanged);
+  connect(m_barTabChknBPlus, &QCheckBox::toggled, this, &MainWindow::updateBaryonPlotView);
+  connect(m_barTabChknBMinus, &QCheckBox::toggled, this, &MainWindow::updateBaryonPlotView);
+  connect(m_barTabChknBRatio, &QCheckBox::toggled, this, &MainWindow::updateBaryonPlotView);
+
+  m_chartTabs->addTab(baryonTabRoot, "Baryons / Antibaryons");
+
   updateAxesTypes(); // Set formats
 
   // Fix Error plot to be horizontal by default (Temperature on X)
@@ -764,6 +834,10 @@ void MainWindow::createChartPanel(QWidget *parent) {
   registerSeriesAbs(m_seriesErrLe,   "err_le",     true);
   registerSeriesAbs(m_seriesErrLmu,  "err_lmu",    true);
   registerSeriesAbs(m_seriesErrLtau, "err_ltau",   true);
+
+  registerSeriesAbs(m_seriesnB_plus,  "nB_baryon",  false);
+  registerSeriesAbs(m_seriesnB_minus, "anti_nB",   false);
+  registerSeriesAbs(m_seriesnB_ratio, "anti_nB_over_nB", false);
 
   refreshSeriesNames();
   refreshLegendVisibility();
@@ -930,6 +1004,10 @@ void MainWindow::clearCharts(bool keepData) {
   m_seriesPtot->clear();
   m_seriesPqcd->clear();
 
+  if (m_seriesnB_plus)  m_seriesnB_plus->clear();
+  if (m_seriesnB_minus) m_seriesnB_minus->clear();
+  if (m_seriesnB_ratio) m_seriesnB_ratio->clear();
+
   if (m_series3D && m_series3D->dataProxy()) {
     m_series3D->dataProxy()->resetArray(new QScatterDataArray);
   }
@@ -1040,13 +1118,15 @@ void MainWindow::onStepCompleted(TrajectoryPoint pt) {
     if (m_normalizeNb && pt.nB != 0.0) {
       if (s == m_seriesnB || s == m_seriesS || s == m_seriesnQ ||
           s == m_seriesNe || s == m_seriesNmu || s == m_seriesNtau ||
-          s == m_seriesNnue || s == m_seriesNnumu || s == m_seriesNnutau) {
+          s == m_seriesNnue || s == m_seriesNnumu || s == m_seriesNnutau ||
+          s == m_seriesnB_plus || s == m_seriesnB_minus) {
         val = v / pt.nB;
       }
     } else if (m_useFmUnits && !m_normalizeNb) {
       if (s == m_seriesnB || s == m_seriesS || s == m_seriesnQ ||
           s == m_seriesNe || s == m_seriesNmu || s == m_seriesNtau ||
-          s == m_seriesNnue || s == m_seriesNnumu || s == m_seriesNnutau) {
+          s == m_seriesNnue || s == m_seriesNnumu || s == m_seriesNnutau ||
+          s == m_seriesnB_plus || s == m_seriesnB_minus) {
         double conv = HBARC_MEV_FM * HBARC_MEV_FM * HBARC_MEV_FM;
         val = v / conv;
       }
@@ -1085,6 +1165,15 @@ void MainWindow::onStepCompleted(TrajectoryPoint pt) {
     m_seriesErrLe->append(pt.T, V(m_seriesErrLe, pt.err_le));
     m_seriesErrLmu->append(pt.T, V(m_seriesErrLmu, pt.err_lmu));
     m_seriesErrLtau->append(pt.T, V(m_seriesErrLtau, pt.err_ltau));
+
+    // Baryons & Antibaryons
+    if (!std::isnan(pt.nB_plus) && !std::isnan(pt.nB_minus)) {
+      m_seriesnB_plus->append(V(m_seriesnB_plus, pt.nB_plus), pt.T);
+      m_seriesnB_minus->append(V(m_seriesnB_minus, pt.nB_minus), pt.T);
+      double r = (pt.nB_plus > 0.0) ? (pt.nB_minus / pt.nB_plus) : 0.0;
+      if (m_isLogScale) r = std::max(r, 1e-15);
+      m_seriesnB_ratio->append(absTransform(m_seriesnB_ratio, r), pt.T);
+    }
   } else {
     m_seriesnB->append(pt.T, V(m_seriesnB, pt.nB));
     m_seriesS->append(pt.T, V(m_seriesS, pt.s));
@@ -1116,6 +1205,15 @@ void MainWindow::onStepCompleted(TrajectoryPoint pt) {
     m_seriesErrLe->append(V(m_seriesErrLe, pt.err_le), pt.T);
     m_seriesErrLmu->append(V(m_seriesErrLmu, pt.err_lmu), pt.T);
     m_seriesErrLtau->append(V(m_seriesErrLtau, pt.err_ltau), pt.T);
+
+    // Baryons & Antibaryons
+    if (!std::isnan(pt.nB_plus) && !std::isnan(pt.nB_minus)) {
+      m_seriesnB_plus->append(pt.T, V(m_seriesnB_plus, pt.nB_plus));
+      m_seriesnB_minus->append(pt.T, V(m_seriesnB_minus, pt.nB_minus));
+      double r = (pt.nB_plus > 0.0) ? (pt.nB_minus / pt.nB_plus) : 0.0;
+      if (m_isLogScale) r = std::max(r, 1e-15);
+      m_seriesnB_ratio->append(pt.T, absTransform(m_seriesnB_ratio, r));
+    }
   }
 
   // 3D trajectory: signed (μB, T, μQ) — Y is vertical.
@@ -1195,6 +1293,25 @@ void MainWindow::updateChartAxes() {
     maxEP = std::max({maxEP, val(p.e_tot), val(p.e_QCD), val(p.p_tot), val(p.p_QCD)});
   }
 
+  double minBar = 1e99, maxBar = -1e99;
+  for (const auto &p : m_trajectoryData) {
+    if (!std::isnan(p.nB_plus) && !std::isnan(p.nB_minus)) {
+      if (m_seriesnB_plus && m_seriesnB_plus->isVisible()) {
+        minBar = std::min(minBar, valDens(p.nB_plus, p.nB));
+        maxBar = std::max(maxBar, valDens(p.nB_plus, p.nB));
+      }
+      if (m_seriesnB_minus && m_seriesnB_minus->isVisible()) {
+        minBar = std::min(minBar, valDens(p.nB_minus, p.nB));
+        maxBar = std::max(maxBar, valDens(p.nB_minus, p.nB));
+      }
+      if (m_seriesnB_ratio && m_seriesnB_ratio->isVisible() && p.nB_plus > 0.0) {
+        double r = p.nB_minus / p.nB_plus;
+        minBar = std::min(minBar, val(r));
+        maxBar = std::max(maxBar, val(r));
+      }
+    }
+  }
+
   // Add small margins
   if (minT >= maxT) maxT = minT + 1.0;
   
@@ -1229,6 +1346,11 @@ void MainWindow::updateChartAxes() {
 
     setRange(m_errAxisX, minT, maxT, false);
     setRange(m_errAxisY, minErr, maxErr, true);
+
+    if (m_baryonAxisX && m_baryonAxisY && minBar <= maxBar) {
+      setRange(m_baryonAxisY, minT, maxT, false);
+      setRange(m_baryonAxisX, minBar, maxBar, true);
+    }
   } else {
     setRange(m_densAxisX, minT, maxT, false);
     setRange(m_lepDensAxisX, minT, maxT, false);
@@ -1248,6 +1370,11 @@ void MainWindow::updateChartAxes() {
 
     setRange(m_errAxisX, minErr, maxErr, true);
     setRange(m_errAxisY, minT,   maxT,   false);
+
+    if (m_baryonAxisX && m_baryonAxisY && minBar <= maxBar) {
+      setRange(m_baryonAxisX, minT, maxT, false);
+      setRange(m_baryonAxisY, minBar, maxBar, true);
+    }
   }
 
   m_densAxisX->setTitleText(m_tempIsVertical ? getDensLabel() : "Temperature [MeV]");
@@ -1260,6 +1387,10 @@ void MainWindow::updateChartAxes() {
   m_lepAxisY->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : "Chem Pot [MeV] (abs)");
   m_epAxisX->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : "Energy Density & Pressure [MeV⁴]");
   m_epAxisY->setTitleText(m_tempIsVertical ? "Energy Density & Pressure [MeV⁴]" : "Temperature [MeV]");
+  if (m_baryonAxisX && m_baryonAxisY) {
+    m_baryonAxisX->setTitleText(m_tempIsVertical ? getBaryonDensLabel() : "Temperature [MeV]");
+    m_baryonAxisY->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : getBaryonDensLabel());
+  }
 }
 
 void MainWindow::onLogMessage(const QString &msg) {
@@ -1370,6 +1501,9 @@ void MainWindow::replotData() {
   updateTitles(m_lepDensAxisX, m_lepDensAxisY, getDensLabel());
   updateTitles(m_muAxisX, m_muAxisY, "Chem Pot [MeV] (abs)");
   updateTitles(m_lepAxisX, m_lepAxisY, "Chem Pot [MeV] (abs)");
+  if (m_baryonAxisX && m_baryonAxisY) {
+    updateTitles(m_baryonAxisX, m_baryonAxisY, getBaryonDensLabel());
+  }
   // Error plot and Energy & Pressure plot flip opposite to others
   m_errAxisX->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : "Relative Error");
   m_errAxisY->setTitleText(m_tempIsVertical ? "Relative Error" : "Temperature [MeV]");
@@ -1387,13 +1521,15 @@ void MainWindow::replotData() {
     if (m_normalizeNb && nB != 0.0) {
       if (s == m_seriesnB || s == m_seriesS || s == m_seriesnQ ||
           s == m_seriesNe || s == m_seriesNmu || s == m_seriesNtau ||
-          s == m_seriesNnue || s == m_seriesNnumu || s == m_seriesNnutau) {
+          s == m_seriesNnue || s == m_seriesNnumu || s == m_seriesNnutau ||
+          s == m_seriesnB_plus || s == m_seriesnB_minus) {
         val = v / nB;
       }
     } else if (m_useFmUnits && !m_normalizeNb) {
       if (s == m_seriesnB || s == m_seriesS || s == m_seriesnQ ||
           s == m_seriesNe || s == m_seriesNmu || s == m_seriesNtau ||
-          s == m_seriesNnue || s == m_seriesNnumu || s == m_seriesNnutau) {
+          s == m_seriesNnue || s == m_seriesNnumu || s == m_seriesNnutau ||
+          s == m_seriesnB_plus || s == m_seriesnB_minus) {
         double conv = HBARC_MEV_FM * HBARC_MEV_FM * HBARC_MEV_FM;
         val = v / conv;
       }
@@ -1428,6 +1564,14 @@ void MainWindow::replotData() {
       m_seriesErrLe->append(pt.T, V(m_seriesErrLe, pt.err_le, pt.nB));
       m_seriesErrLmu->append(pt.T, V(m_seriesErrLmu, pt.err_lmu, pt.nB));
       m_seriesErrLtau->append(pt.T, V(m_seriesErrLtau, pt.err_ltau, pt.nB));
+      // Baryons & Antibaryons
+      if (!std::isnan(pt.nB_plus) && !std::isnan(pt.nB_minus)) {
+        m_seriesnB_plus->append(V(m_seriesnB_plus, pt.nB_plus, pt.nB), pt.T);
+        m_seriesnB_minus->append(V(m_seriesnB_minus, pt.nB_minus, pt.nB), pt.T);
+        double r = (pt.nB_plus > 0.0) ? (pt.nB_minus / pt.nB_plus) : 0.0;
+        if (m_isLogScale) r = std::max(r, 1e-15);
+        m_seriesnB_ratio->append(absTransform(m_seriesnB_ratio, r), pt.T);
+      }
     } else {
       m_seriesnB->append(pt.T, V(m_seriesnB, pt.nB, pt.nB));
       m_seriesS->append(pt.T, V(m_seriesS, pt.s, pt.nB));
@@ -1454,6 +1598,14 @@ void MainWindow::replotData() {
       m_seriesErrLe->append(V(m_seriesErrLe, pt.err_le, pt.nB), pt.T);
       m_seriesErrLmu->append(V(m_seriesErrLmu, pt.err_lmu, pt.nB), pt.T);
       m_seriesErrLtau->append(V(m_seriesErrLtau, pt.err_ltau, pt.nB), pt.T);
+      // Baryons & Antibaryons
+      if (!std::isnan(pt.nB_plus) && !std::isnan(pt.nB_minus)) {
+        m_seriesnB_plus->append(pt.T, V(m_seriesnB_plus, pt.nB_plus, pt.nB));
+        m_seriesnB_minus->append(pt.T, V(m_seriesnB_minus, pt.nB_minus, pt.nB));
+        double r = (pt.nB_plus > 0.0) ? (pt.nB_minus / pt.nB_plus) : 0.0;
+        if (m_isLogScale) r = std::max(r, 1e-15);
+        m_seriesnB_ratio->append(pt.T, absTransform(m_seriesnB_ratio, r));
+      }
     }
   }
 
@@ -1462,6 +1614,7 @@ void MainWindow::replotData() {
   refreshSeriesNames();
   refreshLegendVisibility();
   updateChartAxes();
+  updateBaryonPlotView();
 }
 
 void MainWindow::onScaleToggleClicked() {
@@ -1495,6 +1648,7 @@ void MainWindow::onScaleToggleClicked() {
     swapAxes(m_muChartView,      m_muAxisX,   m_muAxisY,   "Chem Pot [MeV] (abs)");
     swapAxes(m_leptonChartView,  m_lepAxisX,  m_lepAxisY,  "Chem Pot [MeV] (abs)");
     swapAxes(m_leptonDensChartView, m_lepDensAxisX, m_lepDensAxisY, getDensLabel());
+    swapAxes(m_baryonChartView,  m_baryonAxisX, m_baryonAxisY, getBaryonDensLabel());
     
     // Switch for Energy & Pressure plot
     {
@@ -1554,6 +1708,10 @@ void MainWindow::onScaleToggleClicked() {
     m_seriesNnumu->attachAxis(m_lepDensAxisX);  m_seriesNnumu->attachAxis(m_lepDensAxisY);
     m_seriesNnutau->attachAxis(m_lepDensAxisX); m_seriesNnutau->attachAxis(m_lepDensAxisY);
 
+    m_seriesnB_plus->attachAxis(m_baryonAxisX);  m_seriesnB_plus->attachAxis(m_baryonAxisY);
+    m_seriesnB_minus->attachAxis(m_baryonAxisX); m_seriesnB_minus->attachAxis(m_baryonAxisY);
+    m_seriesnB_ratio->attachAxis(m_baryonAxisX); m_seriesnB_ratio->attachAxis(m_baryonAxisY);
+
     m_seriesMuB->attachAxis(m_muAxisX);  m_seriesMuB->attachAxis(m_muAxisY);
     m_seriesMuQ->attachAxis(m_muAxisX);  m_seriesMuQ->attachAxis(m_muAxisY);
     m_seriesCpB->attachAxis(m_muAxisX);  m_seriesCpB->attachAxis(m_muAxisY);
@@ -1594,6 +1752,7 @@ void MainWindow::onScaleToggleClicked() {
     syncAbsEnabled(m_absErrLe); syncAbsEnabled(m_absErrLmu); syncAbsEnabled(m_absErrLtau);
     syncAbsEnabled(m_absEtot); syncAbsEnabled(m_absEqcd);
     syncAbsEnabled(m_absPtot); syncAbsEnabled(m_absPqcd);
+    syncAbsEnabled(m_absnB_plus); syncAbsEnabled(m_absnB_minus); syncAbsEnabled(m_absnB_ratio);
 
     updateCriticalPoint();
     applyAxisFonts();
@@ -1601,6 +1760,7 @@ void MainWindow::onScaleToggleClicked() {
 
 void MainWindow::updateAxesTypes() {
     auto setFmt = [this](QAbstractAxis *axis) {
+        if (!axis) return;
         if (m_isLogScale) {
             static_cast<QLogValueAxis*>(axis)->setLabelFormat("%g");
         } else {
@@ -1613,6 +1773,7 @@ void MainWindow::updateAxesTypes() {
     setFmt(m_lepDensAxisX); setFmt(m_lepDensAxisY);
     setFmt(m_epAxisX);   setFmt(m_epAxisY);
     setFmt(m_errAxisX);  setFmt(m_errAxisY);
+    setFmt(m_baryonAxisX); setFmt(m_baryonAxisY);
 }
 
 void MainWindow::onExportClicked() {
@@ -1636,6 +1797,9 @@ void MainWindow::onExportClicked() {
     if (fileName.isEmpty()) return;
 
     QChartView *activeView = qobject_cast<QChartView*>(m_chartTabs->currentWidget());
+    if (!activeView && m_chartTabs->currentWidget()) {
+      activeView = m_chartTabs->currentWidget()->findChild<QChartView*>();
+    }
     if (!activeView) return;
 
     QPdfWriter writer(fileName);
@@ -1679,6 +1843,12 @@ void MainWindow::onExportClicked() {
     } else if (w == m_errorChartView) {
       out << "T\terr_b\terr_charge\terr_le\terr_lmu\terr_ltau\n";
       for (const auto &pt : m_trajectoryData) out << pt.T << "\t" << pt.err_b << "\t" << pt.err_charge << "\t" << pt.err_le << "\t" << pt.err_lmu << "\t" << pt.err_ltau << "\n";
+    } else if (w == m_baryonChartView || (w && w->findChild<QChartView*>() == m_baryonChartView)) {
+      out << "T\tnB_baryon\tanti_nB\tratio_anti_over_baryon\n";
+      for (const auto &pt : m_trajectoryData) {
+        double r = (pt.nB_plus > 0.0) ? (pt.nB_minus / pt.nB_plus) : 0.0;
+        out << pt.T << "\t" << pt.nB_plus << "\t" << pt.nB_minus << "\t" << r << "\n";
+      }
     }
     file.close();
     QMessageBox::information(this, "Success", "Chart data successfully exported to TXT.");
@@ -1702,7 +1872,7 @@ void MainWindow::onExportFullDataClicked() {
 
   QTextStream out(&file);
   // Header
-  out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnB\tnQ\ts_QCD\ts_tot\tp_QCD\tp_tot\te_QCD\te_tot\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\n";
+  out << "T\tmuB\tmuQ\tmunue\tmunumu\tmnutau\tnB\tnQ\ts_QCD\ts_tot\tp_QCD\tp_tot\te_QCD\te_tot\tne\tnmu\tntau\tnnue\tnnumu\tnnutau\tnB_baryon\tanti_nB\n";
   
   for (const auto &pt : m_trajectoryData) {
     out << pt.T << "\t" 
@@ -1724,7 +1894,9 @@ void MainWindow::onExportFullDataClicked() {
         << pt.ntau << "\t" 
         << pt.nnue << "\t" 
         << pt.nnumu << "\t" 
-        << pt.nnutau << "\n";
+        << pt.nnutau << "\t"
+        << pt.nB_plus << "\t"
+        << pt.nB_minus << "\n";
   }
   file.close();
   QMessageBox::information(this, "Success", "Full dataset exported successfully.");
@@ -2158,7 +2330,8 @@ void MainWindow::applyAxisFonts() {
         m_lepAxisX, m_lepAxisY,
         m_lepDensAxisX, m_lepDensAxisY,
         m_epAxisX, m_epAxisY,
-        m_errAxisX, m_errAxisY
+        m_errAxisX, m_errAxisY,
+        m_baryonAxisX, m_baryonAxisY
     };
     for (auto* ax : axes) {
         if (ax) {
@@ -2166,5 +2339,59 @@ void MainWindow::applyAxisFonts() {
             ax->setTitleFont(m_axisFont);
         }
     }
+}
+
+void MainWindow::onBaryonPlotModeChanged(int index) {
+  if (index == 0) { // Densities
+    if (m_barTabChknBPlus) m_barTabChknBPlus->setChecked(true);
+    if (m_barTabChknBMinus) m_barTabChknBMinus->setChecked(true);
+    if (m_barTabChknBRatio) m_barTabChknBRatio->setChecked(false);
+  } else if (index == 1) { // Ratio
+    if (m_barTabChknBPlus) m_barTabChknBPlus->setChecked(false);
+    if (m_barTabChknBMinus) m_barTabChknBMinus->setChecked(false);
+    if (m_barTabChknBRatio) m_barTabChknBRatio->setChecked(true);
+  } else { // All
+    if (m_barTabChknBPlus) m_barTabChknBPlus->setChecked(true);
+    if (m_barTabChknBMinus) m_barTabChknBMinus->setChecked(true);
+    if (m_barTabChknBRatio) m_barTabChknBRatio->setChecked(true);
+  }
+  updateBaryonPlotView();
+}
+
+void MainWindow::updateBaryonPlotView() {
+  bool showPlus = m_barTabChknBPlus && m_barTabChknBPlus->isChecked();
+  bool showMinus = m_barTabChknBMinus && m_barTabChknBMinus->isChecked();
+  bool showRatio = m_barTabChknBRatio && m_barTabChknBRatio->isChecked();
+
+  if (m_seriesnB_plus)  m_seriesnB_plus->setVisible(showPlus);
+  if (m_seriesnB_minus) m_seriesnB_minus->setVisible(showMinus);
+  if (m_seriesnB_ratio) m_seriesnB_ratio->setVisible(showRatio);
+
+  if (m_chknB_plus)  m_chknB_plus->setChecked(showPlus);
+  if (m_chknB_minus) m_chknB_minus->setChecked(showMinus);
+  if (m_chknB_ratio) m_chknB_ratio->setChecked(showRatio);
+
+  if (m_baryonAxisX && m_baryonAxisY) {
+    QString label = getBaryonDensLabel();
+    m_baryonAxisX->setTitleText(m_tempIsVertical ? label : "Temperature [MeV]");
+    m_baryonAxisY->setTitleText(m_tempIsVertical ? "Temperature [MeV]" : label);
+  }
+
+  if (m_baryonChartView && m_baryonChartView->chart()) {
+    autoFitChartFromVisibleSeries(m_baryonChartView->chart());
+  }
+}
+
+QString MainWindow::getBaryonDensLabel() const {
+  if (m_comboBaryonPlotMode && m_comboBaryonPlotMode->currentIndex() == 1) {
+    return "anti-nB / nB (ratio)";
+  }
+  if (m_comboBaryonPlotMode && m_comboBaryonPlotMode->currentIndex() == 2) {
+    return "Baryons, Antibaryons & Ratio";
+  }
+  if (m_normalizeNb) {
+    return "Baryon Density / nB";
+  }
+  return m_useFmUnits ? "Baryon Density [fm⁻³]" : "Baryon Density [MeV³]";
 }
 

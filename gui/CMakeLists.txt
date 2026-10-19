@@ -193,3 +193,10 @@ target_include_directories(first_order_surface PRIVATE ${CMAKE_CURRENT_SOURCE_DI
 target_link_libraries(first_order_surface PRIVATE ${GSL_LIBRARIES})
 target_link_directories(first_order_surface PRIVATE ${GSL_LIBRARY_DIRS})
 ctg_link_thermalfist(first_order_surface)
+
+add_executable(test_physics test_physics.cpp ${PHYSICS_SOURCES})
+target_include_directories(test_physics PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include ${CMAKE_CURRENT_SOURCE_DIR}/.. ${GSL_INCLUDE_DIRS})
+target_link_libraries(test_physics PRIVATE ${GSL_LIBRARIES})
+target_link_directories(test_physics PRIVATE ${GSL_LIBRARY_DIRS})
+ctg_link_thermalfist(test_physics)
+

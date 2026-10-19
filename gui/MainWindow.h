@@ -225,6 +225,22 @@ private:
   TooltipChartView *m_errorChartView;
   QLineSeries *m_seriesErrB, *m_seriesErrQ, *m_seriesErrLe, *m_seriesErrLmu, *m_seriesErrLtau;
 
+  // Tab: Baryons & Antibaryons (Free QGP)
+  TooltipChartView *m_baryonChartView = nullptr;
+  QLineSeries *m_seriesnB_plus = nullptr;
+  QLineSeries *m_seriesnB_minus = nullptr;
+  QLineSeries *m_seriesnB_ratio = nullptr;
+  QComboBox *m_comboBaryonPlotMode = nullptr;
+  QCheckBox *m_barTabChknBPlus = nullptr;
+  QCheckBox *m_barTabChknBMinus = nullptr;
+  QCheckBox *m_barTabChknBRatio = nullptr;
+  QCheckBox *m_chknB_plus = nullptr, *m_absnB_plus = nullptr;
+  QCheckBox *m_chknB_minus = nullptr, *m_absnB_minus = nullptr;
+  QCheckBox *m_chknB_ratio = nullptr, *m_absnB_ratio = nullptr;
+  void onBaryonPlotModeChanged(int index);
+  void updateBaryonPlotView();
+  QString getBaryonDensLabel() const;
+
   // Tab 5: 3D trajectory in (μB, μQ, T) — T is the vertical axis.
   Q3DScatter      *m_scatter3D    = nullptr;
   QScatter3DSeries *m_series3D    = nullptr;
@@ -252,6 +268,7 @@ private:
   QAbstractAxis *m_lepDensAxisX, *m_lepDensAxisY;
   QAbstractAxis *m_epAxisX,   *m_epAxisY;
   QAbstractAxis *m_errAxisX,  *m_errAxisY;
+  QAbstractAxis *m_baryonAxisX = nullptr, *m_baryonAxisY = nullptr;
 
   // Linear/Log state
   bool m_isLogScale = true;

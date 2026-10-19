@@ -62,6 +62,12 @@ double coordinateFromMuB(double muB, double muQ, double T);
 // Note: nf is ignored when using lattice QCD EoS (always 3 flavors)
 double BarDens(double muB, double muQ, double T, int nf);
 
+// Baryon density from particles with B > 0 (for Free QGP)
+double BarDensPlus(double muB, double muQ, double T, int nf);
+
+// Antibaryon density from particles with B < 0 (for Free QGP)
+double BarDensMinus(double muB, double muQ, double T, int nf);
+
 // Total QCD charge density
 double QCDcharge(double muB, double muQ, double T, int nf);
 

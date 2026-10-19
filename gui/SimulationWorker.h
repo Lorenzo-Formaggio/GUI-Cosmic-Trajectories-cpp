@@ -18,6 +18,8 @@ struct TrajectoryPoint {
   double munumu;
   double mnutau;
   double nB;
+  double nB_plus;  // Total baryon density (B > 0 particles)
+  double nB_minus; // Total antibaryon density (B < 0 particles)
   double nQ; // electric charge density from the active EoS
   double s;  // s_tot
   double s_QCD;
